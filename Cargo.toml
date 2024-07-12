@@ -1,0 +1,8 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.lints.rust]
+unused_qualifications = "warn"
+
+[workspace.dependencies]
