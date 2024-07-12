@@ -1,16 +1,38 @@
 name: Rust
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
+  merge_group:
   pull_request:
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUST_BACKTRACE: short
+  RUSTFLAGS: "-D warnings"
+  RUSTUP_MAX_RETRIES: 10
 jobs:
-  build:
+  rust:
     runs-on: ubuntu-latest
+    env:
+      RUST_CHANNEL: nightly
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        run: |
+          rustup update --no-self-update ${{ env.RUST_CHANNEL }}
+          rustup default ${{ env.RUST_CHANNEL }}
+          rustup component add --toolchain ${{ env.RUST_CHANNEL }} rustfmt clippy
+      - name: Cache Dependencies
+        uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609
+        with:
+          key: ${{ env.RUST_CHANNEL }}
+      - name: cargo build
+        run: cargo build --quiet
+      - name: cargo clippy
+        run: cargo clippy --quiet
+      - name: cargo test
+        run: cargo test -- --nocapture --quiet
+      - name: cargo fmt --check
+        run: cargo fmt --check
