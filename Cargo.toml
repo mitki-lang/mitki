@@ -10,3 +10,5 @@ unreachable_pub = "warn"
 unused_qualifications = "warn"
 
 [workspace.dependencies]
+salsa = { git = "https://github.com/salsa-rs/salsa/" }
+text-size = "1.1"
