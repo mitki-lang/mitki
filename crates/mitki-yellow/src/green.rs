@@ -24,12 +24,6 @@ pub struct GreenTrivia {
     ptr: Option<ThinArc<TextSize, TriviaPiece>>,
 }
 
-impl GreenTrivia {
-    pub fn whitespaces(len: TextSize) -> Self {
-        Self::new(&[TriviaPiece::new(TriviaPieceKind::Whitespace, len)])
-    }
-}
-
 impl std::fmt::Debug for GreenTrivia {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GreenTrivia")
