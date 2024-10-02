@@ -27,8 +27,8 @@ fn main() -> anyhow::Result<()> {
             let path = file.path(&db).as_str();
             let text = file.text(&db).as_str();
 
-            for diagnosti in diagnostics {
-                eprintln!("{}", diagnosti.render(&renderer, path, text));
+            for diagnostic in diagnostics {
+                eprintln!("{}", diagnostic.render(&renderer, path, text));
             }
 
             Ok(())
