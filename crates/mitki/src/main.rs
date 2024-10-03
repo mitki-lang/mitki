@@ -15,6 +15,8 @@ enum Options {
 fn main() -> anyhow::Result<()> {
     match Options::parse() {
         Options::Run { path } => {
+            use std::io::Write as _;
+
             let db = DatabaseImpl::default();
             let text = std::fs::read_to_string(&path)
                 .with_context(|| format!("failed to read `{path}`"))?;
@@ -27,8 +29,11 @@ fn main() -> anyhow::Result<()> {
             let path = file.path(&db).as_str();
             let text = file.text(&db).as_str();
 
+            let stdout = std::io::stdout();
+            let mut lock = stdout.lock();
+
             for diagnostic in diagnostics {
-                eprintln!("{}", diagnostic.render(&renderer, path, text));
+                writeln!(lock, "{}", diagnostic.render(&renderer, path, text))?;
             }
 
             Ok(())
