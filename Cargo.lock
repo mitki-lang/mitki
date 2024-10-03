@@ -320,6 +320,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mitki-tokenizer"
+version = "0.1.0"
+dependencies = [
+ "mitki-yellow",
+ "text-size",
+]
+
+[[package]]
 name = "mitki-yellow"
 version = "0.1.0"
 dependencies = [
