@@ -2,6 +2,6 @@ MODULE
   POSTFIX_EXPR
     LITERAL
       NUMBER: "42"
-    POSTFIX_OPERATOR: "!\r\n"
+    POSTFIX_OPERATOR: "!"
 
 Errors:

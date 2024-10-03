@@ -37,7 +37,10 @@ impl<'db> Parser<'db> {
         if self.at(kind) {
             self.advance();
         } else {
-            eprintln!("{message}");
+            let m = self.start();
+            self.error(message);
+            self.advance();
+            m.complete(self, SyntaxKind::ERROR);
         }
     }
 

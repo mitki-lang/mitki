@@ -2,6 +2,6 @@ MODULE
   PREFIX_EXPR
     PREFIX_OPERATOR: "--+-"
     LITERAL
-      NUMBER: "42\r\n"
+      NUMBER: "42"
 
 Errors:

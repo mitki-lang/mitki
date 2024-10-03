@@ -56,6 +56,15 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
             p.advance();
             m.complete(p, LITERAL).into()
         }
+        LEFT_PAREN => {
+            let m = p.start();
+            p.advance();
+            if !p.at(RIGHT_PAREN) {
+                expr(p);
+            }
+            p.expect(RIGHT_PAREN, "expected ')'");
+            m.complete(p, PAREN_EXPR).into()
+        }
         _ => {
             let m = p.start();
             p.error("expected a primary expression");

@@ -3,12 +3,12 @@ MODULE
     LITERAL
       NUMBER: "42"
     BINARY_OPERATOR: "+"
-    ERROR
-      BINARY_OPERATOR: "?"
-  LITERAL
-    NUMBER: "7"
+    LITERAL
+      NUMBER: "7"
   ERROR
-    UNKNOWN: "#"
+    RIGHT_PAREN: ")"
+  ERROR
+    BINARY_OPERATOR: "*"
   LITERAL
     NUMBER: "3"
 

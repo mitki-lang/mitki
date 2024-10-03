@@ -1,10 +1,10 @@
 MODULE
   ERROR
-    BINARY_OPERATOR: "+ "
+    BINARY_OPERATOR: "+"
   ERROR
-    BINARY_OPERATOR: "+ "
+    BINARY_OPERATOR: "+"
   ERROR
-    BINARY_OPERATOR: "+\r\n"
+    BINARY_OPERATOR: "+"
 
 Errors:
   expected a primary expression

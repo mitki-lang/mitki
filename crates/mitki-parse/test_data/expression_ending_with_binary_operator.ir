@@ -1,8 +1,8 @@
 MODULE
   BINARY_EXPR
     LITERAL
-      NUMBER: "42 "
-    BINARY_OPERATOR: "+\r\n"
+      NUMBER: "42"
+    BINARY_OPERATOR: "+"
     ERROR
 
 Errors:

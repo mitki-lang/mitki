@@ -31,6 +31,7 @@ pub enum SyntaxKind {
     BINARY_EXPR,
     POSTFIX_EXPR,
     PREFIX_EXPR,
+    PAREN_EXPR,
     ERROR,
     TOMBSTONE,
 }
