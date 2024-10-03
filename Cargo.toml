@@ -11,6 +11,8 @@ unused_qualifications = "warn"
 
 [workspace.dependencies]
 mitki-errors = { path = "crates/mitki-errors" }
+mitki-parse = { path = "crates/mitki-parse" }
+mitki-tokenizer = { path = "crates/mitki-tokenizer" }
 mitki-yellow = { path = "crates/mitki-yellow" }
 salsa = { git = "https://github.com/salsa-rs/salsa/" }
 text-size = "1.1"

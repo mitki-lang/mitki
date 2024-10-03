@@ -1,0 +1,17 @@
+MODULE
+  BINARY_EXPR
+    LITERAL
+      NUMBER: "42 "
+    BINARY_OPERATOR: "+ "
+    ERROR
+      BINARY_OPERATOR: "? "
+  LITERAL
+    NUMBER: "7 "
+  ERROR
+    UNKNOWN: "# "
+  LITERAL
+    NUMBER: "3\r\n"
+
+Errors:
+  expected a primary expression
+  expected a primary expression

@@ -1,0 +1,6 @@
+MODULE
+  ERROR
+    BINARY_OPERATOR: "-\r\n"
+
+Errors:
+  expected a primary expression

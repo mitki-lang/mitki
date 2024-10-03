@@ -1,0 +1,12 @@
+MODULE
+  ERROR
+    BINARY_OPERATOR: "+ "
+  ERROR
+    BINARY_OPERATOR: "+ "
+  ERROR
+    BINARY_OPERATOR: "+\r\n"
+
+Errors:
+  expected a primary expression
+  expected a primary expression
+  expected a primary expression

@@ -1,6 +1,5 @@
 use camino::Utf8PathBuf;
-use mitki_errors::{Diagnostic, TextRange};
-use salsa::{Accumulator, Database};
+use salsa::Database;
 
 #[salsa::input]
 pub struct File {
@@ -11,10 +10,7 @@ pub struct File {
 }
 
 #[salsa::tracked]
-pub fn check_file(db: &dyn Database, _file: File) {
-    Diagnostic {
-        message: "parsing functionality not yet implemented".to_string(),
-        range: TextRange::empty(0.into()),
-    }
-    .accumulate(db);
+pub fn check_file(db: &dyn Database, file: File) {
+    let _module = mitki_parse::module(db, file.text(db));
+    dbg!(_module);
 }
