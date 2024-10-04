@@ -52,14 +52,16 @@ impl<'db> Tokenizer<'db> {
     }
 
     fn range(&self) -> TextRange {
-        let end = self.offset();
-        let len = self.cursor.pos_within_token();
+        let end: u32 = self.offset().into();
+        let len: u32 = self.cursor.pos_within_token().into();
+        let offset = unsafe { end.unchecked_sub(len) };
 
-        TextRange::at(end - len, len)
+        TextRange::at(offset.into(), len.into())
     }
 
     fn text(&self) -> &'db str {
-        &self.text[self.range()]
+        let range: std::ops::Range<usize> = self.range().into();
+        unsafe { self.text.get_unchecked(range) }
     }
 
     pub fn next_token(&mut self) -> Token {
