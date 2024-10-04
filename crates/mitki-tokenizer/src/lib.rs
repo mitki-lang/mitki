@@ -1,7 +1,8 @@
 mod cursor;
 
 use cursor::{Cursor, EOF_CHAR};
-use mitki_yellow::SyntaxKind::{self, *};
+pub use mitki_yellow::SyntaxKind;
+use mitki_yellow::SyntaxKind::*;
 use mitki_yellow::{GreenTrivia, TriviaPiece, TriviaPieceKind};
 use text_size::{TextRange, TextSize};
 
