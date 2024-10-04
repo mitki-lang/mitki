@@ -13,6 +13,6 @@ MODULE
     ERROR
 
 Errors:
-  expected a primary expression
-  expected a primary expression
+  expected expression
+  expected expression
   expected ')'

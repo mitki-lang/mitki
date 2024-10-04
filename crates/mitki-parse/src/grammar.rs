@@ -67,7 +67,7 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
         }
         _ => {
             let m = p.start();
-            p.error("expected a primary expression");
+            p.error("expected expression");
             p.advance();
             m.complete(p, ERROR);
             None

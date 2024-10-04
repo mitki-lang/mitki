@@ -3,4 +3,4 @@ MODULE
     BINARY_OPERATOR: "-"
 
 Errors:
-  expected a primary expression
+  expected expression

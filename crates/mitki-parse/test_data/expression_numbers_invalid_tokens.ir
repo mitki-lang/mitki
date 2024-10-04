@@ -13,5 +13,5 @@ MODULE
     NUMBER: "3"
 
 Errors:
-  expected a primary expression
-  expected a primary expression
+  expected expression
+  expected expression

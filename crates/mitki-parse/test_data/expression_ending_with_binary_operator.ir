@@ -6,4 +6,4 @@ MODULE
     ERROR
 
 Errors:
-  expected a primary expression
+  expected expression

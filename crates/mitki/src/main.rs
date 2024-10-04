@@ -3,13 +3,14 @@ mod db;
 use anyhow::Context;
 use camino::Utf8PathBuf;
 use clap::Parser;
-use db::{File, check_file};
+use mitki_db::{File, check_file};
 use mitki_errors::{Diagnostic, Renderer};
 use salsa::DatabaseImpl;
 
 #[derive(Parser)]
 enum Options {
     Run { path: Utf8PathBuf },
+    Ide,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -38,5 +39,6 @@ fn main() -> anyhow::Result<()> {
 
             Ok(())
         }
+        Options::Ide => mitki_ide::Ide::new()?.start(),
     }
 }
