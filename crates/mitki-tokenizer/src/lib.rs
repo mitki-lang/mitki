@@ -36,7 +36,7 @@ impl<'db> Tokenizer<'db> {
             text,
             cursor: Cursor::new(text),
             current: Token::EOF,
-            trivia_pieces: Vec::new(),
+            trivia_pieces: Vec::with_capacity(4),
         };
         tokenizer.next_token();
         tokenizer
