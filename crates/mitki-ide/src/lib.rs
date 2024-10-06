@@ -1,7 +1,6 @@
 pub struct Ide {
     db: Database,
     connection: lsp_server::Connection,
-    #[allow(dead_code)]
     io_threads: lsp_server::IoThreads,
 }
 
