@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use expect_test::expect_file;
 use mitki_errors::Diagnostic;
+use mitki_yellow::ast::Node;
 use mitki_yellow::{GreenNode, NodeOrToken};
 use salsa::{Database, DatabaseImpl};
 
@@ -77,7 +78,9 @@ struct Text {
 #[salsa::tracked]
 fn parse_module(db: &dyn Database, text: Text) -> String {
     let content = text.data(db);
-    format!("{:?}", Printer(crate::module(db, &content)))
+    let module = crate::module(db, &content);
+    let module = module.syntax().green(db);
+    format!("{:?}", Printer(module))
 }
 
 #[test]

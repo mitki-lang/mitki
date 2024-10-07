@@ -10,7 +10,7 @@ impl Green<'_> {
     pub fn text_len(&self, db: &dyn Database) -> TextSize {
         match self {
             NodeOrToken::Node(node) => node.text_len(db),
-            NodeOrToken::Token(token) => TextSize::new(token.text(db).len() as u32),
+            NodeOrToken::Token(token) => token.text_len(db),
         }
     }
 }
@@ -40,6 +40,10 @@ pub struct GreenToken<'db> {
 }
 
 impl<'db> GreenToken<'db> {
+    pub fn text_len(&self, db: &'db dyn Database) -> TextSize {
+        TextSize::new(self.text(db).len() as u32)
+    }
+
     fn leading_trailing_total_len(self, db: &'db dyn Database) -> (TextSize, TextSize, TextSize) {
         let leading_len = self.leading(db).len();
         let trailing_len = self.trailing(db).len();
