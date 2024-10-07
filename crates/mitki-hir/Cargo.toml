@@ -1,0 +1,13 @@
+[package]
+name = "mitki-hir"
+version = "0.1.0"
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+la-arena = "0.3.1"
+mitki-span.workspace = true
+mitki-yellow.workspace = true
+salsa.workspace = true

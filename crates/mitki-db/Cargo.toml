@@ -9,5 +9,7 @@ workspace = true
 [dependencies] 
 camino.workspace = true
 mitki-errors.workspace = true
+mitki-hir.workspace = true
 mitki-parse.workspace = true
+mitki-yellow.workspace = true
 salsa.workspace = true
