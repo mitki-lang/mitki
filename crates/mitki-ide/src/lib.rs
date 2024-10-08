@@ -141,7 +141,7 @@ impl Database {
                         },
                         lsp_types::DiagnosticSeverity::ERROR.into(),
                         None,
-                        None,
+                        Some("mitki".to_string()),
                         diagnostic.message,
                         None,
                         None,
