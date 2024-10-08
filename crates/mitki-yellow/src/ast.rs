@@ -76,7 +76,13 @@ pub struct Literal<'db>(RedNode<'db>);
 
 impl<'db> Literal<'db> {
     pub fn kind(self, db: &'db dyn Database) -> LiteralKind<'db> {
-        self.0.children(db).filter_map(Red::into_token).next().map(LiteralKind::Int).unwrap()
+        let token = self.0.children(db).filter_map(Red::into_token).next().unwrap();
+
+        match token.kind(db) {
+            INT_NUMBER => LiteralKind::Int(token),
+            FLOAT_NUMBER => LiteralKind::Float(token),
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -153,4 +159,5 @@ impl<'db> Prefix<'db> {
 
 pub enum LiteralKind<'db> {
     Int(RedToken<'db>),
+    Float(RedToken<'db>),
 }

@@ -4,12 +4,12 @@ MODULE
       PREFIX_OPERATOR: "-"
       POSTFIX_EXPR
         LITERAL
-          NUMBER: "42"
+          INT_NUMBER: "42"
         POSTFIX_OPERATOR: "!"
     BINARY_OPERATOR: "+"
     POSTFIX_EXPR
       LITERAL
-        NUMBER: "7"
+        INT_NUMBER: "7"
       POSTFIX_OPERATOR: "!!"
 
 Errors:

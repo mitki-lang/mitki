@@ -17,7 +17,8 @@ pub enum SyntaxKind {
     WHILE_KW,
     NAME,
 
-    NUMBER,
+    INT_NUMBER,
+    FLOAT_NUMBER,
     BINARY_OPERATOR,
     POSTFIX_OPERATOR,
     PREFIX_OPERATOR,

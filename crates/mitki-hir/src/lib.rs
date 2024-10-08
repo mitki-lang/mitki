@@ -3,10 +3,9 @@ mod hir;
 
 pub use body::{Body, BodySourceMap};
 pub use hir::{Expr, ExprData};
-use mitki_errors::Diagnostic;
 use mitki_span::Symbol;
 use mitki_yellow::ast;
-use salsa::{Accumulator, Database};
+use salsa::Database;
 
 pub struct Lowering<'db> {
     db: &'db dyn Database,
@@ -30,23 +29,18 @@ impl<'db> Lowering<'db> {
             return self.body.exprs.alloc(ExprData::Error);
         };
 
+        macro_rules! mk_literal {
+            ($value:expr, $constructor:expr) => {{
+                let value = $value.green(self.db).text_trimmed(self.db);
+                let value = Symbol::new(self.db, value.into());
+                $constructor(value)
+            }};
+        }
+
         let data = match expr {
             ast::Expr::Literal(literal) => match literal.kind(self.db) {
-                ast::LiteralKind::Int(value) => {
-                    let value = value
-                        .green(self.db)
-                        .text_trimmed(self.db)
-                        .parse::<u64>()
-                        .inspect_err(|err| {
-                            Diagnostic {
-                                message: err.to_string(),
-                                range: value.text_trimmed_range(self.db),
-                            }
-                            .accumulate(self.db);
-                        })
-                        .unwrap_or_default();
-                    ExprData::Int(value)
-                }
+                ast::LiteralKind::Int(value) => mk_literal!(value, ExprData::Int),
+                ast::LiteralKind::Float(value) => mk_literal!(value, ExprData::Float),
             },
             ast::Expr::Binary(binary) => {
                 let lhs = self.lower_expr(binary.lhs(self.db));
