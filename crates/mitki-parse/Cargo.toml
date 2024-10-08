@@ -8,9 +8,11 @@ workspace = true
 
 [dependencies]
 drop_bomb = "0.1"
-expect-test = "1.5"
 mitki-errors.workspace = true
 mitki-tokenizer.workspace = true
 mitki-yellow.workspace = true
 salsa.workspace = true
 text-size.workspace = true
+
+[dev-dependencies]
+expect-test = "1.5"
