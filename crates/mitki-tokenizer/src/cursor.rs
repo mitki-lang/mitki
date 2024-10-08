@@ -15,6 +15,10 @@ impl<'db> Cursor<'db> {
         Self { chars: text.chars(), len: text.text_len(), previous: '\0' }
     }
 
+    pub(crate) fn is_eof(&self) -> bool {
+        self.chars.as_str().is_empty()
+    }
+
     pub(crate) fn len(&self) -> TextSize {
         TextSize::new(self.chars.as_str().len() as u32)
     }
@@ -47,7 +51,7 @@ impl<'db> Cursor<'db> {
     }
 
     pub(crate) fn advance_while(&mut self, f: impl Fn(char) -> bool + Copy) {
-        while self.peek() != EOF_CHAR && f(self.peek()) {
+        while !self.is_eof() && f(self.peek()) {
             self.advance();
         }
     }
