@@ -15,4 +15,4 @@ mitki-yellow.workspace = true
 text-size.workspace = true
 
 [dev-dependencies]
-codspeed-criterion-compat = { version = "2.7.2", default-features = false }
+codspeed-criterion-compat = { version = "2.7", default-features = false }

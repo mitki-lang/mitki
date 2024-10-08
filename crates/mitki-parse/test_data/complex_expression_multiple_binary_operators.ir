@@ -1,21 +1,21 @@
 MODULE
   BINARY_EXPR
     LITERAL
-      NUMBER: "42"
+      INT_NUMBER: "42"
     BINARY_OPERATOR: "+"
     BINARY_EXPR
       LITERAL
-        NUMBER: "7"
+        INT_NUMBER: "7"
       BINARY_OPERATOR: "*"
       BINARY_EXPR
         LITERAL
-          NUMBER: "3"
+          INT_NUMBER: "3"
         BINARY_OPERATOR: "-"
         BINARY_EXPR
           LITERAL
-            NUMBER: "5"
+            INT_NUMBER: "5"
           BINARY_OPERATOR: "/"
           LITERAL
-            NUMBER: "2"
+            INT_NUMBER: "2"
 
 Errors:

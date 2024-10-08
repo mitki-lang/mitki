@@ -602,11 +602,14 @@ name = "mitki-hir"
 version = "0.1.0"
 dependencies = [
  "la-arena",
- "mitki-errors",
  "mitki-span",
  "mitki-yellow",
  "salsa",
 ]
+
+[[package]]
+name = "mitki-hir-analysis"
+version = "0.1.0"
 
 [[package]]
 name = "mitki-ide"

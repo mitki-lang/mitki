@@ -35,6 +35,10 @@ impl<'db> Cursor<'db> {
         self.len = self.len();
     }
 
+    pub(crate) fn matches(&self, ch: char) -> bool {
+        self.peek() == ch
+    }
+
     pub(crate) fn peek(&self) -> char {
         self.chars.clone().next().unwrap_or(EOF_CHAR)
     }

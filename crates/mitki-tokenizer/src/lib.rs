@@ -1,3 +1,4 @@
+mod classes;
 mod cursor;
 
 use cursor::{Cursor, EOF_CHAR};
@@ -107,10 +108,7 @@ impl<'db> Tokenizer<'db> {
             ']' => RIGHT_BRACKET,
             '{' => LEFT_BRACE,
             '}' => RIGHT_BRACE,
-            '0'..='9' => {
-                self.cursor.advance_while(|c| c.is_ascii_digit() || c == '_');
-                NUMBER
-            }
+            first_char @ '0'..='9' => self.number(first_char),
             'A'..='Z' | 'a'..='z' | '_' => {
                 self.cursor.advance_while(|c| c.is_ascii_alphanumeric() || c == '_');
 
@@ -165,6 +163,65 @@ impl<'db> Tokenizer<'db> {
 
         (kind, range)
     }
+
+    fn number(&mut self, c: char) -> SyntaxKind {
+        if c == '0' {
+            match self.cursor.peek() {
+                'b' | 'o' => {
+                    self.cursor.advance();
+                    self.digits(false);
+                }
+                'x' => {
+                    self.cursor.advance();
+                    self.digits(true);
+                }
+                '0'..='9' | '_' | '.' | 'e' | 'E' => {
+                    self.digits(false);
+                }
+                _ => return INT_NUMBER,
+            }
+        } else {
+            self.digits(false);
+        }
+
+        if self.cursor.matches('.') && self.cursor.second() != '.' {
+            self.cursor.advance();
+            self.digits(false);
+            self.float_exponent();
+            return FLOAT_NUMBER;
+        }
+
+        if self.cursor.matches('e') || self.cursor.matches('E') {
+            self.float_exponent();
+            return FLOAT_NUMBER;
+        }
+
+        INT_NUMBER
+    }
+
+    fn digits(&mut self, allow_hex: bool) {
+        loop {
+            match self.cursor.peek() {
+                '_' | '0'..='9' => {
+                    self.cursor.advance();
+                }
+                'a'..='f' | 'A'..='F' if allow_hex => {
+                    self.cursor.advance();
+                }
+                _ => return,
+            }
+        }
+    }
+
+    fn float_exponent(&mut self) {
+        if self.cursor.matches('e') || self.cursor.matches('E') {
+            self.cursor.advance();
+            if self.cursor.matches('-') || self.cursor.matches('+') {
+                self.cursor.advance();
+            }
+            self.digits(false);
+        }
+    }
 }
 
 fn is_operator(c: char) -> bool {
@@ -180,6 +237,51 @@ mod tests {
 
     fn token_text<'a>(token: &Token, text: &'a str) -> &'a str {
         &text[token.kind_range]
+    }
+
+    #[test]
+    fn test_integer_literals() {
+        let inputs = vec![
+            ("123", INT_NUMBER),
+            ("0", INT_NUMBER),
+            ("0b1010", INT_NUMBER),
+            ("0o755", INT_NUMBER),
+            ("0x1f", INT_NUMBER),
+            ("123_456", INT_NUMBER),
+        ];
+
+        for (input, expected_kind) in inputs {
+            let mut tokenizer = Tokenizer::new(input);
+            let kind = tokenizer.next_token().kind;
+            assert_eq!(kind, expected_kind, "Input: '{}'", input);
+            assert!(
+                tokenizer.cursor.is_eof(),
+                "Tokenizer did not consume all input for '{}'",
+                input
+            );
+        }
+    }
+
+    #[test]
+    fn test_float_literals() {
+        let inputs = vec![
+            ("123.456", FLOAT_NUMBER),
+            ("0.0", FLOAT_NUMBER),
+            ("1e10", FLOAT_NUMBER),
+            ("1.0e-5", FLOAT_NUMBER),
+            ("123_456.789_012", FLOAT_NUMBER),
+        ];
+
+        for (input, expected_kind) in inputs {
+            let mut tokenizer = Tokenizer::new(input);
+            let kind = tokenizer.next_token().kind;
+            assert_eq!(kind, expected_kind, "Input: '{}'", input);
+            assert!(
+                tokenizer.cursor.is_eof(),
+                "Tokenizer did not consume all input for '{}'",
+                input
+            );
+        }
     }
 
     #[test]

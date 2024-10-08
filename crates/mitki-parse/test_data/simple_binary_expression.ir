@@ -1,9 +1,9 @@
 MODULE
   BINARY_EXPR
     LITERAL
-      NUMBER: "42"
+      INT_NUMBER: "42"
     BINARY_OPERATOR: "+"
     LITERAL
-      NUMBER: "7"
+      INT_NUMBER: "7"
 
 Errors:

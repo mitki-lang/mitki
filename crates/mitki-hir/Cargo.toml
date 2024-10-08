@@ -7,8 +7,7 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-la-arena = "0.3.1"
-mitki-errors.workspace = true
+la-arena = "0.3"
 mitki-span.workspace = true
 mitki-yellow.workspace = true
 salsa.workspace = true

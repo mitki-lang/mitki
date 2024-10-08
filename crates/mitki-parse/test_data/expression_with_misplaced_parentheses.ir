@@ -3,14 +3,14 @@ MODULE
     LEFT_PAREN: "("
     BINARY_EXPR
       LITERAL
-        NUMBER: "42"
+        INT_NUMBER: "42"
       BINARY_OPERATOR: "+"
       BINARY_EXPR
         LITERAL
-          NUMBER: "7"
+          INT_NUMBER: "7"
         BINARY_OPERATOR: "*"
         LITERAL
-          NUMBER: "3"
+          INT_NUMBER: "3"
     ERROR
 
 Errors:
