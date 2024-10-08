@@ -36,6 +36,20 @@ jobs:
         run: cargo test -- --nocapture --quiet
       - name: cargo fmt --check
         run: cargo fmt --check
+  unused_dependencies:
+    runs-on: ubuntu-latest
+    env:
+      RUST_CHANNEL: nightly
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        run: |
+          rustup update --no-self-update ${{ env.RUST_CHANNEL }}
+          rustup default ${{ env.RUST_CHANNEL }}
+      - name: install cargo-udeps
+        uses: taiki-e/install-action@cargo-udeps
+      - name: cargo udeps
+        run: cargo udeps
   benchmarks:
     name: Benchmarks
     runs-on: ubuntu-latest
