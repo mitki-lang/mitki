@@ -1,5 +1,3 @@
-mod db;
-
 use anyhow::Context;
 use camino::Utf8PathBuf;
 use clap::Parser;
