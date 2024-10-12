@@ -17,14 +17,22 @@ impl Ide {
     pub fn new() -> anyhow::Result<Self> {
         let (connection, io_threads) = lsp_server::Connection::stdio();
 
-        let (id, _) = connection.initialize_start()?;
+        let (initialize_id, _initialize_params) = match connection.initialize_start() {
+            Ok(it) => it,
+            Err(protocol_error) => {
+                if protocol_error.channel_is_disconnected() {
+                    io_threads.join()?;
+                }
+                return Err(protocol_error.into());
+            }
+        };
 
         let initialize_data = serde_json::json!({
             "capabilities": Self::server_capabilities(),
 
         });
 
-        connection.initialize_finish(id, initialize_data)?;
+        connection.initialize_finish(initialize_id, initialize_data)?;
 
         let sender = connection.sender.clone();
         Ok(Self { connection, io_threads, db: Database::new(sender) })
