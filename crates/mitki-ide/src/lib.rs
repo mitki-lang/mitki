@@ -32,7 +32,12 @@ impl Ide {
 
         });
 
-        connection.initialize_finish(initialize_id, initialize_data)?;
+        if let Err(protocol_error) = connection.initialize_finish(initialize_id, initialize_data) {
+            if protocol_error.channel_is_disconnected() {
+                io_threads.join()?;
+            }
+            return Err(protocol_error.into());
+        }
 
         let sender = connection.sender.clone();
         Ok(Self { connection, io_threads, db: Database::new(sender) })
