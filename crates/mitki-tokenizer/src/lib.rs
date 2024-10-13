@@ -108,6 +108,8 @@ impl<'db> Tokenizer<'db> {
             ']' => RIGHT_BRACKET,
             '{' => LEFT_BRACE,
             '}' => RIGHT_BRACE,
+            ':' => COLON,
+            ',' => COMMA,
             first_char @ '0'..='9' => self.number(first_char),
             'A'..='Z' | 'a'..='z' | '_' => {
                 self.cursor.advance_while(|c| c.is_ascii_alphanumeric() || c == '_');

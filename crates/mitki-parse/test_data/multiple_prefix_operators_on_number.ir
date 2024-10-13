@@ -1,7 +1,0 @@
-MODULE
-  PREFIX_EXPR
-    PREFIX_OPERATOR: "--+-"
-    LITERAL
-      INT_NUMBER: "42"
-
-Errors:

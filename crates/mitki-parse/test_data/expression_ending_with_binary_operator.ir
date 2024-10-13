@@ -1,9 +1,0 @@
-MODULE
-  BINARY_EXPR
-    LITERAL
-      INT_NUMBER: "42"
-    BINARY_OPERATOR: "+"
-    ERROR
-
-Errors:
-  expected expression

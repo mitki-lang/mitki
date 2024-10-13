@@ -1,6 +1,0 @@
-MODULE
-  ERROR
-    BINARY_OPERATOR: "-"
-
-Errors:
-  expected expression

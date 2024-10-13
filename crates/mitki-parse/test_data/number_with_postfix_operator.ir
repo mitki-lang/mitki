@@ -1,7 +1,0 @@
-MODULE
-  POSTFIX_EXPR
-    LITERAL
-      INT_NUMBER: "42"
-    POSTFIX_OPERATOR: "!"
-
-Errors:
