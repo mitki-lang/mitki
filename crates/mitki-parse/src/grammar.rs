@@ -2,7 +2,7 @@ use mitki_yellow::SyntaxKind::*;
 
 use crate::parser::Parser;
 
-mod expr;
+mod exprs;
 pub(crate) mod items;
 mod types;
 

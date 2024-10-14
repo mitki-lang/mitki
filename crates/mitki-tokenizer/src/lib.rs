@@ -117,6 +117,7 @@ impl<'db> Tokenizer<'db> {
                 match self.text() {
                     "fun" => FUN_KW,
                     "if" => IF_KW,
+                    "else" => ELSE_KW,
                     "loop" => LOOP_KW,
                     "val" => VAL_KW,
                     "while" => WHILE_KW,

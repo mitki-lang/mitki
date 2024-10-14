@@ -14,6 +14,7 @@ pub enum SyntaxKind {
 
     FUN_KW,
     IF_KW,
+    ELSE_KW,
     LOOP_KW,
     VAL_KW,
     WHILE_KW,
@@ -29,6 +30,8 @@ pub enum SyntaxKind {
     EOF,
 
     BINARY_EXPR,
+    LOOP_EXPR,
+    IF_EXPR,
     ERROR,
     EXPR_STMT,
     FN,

@@ -1,6 +1,6 @@
 use mitki_yellow::SyntaxKind::*;
 
-use super::{expr, name, types};
+use super::{exprs, name, types};
 use crate::parser::Parser;
 
 pub(crate) fn module(p: &mut Parser) {
@@ -28,11 +28,7 @@ fn item(p: &mut Parser) {
                 p.error("expected function parameters");
             }
 
-            if p.at(LEFT_BRACE) {
-                block(p);
-            } else {
-                p.error("expected function body");
-            }
+            exprs::block(p);
 
             m.complete(p, FN);
         }
@@ -41,18 +37,6 @@ fn item(p: &mut Parser) {
             p.advance();
         }
     }
-}
-
-fn block(p: &mut Parser<'_>) {
-    let m = p.start();
-    p.advance();
-
-    while !matches!(p.peek_kind(), RIGHT_BRACE | EOF) {
-        expr::stmt(p);
-    }
-
-    p.expect(RIGHT_BRACE, "expected '}'");
-    m.complete(p, STMT_LIST);
 }
 
 fn param_list(p: &mut Parser) {

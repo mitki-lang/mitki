@@ -1,0 +1,53 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "foo"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      EXPR_STMT
+        IF_EXPR
+          IF_KW: "if"
+          IDENT
+            NAME: "true"
+          STMT_LIST
+            LEFT_BRACE: "{"
+            RIGHT_BRACE: "}"
+      EXPR_STMT
+        IF_EXPR
+          IF_KW: "if"
+          IDENT
+            NAME: "true"
+          STMT_LIST
+            LEFT_BRACE: "{"
+            RIGHT_BRACE: "}"
+          ELSE_KW: "else"
+          STMT_LIST
+            LEFT_BRACE: "{"
+            RIGHT_BRACE: "}"
+      EXPR_STMT
+        IF_EXPR
+          IF_KW: "if"
+          IDENT
+            NAME: "true"
+          STMT_LIST
+            LEFT_BRACE: "{"
+            RIGHT_BRACE: "}"
+          ELSE_KW: "else"
+          IF_EXPR
+            IF_KW: "if"
+            IDENT
+              NAME: "false"
+            STMT_LIST
+              LEFT_BRACE: "{"
+              RIGHT_BRACE: "}"
+            ELSE_KW: "else"
+            STMT_LIST
+              LEFT_BRACE: "{"
+              RIGHT_BRACE: "}"
+      RIGHT_BRACE: "}"
+
+Errors:
