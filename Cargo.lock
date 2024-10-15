@@ -610,6 +610,7 @@ dependencies = [
 name = "mitki-parse"
 version = "0.1.0"
 dependencies = [
+ "codspeed-criterion-compat",
  "drop_bomb",
  "expect-test",
  "mitki-errors",
