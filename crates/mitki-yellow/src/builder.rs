@@ -31,7 +31,7 @@ impl<'db> Builder<'db> {
         let range =
             TextRange::new(kind_range.start() - leading.len(), kind_range.end() + trailing.len());
 
-        let text = self.text[range].into();
+        let text = &self.text[range];
         let token = GreenToken::new(self.db, leading, kind, text, trailing);
 
         self.children.push(Green::Token(token));
