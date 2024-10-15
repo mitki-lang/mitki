@@ -25,7 +25,7 @@ pub struct GreenNode<'db> {
 
 impl<'db> GreenNode<'db> {
     pub fn new(db: &'db dyn Database, kind: SyntaxKind, children: Vec<Green<'db>>) -> Self {
-        let text_len = children.iter().map(|child| child.text_len(db)).sum();
+        let text_len: TextSize = children.iter().map(|child| child.text_len(db)).sum();
         Self::alloc(db, kind, children, text_len)
     }
 }
@@ -133,13 +133,8 @@ mod tests {
     fn token_text() {
         let db = DatabaseImpl::new();
 
-        let token = GreenToken::new(
-            &db,
-            whitespace(3),
-            SyntaxKind::VAL_KW,
-            "\n\t val \t\t".into(),
-            whitespace(3),
-        );
+        let token =
+            GreenToken::new(&db, whitespace(3), SyntaxKind::VAL_KW, "\n\t val \t\t", whitespace(3));
 
         assert_eq!("\n\t val \t\t", token.text(&db).as_ref());
         assert_eq!("val", token.text_trimmed(&db));
