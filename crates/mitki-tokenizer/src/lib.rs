@@ -1,4 +1,3 @@
-mod classes;
 mod cursor;
 
 use cursor::{Cursor, EOF_CHAR};
@@ -22,6 +21,16 @@ impl Token {
         leading: GreenTrivia::empty(),
         trailing: GreenTrivia::empty(),
     };
+
+    pub fn on_same_line(&self) -> bool {
+        self.leading.pieces().iter().all(|item| item.kind != TriviaPieceKind::Newline)
+    }
+}
+
+#[derive(PartialEq, Eq)]
+enum TriviaMode {
+    Normal,
+    NoNewlines,
 }
 
 pub struct Tokenizer<'db> {
@@ -63,10 +72,10 @@ impl<'db> Tokenizer<'db> {
     }
 
     pub fn next_token(&mut self) -> Token {
-        self.trivia();
+        self.trivia(TriviaMode::Normal);
         let trailing_start = self.trivia_pieces.len();
         let (kind, kind_range) = self.syntax_kind();
-        self.trivia();
+        self.trivia(TriviaMode::NoNewlines);
 
         let (leading, trailing) = self.trivia_pieces.split_at(trailing_start);
         let leading = GreenTrivia::new(leading);
@@ -76,15 +85,19 @@ impl<'db> Tokenizer<'db> {
         std::mem::replace(&mut self.current, Token { leading, kind, kind_range, trailing })
     }
 
-    fn trivia(&mut self) {
+    fn trivia(&mut self, mode: TriviaMode) {
         loop {
             let kind = match self.cursor.peek() {
                 '/' if self.cursor.second() == '/' => {
                     self.cursor.advance_while(|c| c != '\n');
                     TriviaPieceKind::SingleLineComment
                 }
+                '\n' | '\r' if mode == TriviaMode::Normal => {
+                    self.cursor.advance_while(|ch| matches!(ch, '\n' | '\r'));
+                    TriviaPieceKind::Newline
+                }
                 first_char => {
-                    if first_char.is_whitespace() {
+                    if matches!(first_char, ' ' | '\t') {
                         self.cursor.advance_while(|ch| ch.is_ascii_whitespace());
                         TriviaPieceKind::Whitespace
                     } else {
@@ -110,6 +123,7 @@ impl<'db> Tokenizer<'db> {
             '}' => RIGHT_BRACE,
             ':' => COLON,
             ',' => COMMA,
+            ';' => SEMICOLON,
             first_char @ '0'..='9' => self.number(first_char),
             'A'..='Z' | 'a'..='z' | '_' => {
                 self.cursor.advance_while(|c| c.is_ascii_alphanumeric() || c == '_');
@@ -121,6 +135,8 @@ impl<'db> Tokenizer<'db> {
                     "loop" => LOOP_KW,
                     "val" => VAL_KW,
                     "while" => WHILE_KW,
+                    "return" => RETURN_KW,
+                    "break" => BREAK_KW,
                     _ => NAME,
                 }
             }
@@ -130,13 +146,13 @@ impl<'db> Tokenizer<'db> {
                     self.cursor.advance_while(is_operator);
 
                     let left_bound = match previous {
-                        '(' | '[' | '{' | ',' | ':' => false,
+                        '(' | '[' | '{' | ',' | ':' | ';' => false,
                         EOF_CHAR => false,
                         prev => !prev.is_ascii_whitespace(),
                     };
 
                     let right_bound = match self.cursor.peek() {
-                        ')' | ']' | '}' | ',' | ':' => false,
+                        ')' | ']' | '}' | ',' | ':' | ';' => false,
                         '.' => !left_bound,
                         EOF_CHAR => false,
                         peeked => !peeked.is_ascii_whitespace(),

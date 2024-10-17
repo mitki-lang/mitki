@@ -1,0 +1,44 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    LEFT_BRACKET: "["
+    RIGHT_BRACKET: "]"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      RIGHT_BRACE: "}"
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    LEFT_BRACKET: "["
+    TYPE_PARAM
+      NAME: "T"
+    RIGHT_BRACKET: "]"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      RIGHT_BRACE: "}"
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    LEFT_BRACKET: "["
+    ERROR
+      COMMA: ","
+    RIGHT_BRACKET: "]"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      RIGHT_BRACE: "}"
+
+Errors:
+  expected generic parameter

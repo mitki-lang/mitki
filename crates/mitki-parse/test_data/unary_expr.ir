@@ -1,0 +1,56 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      EXPR_STMT
+        PREFIX_EXPR
+          PREFIX_OPERATOR: "^^"
+          PAREN_EXPR
+            LEFT_PAREN: "("
+            PREFIX_EXPR
+              PREFIX_OPERATOR: "^^"
+              IDENT
+                NAME: "x"
+            RIGHT_PAREN: ")"
+      SEMICOLON: ";"
+      EXPR_STMT
+        PREFIX_EXPR
+          PREFIX_OPERATOR: "*"
+          IDENT
+            NAME: "x"
+      SEMICOLON: ";"
+      EXPR_STMT
+        POSTFIX_EXPR
+          IDENT
+            NAME: "x"
+          POSTFIX_OPERATOR: "*"
+      SEMICOLON: ";"
+      EXPR_STMT
+        PREFIX_EXPR
+          PREFIX_OPERATOR: "+"
+          PAREN_EXPR
+            LEFT_PAREN: "("
+            PREFIX_EXPR
+              PREFIX_OPERATOR: "-"
+              IDENT
+                NAME: "x"
+            RIGHT_PAREN: ")"
+      SEMICOLON: ";"
+      EXPR_STMT
+        PREFIX_OPERATOR
+          BINARY_OPERATOR: "+"
+          PREFIX_EXPR
+            PREFIX_OPERATOR: "-"
+            IDENT
+              NAME: "x"
+      SEMICOLON: ";"
+      RIGHT_BRACE: "}"
+
+Errors:
+  unary operator cannot be separated from its operand

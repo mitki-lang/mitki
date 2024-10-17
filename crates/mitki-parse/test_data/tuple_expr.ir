@@ -1,0 +1,36 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "foo"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      EXPR_STMT
+        TUPLE_EXPR
+          LEFT_PAREN: "("
+          RIGHT_PAREN: ")"
+      EXPR_STMT
+        PAREN_EXPR
+          LEFT_PAREN: "("
+          LITERAL
+            INT_NUMBER: "1"
+          RIGHT_PAREN: ")"
+      EXPR_STMT
+        TUPLE_EXPR
+          LEFT_PAREN: "("
+          LITERAL
+            INT_NUMBER: "1"
+          COMMA: ","
+          RIGHT_PAREN: ")"
+      EXPR_STMT
+        TUPLE_EXPR
+          LEFT_PAREN: "("
+          COMMA: ","
+          RIGHT_PAREN: ")"
+      RIGHT_BRACE: "}"
+
+Errors:
+  expected expression

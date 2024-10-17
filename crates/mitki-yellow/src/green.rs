@@ -116,6 +116,7 @@ impl TriviaPiece {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum TriviaPieceKind {
     Whitespace,
+    Newline,
     SingleLineComment,
 }
 

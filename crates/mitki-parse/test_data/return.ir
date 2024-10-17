@@ -1,0 +1,17 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "foo"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      RETURN_STMT
+        RETURN_KW: "return"
+        LITERAL
+          INT_NUMBER: "42"
+      RIGHT_BRACE: "}"
+
+Errors:

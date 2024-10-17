@@ -1,0 +1,42 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "foo"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      EXPR_STMT
+        ARRAY_EXPR
+          LEFT_BRACKET: "["
+          RIGHT_BRACKET: "]"
+      EXPR_STMT
+        ARRAY_EXPR
+          LEFT_BRACKET: "["
+          LITERAL
+            INT_NUMBER: "1"
+          RIGHT_BRACKET: "]"
+      EXPR_STMT
+        ARRAY_EXPR
+          LEFT_BRACKET: "["
+          LITERAL
+            INT_NUMBER: "1"
+          COMMA: ","
+          LITERAL
+            INT_NUMBER: "2"
+          COMMA: ","
+          RIGHT_BRACKET: "]"
+      EXPR_STMT
+        ARRAY_EXPR
+          LEFT_BRACKET: "["
+          LITERAL
+            INT_NUMBER: "1"
+          SEMICOLON: ";"
+          LITERAL
+            INT_NUMBER: "2"
+          RIGHT_BRACKET: "]"
+      RIGHT_BRACE: "}"
+
+Errors:

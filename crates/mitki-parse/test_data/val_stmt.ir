@@ -1,0 +1,30 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      VAL_STMT
+        VAL_KW: "val"
+        IDENT
+          NAME: "x"
+        EQ: "="
+        LITERAL
+          INT_NUMBER: "42"
+      VAL_STMT
+        VAL_KW: "val"
+        IDENT
+          NAME: "x"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "i32"
+        EQ: "="
+        LITERAL
+          INT_NUMBER: "42"
+      RIGHT_BRACE: "}"
+
+Errors:

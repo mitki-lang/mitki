@@ -1,0 +1,18 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "foo"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      PARAM
+        RIGHT_BRACE: "}"
+        RIGHT_PAREN: ")"
+      PARAM
+        LEFT_BRACE: "{"
+        RIGHT_BRACE: "}"
+
+Errors:
+  missing type for function parameter
+  missing type for function parameter
+  expected `)`

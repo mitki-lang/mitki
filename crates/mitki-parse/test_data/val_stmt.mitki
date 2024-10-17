@@ -1,0 +1,4 @@
+fun main() { 
+    val x = 42
+    val x: i32 = 42
+}

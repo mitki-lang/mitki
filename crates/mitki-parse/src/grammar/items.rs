@@ -1,6 +1,6 @@
 use mitki_yellow::SyntaxKind::*;
 
-use super::{exprs, name, types};
+use super::{delimited, exprs, name, types};
 use crate::parser::Parser;
 
 pub(crate) fn module(p: &mut Parser) {
@@ -10,7 +10,7 @@ pub(crate) fn module(p: &mut Parser) {
         item(p);
     }
 
-    p.expect(EOF, "expected end of file");
+    p.expect(EOF);
     m.complete(p, MODULE);
 }
 
@@ -20,7 +20,8 @@ fn item(p: &mut Parser) {
             let m = p.start();
             p.advance();
 
-            name(p);
+            name(p, &[FUN_KW, SEMICOLON]);
+            generic_param_list(p);
 
             if p.at(LEFT_PAREN) {
                 param_list(p);
@@ -32,10 +33,39 @@ fn item(p: &mut Parser) {
 
             m.complete(p, FN);
         }
+        SEMICOLON => p.error_and_bump("expected item, found `;`"),
         _ => {
             p.error("expected item");
             p.advance();
         }
+    }
+}
+
+fn generic_param_list(p: &mut Parser) {
+    if p.peek_kind() != LEFT_BRACKET {
+        return;
+    }
+
+    delimited(
+        p,
+        LEFT_BRACKET,
+        RIGHT_BRACKET,
+        COMMA,
+        "expected generic parameter",
+        &[NAME],
+        generic_param,
+    );
+}
+
+fn generic_param(p: &mut Parser) -> bool {
+    match p.peek_kind() {
+        NAME => {
+            let m = p.start();
+            p.advance();
+            m.complete(p, TYPE_PARAM);
+            true
+        }
+        _ => false,
     }
 }
 
@@ -45,12 +75,10 @@ fn param_list(p: &mut Parser) {
 
     while !matches!(p.peek_kind(), RIGHT_PAREN | EOF) {
         param(p);
-        if p.at(COMMA) {
-            p.advance();
-        }
+        p.eat(COMMA);
     }
 
-    p.expect(RIGHT_PAREN, "expected ')'");
+    p.expect(RIGHT_PAREN);
     m.complete(p, PARAM_LIST);
 }
 
@@ -65,6 +93,5 @@ fn param(p: &mut Parser) {
     }
 
     p.advance();
-
     m.complete(p, PARAM);
 }

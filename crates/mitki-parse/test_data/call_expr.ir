@@ -1,0 +1,39 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      EXPR_STMT
+        IDENT
+          NAME: "f"
+        CALL_EXPR
+          LEFT_PAREN: "("
+          RIGHT_PAREN: ")"
+      EXPR_STMT
+        IDENT
+          NAME: "f"
+        CALL_EXPR
+          LEFT_PAREN: "("
+          RIGHT_PAREN: ")"
+        CALL_EXPR
+          LEFT_PAREN: "("
+          LITERAL
+            INT_NUMBER: "1"
+          RIGHT_PAREN: ")"
+        CALL_EXPR
+          LEFT_PAREN: "("
+          LITERAL
+            INT_NUMBER: "1"
+          COMMA: ","
+          LITERAL
+            INT_NUMBER: "2"
+          COMMA: ","
+          RIGHT_PAREN: ")"
+      RIGHT_BRACE: "}"
+
+Errors:

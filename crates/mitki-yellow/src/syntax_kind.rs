@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SyntaxKind {
@@ -11,13 +13,15 @@ pub enum SyntaxKind {
     DOT,
     COMMA,
     COLON,
-
+    SEMICOLON,
     FUN_KW,
     IF_KW,
     ELSE_KW,
     LOOP_KW,
     VAL_KW,
     WHILE_KW,
+    RETURN_KW,
+    BREAK_KW,
     NAME,
 
     INT_NUMBER,
@@ -34,16 +38,60 @@ pub enum SyntaxKind {
     IF_EXPR,
     ERROR,
     EXPR_STMT,
+    FIELD_EXPR,
     FN,
     IDENT,
+    TYPE_PARAM,
     LITERAL,
+    TUPLE_EXPR,
+    ARRAY_EXPR,
     MODULE,
     PARAM,
     PARAM_LIST,
+    GENERIC_PARAM_LIST,
     PAREN_EXPR,
     POSTFIX_EXPR,
+    PATH_TYPE,
     PREFIX_EXPR,
+    CALL_EXPR,
+    INDEX_EXPR,
     STMT_LIST,
-    TOMBSTONE,
     VAL_STMT,
+    RETURN_STMT,
+    TOMBSTONE,
+}
+
+impl Display for SyntaxKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            SyntaxKind::LEFT_PAREN => "`(`",
+            SyntaxKind::RIGHT_PAREN => "`)`",
+            SyntaxKind::LEFT_BRACKET => "`[`",
+            SyntaxKind::RIGHT_BRACKET => "`]`",
+            SyntaxKind::LEFT_BRACE => "`{`",
+            SyntaxKind::RIGHT_BRACE => "`}`",
+            SyntaxKind::EQ => "`=`",
+            SyntaxKind::DOT => "`.`",
+            SyntaxKind::COMMA => "`,`",
+            SyntaxKind::COLON => "`:`",
+            SyntaxKind::SEMICOLON => "`;`",
+            SyntaxKind::FUN_KW => "`fun`",
+            SyntaxKind::IF_KW => "`if`",
+            SyntaxKind::ELSE_KW => "`else`",
+            SyntaxKind::LOOP_KW => "`loop`",
+            SyntaxKind::VAL_KW => "`val`",
+            SyntaxKind::WHILE_KW => "`while`",
+            SyntaxKind::RETURN_KW => "`return`",
+            SyntaxKind::BREAK_KW => "`break`",
+            SyntaxKind::NAME => "identifier",
+            SyntaxKind::INT_NUMBER => "int",
+            SyntaxKind::FLOAT_NUMBER => "float",
+            SyntaxKind::BINARY_OPERATOR => "binary operator",
+            SyntaxKind::POSTFIX_OPERATOR => "postfix operator",
+            SyntaxKind::PREFIX_OPERATOR => "prefix operator",
+            SyntaxKind::UNKNOWN => "unknown",
+            SyntaxKind::EOF => "EOF",
+            _ => "<syntax node>",
+        })
+    }
 }
