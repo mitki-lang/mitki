@@ -1,0 +1,46 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "a"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      RIGHT_BRACE: "}"
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "b"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      PARAM
+        IDENT
+          NAME: "x"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "i32"
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      RIGHT_BRACE: "}"
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "c"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      PARAM
+        IDENT
+          NAME: "x"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "i32"
+      COMMA: ","
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      RIGHT_BRACE: "}"
+
+Errors:

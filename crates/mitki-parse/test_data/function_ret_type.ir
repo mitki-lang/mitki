@@ -1,0 +1,27 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "foo"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      RIGHT_BRACE: "}"
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "bar"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    RETURN_TYPE
+      COLON: ":"
+      PATH_TYPE
+        NAME: "u32"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      RIGHT_BRACE: "}"
+
+Errors:

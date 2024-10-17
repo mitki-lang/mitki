@@ -29,6 +29,11 @@ fn item(p: &mut Parser) {
                 p.error("expected function parameters");
             }
 
+            if p.at(COLON) {
+                let m = p.start();
+                types::ascription(p);
+                m.complete(p, RETURN_TYPE);
+            }
             exprs::block(p);
 
             m.complete(p, FN);
@@ -74,8 +79,23 @@ fn param_list(p: &mut Parser) {
     p.advance();
 
     while !matches!(p.peek_kind(), RIGHT_PAREN | EOF) {
+        if p.peek_kind() != NAME {
+            p.error_and_bump("expected parameter name");
+            if p.eat(COMMA) {
+                continue;
+            }
+            break;
+        }
+
         param(p);
-        p.eat(COMMA);
+
+        if !p.eat(COMMA) {
+            if p.peek_kind() == NAME {
+                p.expect(COMMA);
+            } else {
+                break;
+            }
+        }
     }
 
     p.expect(RIGHT_PAREN);
@@ -84,7 +104,7 @@ fn param_list(p: &mut Parser) {
 
 fn param(p: &mut Parser) {
     let m = p.start();
-    p.advance();
+    name(p, &[]);
 
     if p.at(COLON) {
         types::ascription(p);
@@ -92,6 +112,5 @@ fn param(p: &mut Parser) {
         p.error("missing type for function parameter");
     }
 
-    p.advance();
     m.complete(p, PARAM);
 }

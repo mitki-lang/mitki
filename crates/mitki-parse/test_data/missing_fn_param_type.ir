@@ -1,0 +1,35 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "f"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      PARAM
+        IDENT
+          NAME: "x"
+      PARAM
+        IDENT
+          NAME: "y"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "i32"
+      COMMA: ","
+      PARAM
+        IDENT
+          NAME: "z"
+      COMMA: ","
+      PARAM
+        IDENT
+          NAME: "t"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "i32"
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      RIGHT_BRACE: "}"
+
+Errors:
+  missing type for function parameter
+  missing type for function parameter

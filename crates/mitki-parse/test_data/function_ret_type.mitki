@@ -1,0 +1,2 @@
+fun foo() {}
+fun bar(): u32 {}

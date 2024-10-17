@@ -40,6 +40,7 @@ pub enum SyntaxKind {
     EXPR_STMT,
     FIELD_EXPR,
     FN,
+    RETURN_TYPE,
     IDENT,
     TYPE_PARAM,
     LITERAL,
