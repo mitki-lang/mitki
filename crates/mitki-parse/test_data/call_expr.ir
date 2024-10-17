@@ -9,31 +9,35 @@ MODULE
     STMT_LIST
       LEFT_BRACE: "{"
       EXPR_STMT
-        IDENT
-          NAME: "f"
         CALL_EXPR
-          LEFT_PAREN: "("
-          RIGHT_PAREN: ")"
+          IDENT
+            NAME: "f"
+          ARG_LIST
+            LEFT_PAREN: "("
+            RIGHT_PAREN: ")"
       EXPR_STMT
-        IDENT
-          NAME: "f"
         CALL_EXPR
-          LEFT_PAREN: "("
-          RIGHT_PAREN: ")"
-        CALL_EXPR
-          LEFT_PAREN: "("
-          LITERAL
-            INT_NUMBER: "1"
-          RIGHT_PAREN: ")"
-        CALL_EXPR
-          LEFT_PAREN: "("
-          LITERAL
-            INT_NUMBER: "1"
-          COMMA: ","
-          LITERAL
-            INT_NUMBER: "2"
-          COMMA: ","
-          RIGHT_PAREN: ")"
+          CALL_EXPR
+            CALL_EXPR
+              IDENT
+                NAME: "f"
+              ARG_LIST
+                LEFT_PAREN: "("
+                RIGHT_PAREN: ")"
+            ARG_LIST
+              LEFT_PAREN: "("
+              LITERAL
+                INT_NUMBER: "1"
+              RIGHT_PAREN: ")"
+          ARG_LIST
+            LEFT_PAREN: "("
+            LITERAL
+              INT_NUMBER: "1"
+            COMMA: ","
+            LITERAL
+              INT_NUMBER: "2"
+            COMMA: ","
+            RIGHT_PAREN: ")"
       RIGHT_BRACE: "}"
 
 Errors:

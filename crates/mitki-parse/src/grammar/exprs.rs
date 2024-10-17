@@ -107,15 +107,14 @@ fn if_(p: &mut Parser<'_>) -> Option<CompletedMarker> {
 }
 
 fn postfix_expr(p: &mut Parser) -> Option<CompletedMarker> {
-    let mut m = primary_expr(p)?;
+    let mut head = primary_expr(p)?;
 
     loop {
-        match p.peek_kind() {
+        head = match p.peek_kind() {
             POSTFIX_OPERATOR => {
                 p.advance();
-                m = m.precede(p).complete(p, POSTFIX_EXPR)
+                head.precede(p).complete(p, POSTFIX_EXPR)
             }
-
             LEFT_PAREN if p.next_token_on_same_line() => {
                 let m = p.start();
                 delimited(
@@ -127,19 +126,20 @@ fn postfix_expr(p: &mut Parser) -> Option<CompletedMarker> {
                     &[INT_NUMBER, FLOAT_NUMBER, LEFT_PAREN, PREFIX_OPERATOR],
                     |p| expr(p).is_some(),
                 );
-                m.complete(p, CALL_EXPR);
+                m.complete(p, ARG_LIST);
+                head.precede(p).complete(p, CALL_EXPR)
             }
             LEFT_BRACKET if p.next_token_on_same_line() => {
                 p.advance();
                 expr(p);
                 p.expect(RIGHT_BRACKET);
-                m = m.precede(p).complete(p, INDEX_EXPR);
+                head.precede(p).complete(p, INDEX_EXPR)
             }
             _ => break,
         }
     }
 
-    m.into()
+    head.into()
 }
 
 fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {

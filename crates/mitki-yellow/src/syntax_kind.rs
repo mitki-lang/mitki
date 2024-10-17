@@ -34,6 +34,7 @@ pub enum SyntaxKind {
     EOF,
 
     BINARY_EXPR,
+    ARG_LIST,
     LOOP_EXPR,
     IF_EXPR,
     ERROR,
