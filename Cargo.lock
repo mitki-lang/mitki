@@ -581,6 +581,7 @@ name = "mitki-db"
 version = "0.1.0"
 dependencies = [
  "camino",
+ "line-index",
  "mitki-errors",
  "mitki-parse",
  "mitki-yellow",
@@ -602,7 +603,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
- "line-index",
  "lsp-server",
  "lsp-types",
  "mitki-db",

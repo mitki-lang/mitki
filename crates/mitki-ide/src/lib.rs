@@ -103,21 +103,21 @@ impl Database {
         use salsa::Setter as _;
 
         let text_document = params.text_document;
-        let path = text_document.uri;
+        let uri = text_document.uri;
         let text = text_document.text;
 
-        let file = match self.files.entry(path.clone()) {
+        let file = match self.files.entry(uri.clone()) {
             Entry::Occupied(occupied) => {
                 let file = *occupied.get();
                 file.set_text(&mut self.salsa).to(text);
                 file
             }
             Entry::Vacant(vacant) => {
-                *vacant.insert(mitki_db::File::new(&self.salsa, path.path().as_str().into(), text))
+                *vacant.insert(mitki_db::File::new(&self.salsa, uri.path().as_str().into(), text))
             }
         };
 
-        self.check_file(path, file);
+        self.check_file(uri, file);
     }
 
     fn did_change(&mut self, params: lsp_types::DidChangeTextDocumentParams) {
@@ -135,11 +135,9 @@ impl Database {
         let sender = self.sender.clone();
 
         self.threads.execute(move || {
-            let text = file.text(&db);
+            let line_index = file.line_index(&db);
             let diagnostics: Vec<mitki_db::Diagnostic> =
                 mitki_db::check_file::accumulated::<mitki_db::Diagnostic>(&db, file);
-
-            let line_index = line_index::LineIndex::new(text);
 
             let diagnostics = diagnostics
                 .into_iter()

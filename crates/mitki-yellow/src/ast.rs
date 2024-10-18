@@ -37,10 +37,7 @@ impl<'db> Module<'db> {
 }
 
 impl<'db> Node<'db> for Module<'db> {
-    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self>
-    where
-        Self: Sized,
-    {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
         (syntax.kind(db) == MODULE).then_some(Self(syntax))
     }
 
@@ -55,10 +52,7 @@ pub enum Item<'db> {
 }
 
 impl<'db> Node<'db> for Item<'db> {
-    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self>
-    where
-        Self: Sized,
-    {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
         match syntax.kind(db) {
             FN => Item::Function(Function(syntax)).into(),
             _ => None,
@@ -82,10 +76,7 @@ impl<'db> Function<'db> {
 }
 
 impl<'db> Node<'db> for Function<'db> {
-    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self>
-    where
-        Self: Sized,
-    {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
         match syntax.kind(db) {
             FN => Some(Self(syntax)),
             _ => None,
@@ -106,10 +97,7 @@ pub enum Expr<'db> {
 }
 
 impl<'db> Node<'db> for Expr<'db> {
-    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self>
-    where
-        Self: Sized,
-    {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
         match syntax.kind(db) {
             LITERAL => Expr::Literal(Literal(syntax)).into(),
             BINARY_EXPR => Expr::Binary(Binary(syntax)).into(),
