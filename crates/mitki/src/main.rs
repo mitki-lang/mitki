@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
 
             let renderer = Renderer::styled();
 
-            let file = File::new(&db, path, text);
+            let file = File::new(&db, path, text.clone());
             let diagnostics = check_file::accumulated::<Diagnostic>(&db, file);
 
             let path = file.path(&db).as_str();
@@ -37,6 +37,6 @@ fn main() -> anyhow::Result<()> {
 
             Ok(())
         }
-        Options::Ide => mitki_ide::Ide::new()?.start(),
+        Options::Ide => mitki_ide::Server::new()?.run(),
     }
 }

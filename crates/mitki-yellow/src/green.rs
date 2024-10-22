@@ -44,7 +44,10 @@ impl<'db> GreenToken<'db> {
         TextSize::new(self.text(db).len() as u32)
     }
 
-    fn leading_trailing_total_len(self, db: &'db dyn Database) -> (TextSize, TextSize, TextSize) {
+    pub fn leading_trailing_total_len(
+        self,
+        db: &'db dyn Database,
+    ) -> (TextSize, TextSize, TextSize) {
         let leading_len = self.leading(db).len();
         let trailing_len = self.trailing(db).len();
         let total_len = self.text(db).len() as u32;

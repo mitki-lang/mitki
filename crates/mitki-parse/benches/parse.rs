@@ -3,6 +3,7 @@ use std::hint::black_box;
 use codspeed_criterion_compat::{
     BenchmarkId, Criterion, Throughput, criterion_group, criterion_main,
 };
+use mitki_yellow::GreenNode;
 
 #[salsa::input]
 struct Input {
@@ -10,7 +11,7 @@ struct Input {
 }
 
 #[salsa::tracked]
-fn parse(db: &dyn salsa::Database, input: Input) -> mitki_yellow::ast::Module<'_> {
+fn parse(db: &dyn salsa::Database, input: Input) -> GreenNode<'_> {
     mitki_parse::module(db, input.code(db))
 }
 
