@@ -1,7 +1,18 @@
 use camino::Utf8PathBuf;
 pub use mitki_errors::Diagnostic;
-use mitki_yellow::ast;
-use salsa::Database;
+use mitki_yellow::GreenNode;
+use salsa::{Database, Event};
+
+#[salsa::db]
+#[derive(Default)]
+pub struct RootDatabase {
+    storage: salsa::Storage<Self>,
+}
+
+#[salsa::db]
+impl Database for RootDatabase {
+    fn salsa_event(&self, _event: &dyn Fn() -> Event) {}
+}
 
 #[salsa::input]
 pub struct File {
@@ -19,12 +30,12 @@ impl File {
     }
 
     #[salsa::tracked]
-    pub fn parse(self, db: &dyn Database) -> ast::Module<'_> {
+    pub fn parse(self, db: &dyn Database) -> GreenNode<'_> {
         mitki_parse::module(db, self.text(db))
     }
 }
 
 #[salsa::tracked]
 pub fn check_file(db: &dyn Database, file: File) {
-    _ = file.parse(db);
+    let _module = file.parse(db);
 }
