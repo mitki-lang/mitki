@@ -24,6 +24,7 @@ fn handle_goto_definition(
     Ok(None)
 }
 
+#[expect(clippy::needless_pass_by_value)]
 fn handle_document_diagnostic(
     server: &mut Server,
     params: lsp_types::DocumentDiagnosticParams,

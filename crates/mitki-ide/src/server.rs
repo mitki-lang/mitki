@@ -114,6 +114,7 @@ where
     }
 }
 
+#[expect(clippy::needless_pass_by_value)]
 fn file_position(server: &Server, tdpp: lsp_types::TextDocumentPositionParams) -> FilePosition {
     let file = server.file(&tdpp.text_document.uri);
     let offset = {
