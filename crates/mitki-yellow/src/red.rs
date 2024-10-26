@@ -3,36 +3,134 @@ use std::rc::Rc;
 use salsa::Database;
 use text_size::{TextRange, TextSize};
 
+use crate::cursor::Preorder;
+use crate::green::GreenChild;
 use crate::{GreenNode, GreenToken, NodeOrToken, SyntaxKind};
 
 pub type RedNode<'db> = RedData<'db, GreenNode<'db>>;
 pub type RedToken<'db> = RedData<'db, GreenToken<'db>>;
 pub type Red<'db> = NodeOrToken<RedNode<'db>, RedToken<'db>>;
 
-#[derive(Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct RedNodePtr {
+    pub kind: SyntaxKind,
+    pub range: TextRange,
+}
+
+impl RedNodePtr {
+    pub fn new(db: &dyn Database, node: &RedNode) -> Self {
+        Self { kind: node.kind(db), range: node.text_range(db) }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct RedData<'db, T> {
     data: Rc<RedDataInner<'db, T>>,
 }
 
+#[derive(PartialEq, Eq, Debug)]
 struct RedDataInner<'db, T> {
     parent: Option<RedNode<'db>>,
-    text_offset: TextSize,
+    index: TextSize,
+    offset: TextSize,
     green: T,
 }
 
 impl<'db, T> RedData<'db, T> {
-    pub fn new(parent: Option<RedNode<'db>>, text_offset: TextSize, green: T) -> Self {
-        Self { data: Rc::new(RedDataInner { parent, text_offset, green }) }
+    pub fn new(parent: Option<RedNode<'db>>, index: TextSize, offset: TextSize, green: T) -> Self {
+        Self { data: Rc::new(RedDataInner { parent, index, offset, green }) }
     }
 
-    pub fn parent(&self) -> Option<RedNode<'db>> {
-        self.data.parent.clone()
+    pub fn index(&self) -> TextSize {
+        self.data.index
+    }
+
+    pub fn parent(&self) -> Option<&RedNode<'db>> {
+        self.data.parent.as_ref()
+    }
+
+    fn green_siblings(&self, db: &'db dyn Database) -> std::slice::Iter<'db, GreenChild<'db>> {
+        match self.parent() {
+            Some(parent) => parent.green().children(db).iter(),
+            None => [].iter(),
+        }
+    }
+
+    fn next_sibling_or_token(&self, db: &'db dyn Database) -> Option<Red<'db>> {
+        let mut siblings = self.green_siblings(db).enumerate();
+        let index = self.index() + TextSize::new(1);
+
+        siblings.nth(index.into()).and_then(|(index, child)| {
+            let index = TextSize::new(index as u32);
+            let parent = self.parent()?.clone();
+            let offset = parent.data.offset + child.offset();
+
+            match child {
+                GreenChild::Node { node, .. } => {
+                    Red::Node(RedData::new(parent.into(), index, offset, *node)).into()
+                }
+                GreenChild::Token { token, .. } => {
+                    Red::Token(RedData::new(parent.into(), index, offset, *token)).into()
+                }
+            }
+        })
     }
 }
 
 impl<'db> RedNode<'db> {
     pub fn new_root(root: GreenNode<'db>) -> Self {
-        Self::new(None, 0.into(), root)
+        Self::new(None, TextSize::new(0), 0.into(), root)
+    }
+
+    pub fn preorder(self, db: &'db dyn Database) -> Preorder<'db> {
+        Preorder::new(db, self.clone())
+    }
+
+    pub fn first_child_or_token(&self, db: &'db dyn Database) -> Option<Red<'db>> {
+        self.green().children(db).iter().next().map(|child| match child {
+            GreenChild::Node { node, .. } => {
+                Red::Node(RedData::new(self.clone().into(), 0.into(), self.data.offset, *node))
+            }
+            GreenChild::Token { token, .. } => {
+                Red::Token(RedData::new(self.clone().into(), 0.into(), self.data.offset, *token))
+            }
+        })
+    }
+
+    pub fn children(&self, db: &'db dyn Database) -> impl Iterator<Item = RedNode<'db>> {
+        let mut next = self.first_child(db);
+
+        std::iter::from_fn(move || {
+            next.take().inspect(|prev| {
+                next = prev.next_sibling(db);
+            })
+        })
+    }
+
+    pub fn children_with_tokens(&self, db: &'db dyn Database) -> impl Iterator<Item = Red<'db>> {
+        let mut next = self.first_child_or_token(db);
+
+        std::iter::from_fn(move || {
+            next.take().inspect(|prev| {
+                next = match prev {
+                    NodeOrToken::Node(node) => node.next_sibling_or_token(db),
+                    NodeOrToken::Token(token) => token.next_sibling_or_token(db),
+                };
+            })
+        })
+    }
+
+    pub fn next_sibling(&self, db: &'db dyn Database) -> Option<RedNode<'db>> {
+        let mut siblings = self.green_siblings(db).enumerate();
+        siblings.nth(self.index().into());
+        siblings.find_map(|(index, child)| {
+            let index = TextSize::new(index as u32);
+            child.into_node().and_then(|green| {
+                let parent = self.parent()?.clone();
+                let offset = parent.data.offset + child.offset();
+                RedNode::new(parent.clone().into(), index, offset, green).into()
+            })
+        })
     }
 
     pub fn green(&self) -> GreenNode<'db> {
@@ -43,8 +141,21 @@ impl<'db> RedNode<'db> {
         self.green().kind(db)
     }
 
+    pub fn first_child(&self, db: &'db dyn Database) -> Option<RedNode<'db>> {
+        self.green().children(db).iter().enumerate().find_map(|(index, child)| {
+            child.into_node().map(|green| {
+                RedNode::new(
+                    self.clone().into(),
+                    TextSize::new(index as u32),
+                    self.data.offset + child.offset(),
+                    green,
+                )
+            })
+        })
+    }
+
     pub fn text_range(&self, db: &'db dyn Database) -> TextRange {
-        let offset = self.data.text_offset;
+        let offset = self.data.offset;
         let len = self.green().text_len(db);
         TextRange::at(offset, len)
     }
@@ -54,7 +165,7 @@ impl<'db> RedNode<'db> {
         let mut start = range.start();
         let mut end = range.end();
 
-        let tokens: Vec<_> = self.children(db).filter_map(Red::into_token).collect();
+        let tokens: Vec<_> = self.children_with_tokens(db).filter_map(Red::into_token).collect();
         for first_token in tokens.iter() {
             let (leading_len, trailing_len, total_len) =
                 first_token.green().leading_trailing_total_len(db);
@@ -82,24 +193,6 @@ impl<'db> RedNode<'db> {
         TextRange::new(start, end.max(start))
     }
 
-    pub fn children(&self, db: &'db dyn Database) -> impl Iterator<Item = Red<'db>> + '_ {
-        let mut offset_in_parent = TextSize::new(0);
-
-        self.green().children(db).iter().map(move |&green_child| {
-            let text_offset = self.data.text_offset + offset_in_parent;
-            offset_in_parent += green_child.text_len(db);
-
-            match green_child {
-                NodeOrToken::Node(node) => {
-                    Red::Node(RedNode::new(Some(self.clone()), text_offset, node))
-                }
-                NodeOrToken::Token(token) => {
-                    Red::Token(RedToken::new(Some(self.clone()), text_offset, token))
-                }
-            }
-        })
-    }
-
     pub fn token_at_offset(&self, db: &'db dyn Database, offset: TextSize) -> TokenAtOffset<'db> {
         let range = self.text_trimmed_range(db);
 
@@ -107,7 +200,7 @@ impl<'db> RedNode<'db> {
             return TokenAtOffset::None;
         }
 
-        let mut children = self.children(db).filter(|child| {
+        let mut children = self.children_with_tokens(db).filter(|child| {
             let child_range = child.text_trimmed_range(db);
             !child_range.is_empty() && child_range.contains_inclusive(offset)
         });
@@ -146,7 +239,7 @@ impl<'db> RedToken<'db> {
     }
 
     pub fn text_range(&self, db: &dyn Database) -> TextRange {
-        let offset = self.data.text_offset;
+        let offset = self.data.offset;
         let len = self.green().text_len(db);
         TextRange::at(offset, len)
     }

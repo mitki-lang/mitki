@@ -6,7 +6,7 @@ use crate::{GreenNode, Red, RedNode, RedToken};
 pub trait Node<'db>: Sized {
     fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self>;
 
-    fn syntax(self) -> RedNode<'db>;
+    fn syntax(&self) -> &RedNode<'db>;
 }
 
 pub struct Module<'db>(pub RedNode<'db>);
@@ -17,10 +17,7 @@ impl<'db> Module<'db> {
     }
 
     pub fn items(&self, db: &'db dyn Database) -> impl Iterator<Item = Item<'db>> + '_ {
-        self.0
-            .children(db)
-            .filter_map(Red::into_node)
-            .filter_map(move |syntax| Item::cast(db, syntax))
+        self.0.children(db).filter_map(move |syntax| Item::cast(db, syntax))
     }
 }
 
@@ -29,8 +26,8 @@ impl<'db> Node<'db> for Module<'db> {
         (syntax.kind(db) == MODULE).then_some(Self(syntax))
     }
 
-    fn syntax(self) -> RedNode<'db> {
-        self.0
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
     }
 }
 
@@ -46,7 +43,7 @@ impl<'db> Node<'db> for Item<'db> {
         }
     }
 
-    fn syntax(self) -> RedNode<'db> {
+    fn syntax(&self) -> &RedNode<'db> {
         match self {
             Item::Function(function) => function.syntax(),
         }
@@ -69,8 +66,8 @@ impl<'db> Node<'db> for Function<'db> {
         }
     }
 
-    fn syntax(self) -> RedNode<'db> {
-        self.0
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
     }
 }
 
@@ -92,12 +89,12 @@ impl<'db> Node<'db> for Expr<'db> {
         }
     }
 
-    fn syntax(self) -> RedNode<'db> {
+    fn syntax(&self) -> &RedNode<'db> {
         match self {
-            Expr::Literal(literal) => literal.0,
-            Expr::Binary(binary) => binary.0,
-            Expr::Postfix(postfix) => postfix.0,
-            Expr::Prefix(prefix) => prefix.0,
+            Expr::Literal(literal) => &literal.0,
+            Expr::Binary(binary) => &binary.0,
+            Expr::Postfix(postfix) => &postfix.0,
+            Expr::Prefix(prefix) => &prefix.0,
         }
     }
 }
@@ -106,7 +103,7 @@ pub struct Literal<'db>(RedNode<'db>);
 
 impl<'db> Literal<'db> {
     pub fn kind(&self, db: &'db dyn Database) -> LiteralKind<'db> {
-        let token = self.0.children(db).filter_map(Red::into_token).next().unwrap();
+        let token = self.0.children_with_tokens(db).filter_map(Red::into_token).next().unwrap();
 
         match token.kind(db) {
             INT_NUMBER => LiteralKind::Int(token),
@@ -120,27 +117,19 @@ pub struct Binary<'db>(RedNode<'db>);
 
 impl<'db> Binary<'db> {
     pub fn lhs(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
-        self.0
-            .children(db)
-            .filter_map(Red::into_node)
-            .next()
-            .and_then(|syntax| Expr::cast(db, syntax))
+        self.0.children(db).next().and_then(|syntax| Expr::cast(db, syntax))
     }
 
     pub fn op(&self, db: &'db dyn Database) -> Option<&'db str> {
         self.0
-            .children(db)
+            .children_with_tokens(db)
             .filter_map(Red::into_token)
             .next()
             .map(|syntax| syntax.green().text_trimmed(db))
     }
 
     pub fn rhs(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
-        self.0
-            .children(db)
-            .filter_map(Red::into_node)
-            .nth(1)
-            .and_then(|syntax| Expr::cast(db, syntax))
+        self.0.children(db).nth(1).and_then(|syntax| Expr::cast(db, syntax))
     }
 }
 
@@ -148,16 +137,12 @@ pub struct Postfix<'db>(RedNode<'db>);
 
 impl<'db> Postfix<'db> {
     pub fn expr(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
-        self.0
-            .children(db)
-            .filter_map(Red::into_node)
-            .next()
-            .and_then(|syntax| Expr::cast(db, syntax))
+        self.0.children(db).next().and_then(|syntax| Expr::cast(db, syntax))
     }
 
     pub fn op(&self, db: &'db dyn Database) -> Option<&'db str> {
         self.0
-            .children(db)
+            .children_with_tokens(db)
             .filter_map(Red::into_token)
             .next()
             .map(|syntax| syntax.green().text_trimmed(db))
@@ -169,18 +154,14 @@ pub struct Prefix<'db>(RedNode<'db>);
 impl<'db> Prefix<'db> {
     pub fn op(&self, db: &'db dyn Database) -> Option<&'db str> {
         self.0
-            .children(db)
+            .children_with_tokens(db)
             .filter_map(Red::into_token)
             .next()
             .map(|syntax| syntax.green().text_trimmed(db))
     }
 
     pub fn expr(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
-        self.0
-            .children(db)
-            .filter_map(Red::into_node)
-            .next()
-            .and_then(|syntax| Expr::cast(db, syntax))
+        self.0.children(db).next().and_then(|syntax| Expr::cast(db, syntax))
     }
 }
 
@@ -191,6 +172,12 @@ pub enum LiteralKind<'db> {
 
 pub struct Name<'db>(RedNode<'db>);
 
+impl<'db> Name<'db> {
+    pub fn as_str(&self, _db: &'db dyn Database) -> &'db str {
+        todo!()
+    }
+}
+
 impl<'db> Node<'db> for Name<'db> {
     fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
         match syntax.kind(db) {
@@ -199,11 +186,11 @@ impl<'db> Node<'db> for Name<'db> {
         }
     }
 
-    fn syntax(self) -> RedNode<'db> {
-        self.0
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
     }
 }
 
 fn child<'db, N: Node<'db>>(db: &'db dyn Database, parent: &RedNode<'db>) -> Option<N> {
-    parent.children(db).filter_map(Red::into_node).find_map(|syntax| N::cast(db, syntax))
+    parent.children(db).find_map(|syntax| N::cast(db, syntax))
 }

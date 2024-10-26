@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use expect_test::expect_file;
 use mitki_errors::Diagnostic;
-use mitki_yellow::{GreenNode, NodeOrToken};
+use mitki_yellow::{GreenChild, GreenNode};
 use salsa::{Database, DatabaseImpl};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -57,10 +57,10 @@ fn fmt_rec(
     writeln!(f, "{}{:?}", indent, node.kind(db))?;
     for &child in node.children(db) {
         match child {
-            NodeOrToken::Node(n) => fmt_rec(f, db, level + 1, n)?,
-            NodeOrToken::Token(t) => {
-                let kind = t.kind(db);
-                let text = t.text_trimmed(db);
+            GreenChild::Node { node, .. } => fmt_rec(f, db, level + 1, node)?,
+            GreenChild::Token { token, .. } => {
+                let kind = token.kind(db);
+                let text = token.text_trimmed(db);
 
                 writeln!(f, "{}  {:?}: {:?}", indent, kind, text)?
             }

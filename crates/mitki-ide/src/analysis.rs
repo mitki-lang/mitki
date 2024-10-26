@@ -23,7 +23,7 @@ impl Analysis {
         FilePosition { file, offset }: FilePosition,
     ) -> Option<Vec<FilePosition>> {
         let root = file.parse(self.db());
-        let root = Module::new(root).syntax();
+        let root = Module::new(root).syntax().clone();
 
         let tokens = root.token_at_offset(self.db(), offset);
         let _original_token = pick_best_token(self.db(), tokens, |kind| match kind {
