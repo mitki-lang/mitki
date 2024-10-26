@@ -14,7 +14,6 @@ harness = false
 drop_bomb = "0.1"
 mitki-errors.workspace = true
 mitki-inputs.workspace = true
-mitki-span.workspace = true
 mitki-tokenizer.workspace = true
 mitki-yellow.workspace = true
 salsa.workspace = true

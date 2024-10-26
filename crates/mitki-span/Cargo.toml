@@ -7,5 +7,4 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-camino.workspace = true
 salsa.workspace = true

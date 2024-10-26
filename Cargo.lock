@@ -633,7 +633,6 @@ dependencies = [
  "expect-test",
  "mitki-errors",
  "mitki-inputs",
- "mitki-span",
  "mitki-tokenizer",
  "mitki-yellow",
  "salsa",
@@ -644,7 +643,6 @@ dependencies = [
 name = "mitki-span"
 version = "0.1.0"
 dependencies = [
- "camino",
  "salsa",
 ]
 
