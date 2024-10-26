@@ -22,7 +22,7 @@ fn main() -> anyhow::Result<()> {
 
             let renderer = Renderer::styled();
 
-            let file = File::new(&db, path, text.clone());
+            let file = File::new(&db, path, text);
             let diagnostics = check_file::accumulated::<Diagnostic>(&db, file);
 
             let path = file.path(&db).as_str();
