@@ -1,7 +1,7 @@
 use std::collections::hash_map::Entry;
 
 use anyhow::Result;
-use mitki_db::File;
+use mitki_inputs::File;
 use salsa::Setter;
 
 use super::notifications::NotificationDispatcher;

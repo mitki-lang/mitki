@@ -8,8 +8,8 @@ workspace = true
 
 [dependencies] 
 camino.workspace = true
-line-index = "0.1"
 mitki-errors.workspace = true
+mitki-inputs.workspace = true
 mitki-parse.workspace = true
 mitki-yellow.workspace = true
 salsa.workspace = true

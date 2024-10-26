@@ -1,8 +1,9 @@
 use anyhow::Context;
 use camino::Utf8PathBuf;
 use clap::Parser;
-use mitki_db::{File, check_file};
+use mitki_db::check_file;
 use mitki_errors::{Diagnostic, Renderer};
+use mitki_inputs::File;
 use salsa::DatabaseImpl;
 
 #[derive(Parser)]

@@ -13,5 +13,6 @@ clap = { version = "4.5", features = ["derive"] }
 mitki-db.workspace = true
 mitki-errors.workspace = true
 mitki-ide.workspace = true
+mitki-inputs.workspace = true
 mitki-yellow.workspace = true
 salsa.workspace = true

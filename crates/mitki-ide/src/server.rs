@@ -5,7 +5,7 @@ mod requests;
 use std::collections::HashMap;
 
 use anyhow::Result;
-use mitki_db::File;
+use mitki_inputs::File;
 use text_size::TextSize;
 
 use crate::FilePosition;

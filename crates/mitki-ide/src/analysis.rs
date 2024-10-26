@@ -1,4 +1,5 @@
 use mitki_db::RootDatabase;
+use mitki_parse::FileParse as _;
 use mitki_yellow::SyntaxKind;
 use mitki_yellow::ast::{Module, Node};
 

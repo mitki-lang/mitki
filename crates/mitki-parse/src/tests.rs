@@ -4,8 +4,11 @@ use std::path::{Path, PathBuf};
 
 use expect_test::expect_file;
 use mitki_errors::Diagnostic;
+use mitki_inputs::File;
 use mitki_yellow::{GreenChild, GreenNode};
 use salsa::{Database, DatabaseImpl};
+
+use crate::FileParse;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 struct TestCase {
@@ -69,15 +72,9 @@ fn fmt_rec(
     Ok(())
 }
 
-#[salsa::input]
-struct Text {
-    data: String,
-}
-
 #[salsa::tracked]
-fn parse_module(db: &dyn Database, text: Text) -> String {
-    let content = text.data(db);
-    let module = crate::module(db, &content);
+fn parse_module(db: &dyn Database, file: File) -> String {
+    let module = file.parse(db);
 
     format!("{:?}", Printer(module))
 }
@@ -89,7 +86,7 @@ fn parse() {
 
     for case in test_cases {
         let actual = salsa::plumbing::attach(&db, || {
-            let text = Text::new(&db, case.text.clone());
+            let text = File::new(&db, "".into(), case.text.clone());
 
             let tree = parse_module(&db, text);
             let diagnostics = parse_module::accumulated::<Diagnostic>(&db, text);

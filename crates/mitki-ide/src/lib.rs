@@ -1,10 +1,11 @@
 mod analysis;
 mod server;
 
+use mitki_inputs::File;
 pub use server::Server;
 
 struct FilePosition {
-    pub file: mitki_db::File,
+    pub file: File,
     pub offset: text_size::TextSize,
 }
 

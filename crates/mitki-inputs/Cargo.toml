@@ -1,5 +1,5 @@
 [package]
-name = "mitki-span"
+name = "mitki-inputs"
 version = "0.1.0"
 edition.workspace = true
 
@@ -8,4 +8,5 @@ workspace = true
 
 [dependencies]
 camino.workspace = true
+line-index = "0.1"
 salsa.workspace = true

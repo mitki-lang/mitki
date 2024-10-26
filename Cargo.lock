@@ -567,17 +567,22 @@ dependencies = [
  "mitki-db",
  "mitki-errors",
  "mitki-ide",
+ "mitki-inputs",
  "mitki-yellow",
  "salsa",
 ]
+
+[[package]]
+name = "mitki-analysis"
+version = "0.1.0"
 
 [[package]]
 name = "mitki-db"
 version = "0.1.0"
 dependencies = [
  "camino",
- "line-index",
  "mitki-errors",
+ "mitki-inputs",
  "mitki-parse",
  "mitki-yellow",
  "salsa",
@@ -601,11 +606,22 @@ dependencies = [
  "lsp-server",
  "lsp-types",
  "mitki-db",
+ "mitki-inputs",
+ "mitki-parse",
  "mitki-yellow",
  "salsa",
  "serde",
  "serde_json",
  "text-size",
+]
+
+[[package]]
+name = "mitki-inputs"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "line-index",
+ "salsa",
 ]
 
 [[package]]
@@ -616,6 +632,8 @@ dependencies = [
  "drop_bomb",
  "expect-test",
  "mitki-errors",
+ "mitki-inputs",
+ "mitki-span",
  "mitki-tokenizer",
  "mitki-yellow",
  "salsa",
@@ -626,6 +644,7 @@ dependencies = [
 name = "mitki-span"
 version = "0.1.0"
 dependencies = [
+ "camino",
  "salsa",
 ]
 
