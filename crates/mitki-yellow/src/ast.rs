@@ -103,7 +103,7 @@ pub struct Literal<'db>(RedNode<'db>);
 
 impl<'db> Literal<'db> {
     pub fn kind(&self, db: &'db dyn Database) -> LiteralKind<'db> {
-        let token = self.0.children_with_tokens(db).filter_map(Red::into_token).next().unwrap();
+        let token = self.0.children_with_tokens(db).find_map(Red::into_token).unwrap();
 
         match token.kind(db) {
             INT_NUMBER => LiteralKind::Int(token),
@@ -123,8 +123,7 @@ impl<'db> Binary<'db> {
     pub fn op(&self, db: &'db dyn Database) -> Option<&'db str> {
         self.0
             .children_with_tokens(db)
-            .filter_map(Red::into_token)
-            .next()
+            .find_map(Red::into_token)
             .map(|syntax| syntax.green().text_trimmed(db))
     }
 
@@ -143,8 +142,7 @@ impl<'db> Postfix<'db> {
     pub fn op(&self, db: &'db dyn Database) -> Option<&'db str> {
         self.0
             .children_with_tokens(db)
-            .filter_map(Red::into_token)
-            .next()
+            .find_map(Red::into_token)
             .map(|syntax| syntax.green().text_trimmed(db))
     }
 }
@@ -155,8 +153,7 @@ impl<'db> Prefix<'db> {
     pub fn op(&self, db: &'db dyn Database) -> Option<&'db str> {
         self.0
             .children_with_tokens(db)
-            .filter_map(Red::into_token)
-            .next()
+            .find_map(Red::into_token)
             .map(|syntax| syntax.green().text_trimmed(db))
     }
 
