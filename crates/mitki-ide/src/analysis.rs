@@ -1,7 +1,6 @@
 use mitki_db::RootDatabase;
 use mitki_parse::FileParse as _;
 use mitki_yellow::SyntaxKind;
-use mitki_yellow::ast::{Module, Node};
 
 use crate::{FilePosition, pick_best_token};
 
@@ -23,8 +22,7 @@ impl Analysis {
         &self,
         FilePosition { file, offset }: FilePosition,
     ) -> Option<Vec<FilePosition>> {
-        let root = file.parse(self.db());
-        let root = Module::new(root).syntax().clone();
+        let root = file.parse(self.db()).syntax_node();
 
         let tokens = root.token_at_offset(self.db(), offset);
         let _original_token = pick_best_token(self.db(), tokens, |kind| match kind {

@@ -74,9 +74,7 @@ fn fmt_rec(
 
 #[salsa::tracked]
 fn parse_module(db: &dyn Database, file: File) -> String {
-    let module = file.parse(db);
-
-    format!("{:?}", Printer(module))
+    format!("{:?}", Printer(file.parse(db).root))
 }
 
 #[test]
