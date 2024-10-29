@@ -791,7 +791,7 @@ checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
 [[package]]
 name = "salsa"
 version = "0.18.0"
-source = "git+https://github.com/salsa-rs/salsa/#5eed7e90783b00e34f5fdf24486f1caadf86f69a"
+source = "git+https://github.com/salsa-rs/salsa/#dfbe6d67f47c67387a649e71ebeea22c313d43bf"
 dependencies = [
  "append-only-vec",
  "arc-swap",
@@ -811,12 +811,12 @@ dependencies = [
 [[package]]
 name = "salsa-macro-rules"
 version = "0.1.0"
-source = "git+https://github.com/salsa-rs/salsa/#5eed7e90783b00e34f5fdf24486f1caadf86f69a"
+source = "git+https://github.com/salsa-rs/salsa/#dfbe6d67f47c67387a649e71ebeea22c313d43bf"
 
 [[package]]
 name = "salsa-macros"
 version = "0.18.0"
-source = "git+https://github.com/salsa-rs/salsa/#5eed7e90783b00e34f5fdf24486f1caadf86f69a"
+source = "git+https://github.com/salsa-rs/salsa/#dfbe6d67f47c67387a649e71ebeea22c313d43bf"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -842,18 +842,18 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "serde"
-version = "1.0.213"
+version = "1.0.214"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ea7893ff5e2466df8d720bb615088341b295f849602c6956047f8f80f0e9bc1"
+checksum = "f55c3193aca71c12ad7890f1785d2b73e1b9f63a0bbc353c08ef26fe03fc56b5"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.213"
+version = "1.0.214"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e85ad2009c50b58e87caa8cd6dac16bdf511bbfb7af6c33df902396aa480fa5"
+checksum = "de523f781f095e28fa605cdce0f8307e451cc0fd14e2eb4cd2e98a355b147766"
 dependencies = [
  "proc-macro2",
  "quote",
