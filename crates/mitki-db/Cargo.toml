@@ -3,10 +3,13 @@ name = "mitki-db"
 version = "0.1.0"
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [lints]
 workspace = true
 
-[dependencies] 
+[dependencies]
 camino.workspace = true
 mitki-errors.workspace = true
 mitki-inputs.workspace = true
