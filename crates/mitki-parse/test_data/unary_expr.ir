@@ -15,19 +15,19 @@ MODULE
             LEFT_PAREN: "("
             PREFIX_EXPR
               PREFIX_OPERATOR: "^^"
-              IDENT
+              PATH_EXPR
                 NAME: "x"
             RIGHT_PAREN: ")"
       SEMICOLON: ";"
       EXPR_STMT
         PREFIX_EXPR
           PREFIX_OPERATOR: "*"
-          IDENT
+          PATH_EXPR
             NAME: "x"
       SEMICOLON: ";"
       EXPR_STMT
         POSTFIX_EXPR
-          IDENT
+          PATH_EXPR
             NAME: "x"
           POSTFIX_OPERATOR: "*"
       SEMICOLON: ";"
@@ -38,7 +38,7 @@ MODULE
             LEFT_PAREN: "("
             PREFIX_EXPR
               PREFIX_OPERATOR: "-"
-              IDENT
+              PATH_EXPR
                 NAME: "x"
             RIGHT_PAREN: ")"
       SEMICOLON: ";"
@@ -47,7 +47,7 @@ MODULE
           BINARY_OPERATOR: "+"
           PREFIX_EXPR
             PREFIX_OPERATOR: "-"
-            IDENT
+            PATH_EXPR
               NAME: "x"
       SEMICOLON: ";"
       RIGHT_BRACE: "}"

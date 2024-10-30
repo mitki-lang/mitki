@@ -11,7 +11,7 @@ MODULE
       EXPR_STMT
         IF_EXPR
           IF_KW: "if"
-          IDENT
+          PATH_EXPR
             NAME: "true"
           STMT_LIST
             LEFT_BRACE: "{"
@@ -19,7 +19,7 @@ MODULE
       EXPR_STMT
         IF_EXPR
           IF_KW: "if"
-          IDENT
+          PATH_EXPR
             NAME: "true"
           STMT_LIST
             LEFT_BRACE: "{"
@@ -31,7 +31,7 @@ MODULE
       EXPR_STMT
         IF_EXPR
           IF_KW: "if"
-          IDENT
+          PATH_EXPR
             NAME: "true"
           STMT_LIST
             LEFT_BRACE: "{"
@@ -39,7 +39,7 @@ MODULE
           ELSE_KW: "else"
           IF_EXPR
             IF_KW: "if"
-            IDENT
+            PATH_EXPR
               NAME: "false"
             STMT_LIST
               LEFT_BRACE: "{"

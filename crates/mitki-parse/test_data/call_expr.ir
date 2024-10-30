@@ -10,7 +10,7 @@ MODULE
       LEFT_BRACE: "{"
       EXPR_STMT
         CALL_EXPR
-          IDENT
+          PATH_EXPR
             NAME: "f"
           ARG_LIST
             LEFT_PAREN: "("
@@ -19,7 +19,7 @@ MODULE
         CALL_EXPR
           CALL_EXPR
             CALL_EXPR
-              IDENT
+              PATH_EXPR
                 NAME: "f"
               ARG_LIST
                 LEFT_PAREN: "("

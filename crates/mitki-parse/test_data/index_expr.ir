@@ -11,7 +11,7 @@ MODULE
       EXPR_STMT
         INDEX_EXPR
           INDEX_EXPR
-            IDENT
+            PATH_EXPR
               NAME: "x"
             LEFT_BRACKET: "["
             LITERAL
