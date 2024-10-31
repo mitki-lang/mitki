@@ -1,0 +1,27 @@
+use la_arena::Idx;
+use mitki_span::Symbol;
+
+pub(crate) type Expr<'db> = Idx<ExprData<'db>>;
+pub(crate) type Binding<'db> = Idx<Symbol<'db>>;
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct Block<'db> {
+    pub stmts: Vec<Stmt<'db>>,
+    pub tail: Option<Expr<'db>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Stmt<'db> {
+    Val { name: Binding<'db>, initializer: Expr<'db> },
+    Expr { expr: Expr<'db>, has_semi: bool },
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub(crate) enum ExprData<'db> {
+    Path(Symbol<'db>),
+    Int(Symbol<'db>),
+    Float(Symbol<'db>),
+    If { condition: Expr<'db>, then_branch: Block<'db>, else_branch: Block<'db> },
+    Missing,
+}

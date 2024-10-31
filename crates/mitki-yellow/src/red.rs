@@ -21,6 +21,25 @@ impl RedNodePtr {
     pub fn new(db: &dyn Database, node: &RedNode) -> Self {
         Self { kind: node.kind(db), range: node.text_range(db) }
     }
+
+    pub fn try_to_node<'db>(
+        &self,
+        db: &'db dyn Database,
+        root: &RedNode<'db>,
+    ) -> Option<RedNode<'db>> {
+        if root.parent().is_some() {
+            return None;
+        }
+
+        std::iter::successors(Some(root.clone()), |node| {
+            node.child_or_token_at_range(db, self.range)?.into_node()
+        })
+        .find(|node| node.text_range(db) == self.range && node.kind(db) == self.kind)
+    }
+
+    pub fn to_node<'db>(&self, db: &'db dyn Database, root: &RedNode<'db>) -> RedNode<'db> {
+        self.try_to_node(db, root).unwrap()
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -104,6 +123,22 @@ impl<'db> RedNode<'db> {
             next.take().inspect(|prev| {
                 next = prev.next_sibling(db);
             })
+        })
+    }
+
+    fn child_or_token_at_range(&self, db: &'db dyn Database, range: TextRange) -> Option<Red<'db>> {
+        let range = range - self.data.offset;
+        self.data.green.child_at_range(db, range).map(move |(index, green)| {
+            let parent = Some(self.clone());
+            let offset = self.data.offset + green.offset();
+            match green {
+                GreenChild::Node { node, .. } => {
+                    Red::Node(RedNode::new(parent, index, offset, node))
+                }
+                GreenChild::Token { token, .. } => {
+                    Red::Token(RedToken::new(parent, index, offset, token))
+                }
+            }
         })
     }
 

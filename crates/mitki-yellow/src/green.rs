@@ -1,5 +1,5 @@
 use salsa::Database;
-use text_size::TextSize;
+use text_size::{TextRange, TextSize};
 use triomphe::ThinArc;
 
 use crate::{NodeOrToken, SyntaxKind};
@@ -77,17 +77,28 @@ pub enum GreenChild<'db> {
 }
 
 impl<'db> GreenChild<'db> {
+    pub fn into_node(self) -> Option<GreenNode<'db>> {
+        match self {
+            GreenChild::Node { node, .. } => Some(node),
+            GreenChild::Token { .. } => None,
+        }
+    }
+
     pub fn offset(&self) -> TextSize {
         match self {
             GreenChild::Node { offset, .. } | GreenChild::Token { offset, .. } => *offset,
         }
     }
 
-    pub fn into_node(self) -> Option<GreenNode<'db>> {
+    fn green(self) -> Green<'db> {
         match self {
-            GreenChild::Node { node, .. } => Some(node),
-            GreenChild::Token { .. } => None,
+            GreenChild::Node { node, .. } => Green::Node(node),
+            GreenChild::Token { token, .. } => Green::Token(token),
         }
+    }
+
+    fn range(&self, db: &dyn Database) -> TextRange {
+        TextRange::at(self.offset(), self.green().text_len(db))
     }
 }
 
@@ -143,6 +154,27 @@ impl<'db> GreenNode<'db> {
             .collect();
 
         Self::alloc(db, kind, children, text_len)
+    }
+
+    pub fn child_at_range(
+        &self,
+        db: &'db dyn Database,
+        range: TextRange,
+    ) -> Option<(TextSize, GreenChild<'db>)> {
+        let children = self.children(db);
+        let position = children
+            .binary_search_by(|child| {
+                let child_range = child.range(db);
+                TextRange::ordering(child_range, range)
+            })
+            .unwrap_or_else(|position| position.saturating_sub(1));
+
+        let child = children
+            .get(position)
+            .filter(|child| child.range(db).contains_range(range))
+            .copied()?;
+
+        Some((TextSize::new(position as u32), child))
     }
 }
 
