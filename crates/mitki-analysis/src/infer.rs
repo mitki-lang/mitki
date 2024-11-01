@@ -45,13 +45,17 @@ impl<'db> InferenceBuilder<'db> {
         if let Some(tail) = block.tail {
             self.infer_expr(tail)
         } else {
-            Ty::new(self.db, TyKind::Tuple(vec![]))
+            Ty::new(self.db, TyKind::Tuple(Vec::new()))
         }
     }
 
     fn infer_stmt(&mut self, stmt: Stmt<'db>) {
         match stmt {
-            Stmt::Val { name: _, initializer: expr } | Stmt::Expr { expr, has_semi: _ } => {
+            Stmt::Val { name: _, ty, initializer: expr } => {
+                _ = ty;
+                self.infer_expr(expr);
+            }
+            Stmt::Expr { expr, has_semi: _ } => {
                 self.infer_expr(expr);
             }
         }
@@ -59,11 +63,14 @@ impl<'db> InferenceBuilder<'db> {
 
     fn infer_expr(&mut self, expr: Expr<'db>) -> Ty<'db> {
         let ty = match &self.function.exprs()[expr] {
-            ExprData::Path(_symbol) => {
+            &ExprData::Path(path) => {
                 let guard = self.resolver.scopes_for_expr(expr);
-
+                let ty = match self.resolver.resolve_path(path) {
+                    Some(_) => Ty::new(self.db, TyKind::Unknown),
+                    None => Ty::new(self.db, TyKind::Unknown),
+                };
                 self.resolver.reset(guard);
-                Ty::new(self.db, TyKind::Unknown)
+                ty
             }
             ExprData::Int(_symbol) => Ty::new(self.db, TyKind::Unknown),
             ExprData::Float(_symbol) => Ty::new(self.db, TyKind::Unknown),

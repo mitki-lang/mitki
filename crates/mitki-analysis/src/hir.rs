@@ -29,6 +29,6 @@ impl<'db> HasBody<'db> for crate::item::scope::FunctionLocation<'db> {
         let syntax = ptr.to_node(db, &file.parse(db).syntax_node());
         let function = ast::Function::cast(db, syntax).unwrap();
 
-        function::FunctionBuilder::new(db).build(&function)
+        function::FunctionBuilder::new(db).build(function)
     }
 }

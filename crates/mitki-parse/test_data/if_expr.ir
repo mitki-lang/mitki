@@ -12,7 +12,8 @@ MODULE
         IF_EXPR
           IF_KW: "if"
           PATH_EXPR
-            NAME: "true"
+            IDENT
+              NAME: "true"
           STMT_LIST
             LEFT_BRACE: "{"
             RIGHT_BRACE: "}"
@@ -20,7 +21,8 @@ MODULE
         IF_EXPR
           IF_KW: "if"
           PATH_EXPR
-            NAME: "true"
+            IDENT
+              NAME: "true"
           STMT_LIST
             LEFT_BRACE: "{"
             RIGHT_BRACE: "}"
@@ -32,7 +34,8 @@ MODULE
         IF_EXPR
           IF_KW: "if"
           PATH_EXPR
-            NAME: "true"
+            IDENT
+              NAME: "true"
           STMT_LIST
             LEFT_BRACE: "{"
             RIGHT_BRACE: "}"
@@ -40,7 +43,8 @@ MODULE
           IF_EXPR
             IF_KW: "if"
             PATH_EXPR
-              NAME: "false"
+              IDENT
+                NAME: "false"
             STMT_LIST
               LEFT_BRACE: "{"
               RIGHT_BRACE: "}"

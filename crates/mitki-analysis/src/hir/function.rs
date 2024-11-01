@@ -5,7 +5,8 @@ use mitki_yellow::ast::{self, HasName as _, Node as _};
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
-use super::syntax::{Binding, Block, Expr, ExprData, Stmt};
+use super::syntax::{Binding, Block, Expr, ExprData, Stmt, Ty};
+use crate::ToSymbol;
 
 #[derive(Default, Debug)]
 pub(crate) struct Function<'db> {
@@ -58,12 +59,13 @@ impl<'db> FunctionBuilder<'db> {
         Self { db, function: Function::default() }
     }
 
-    pub(super) fn build(mut self, node: &ast::Function) -> Function<'db> {
-        self.build_block(node.body(self.db));
+    #[expect(clippy::needless_pass_by_value)]
+    pub(super) fn build(mut self, node: ast::Function<'db>) -> Function<'db> {
+        self.function.body = self.build_block(node.body(self.db));
         self.function
     }
 
-    fn build_block(&mut self, block: Option<ast::Block>) -> Block<'db> {
+    fn build_block(&mut self, block: Option<ast::Block<'db>>) -> Block<'db> {
         let Some(block) = block else {
             return Block::default();
         };
@@ -83,11 +85,16 @@ impl<'db> FunctionBuilder<'db> {
         Block { stmts, tail }
     }
 
-    fn build_stmt(&mut self, stmt: ast::Stmt<'_>) -> Stmt<'db> {
+    fn build_stmt(&mut self, stmt: ast::Stmt<'db>) -> Stmt<'db> {
         match stmt {
             ast::Stmt::Val(val) => {
                 let name = val.name(self.db).map_or("", |name| name.as_str(self.db));
                 let name = Symbol::new(self.db, name);
+
+                let ty = val.ty(self.db).map(|ty| match ty {
+                    ast::Type::Path(path_type) => Ty::Path(path_type.to_symbol(self.db)),
+                });
+
                 let initializer = self.build_expr(val.expr(self.db));
 
                 let ptr = RedNodePtr::new(self.db, val.name(self.db).unwrap().syntax());
@@ -96,7 +103,7 @@ impl<'db> FunctionBuilder<'db> {
                 self.binding_map.insert(ptr, name);
                 self.binding_map_back.insert(name, ptr);
 
-                Stmt::Val { name, initializer }
+                Stmt::Val { name, ty, initializer }
             }
             ast::Stmt::Expr(expr) => Stmt::Expr {
                 expr: self.build_expr(expr.expr(self.db)),
@@ -105,7 +112,7 @@ impl<'db> FunctionBuilder<'db> {
         }
     }
 
-    fn build_expr(&mut self, node: Option<ast::Expr>) -> Expr<'db> {
+    fn build_expr(&mut self, node: Option<ast::Expr<'db>>) -> Expr<'db> {
         let Some(node) = node else {
             return self.function.exprs.alloc(ExprData::Missing);
         };

@@ -125,6 +125,10 @@ impl<'db> Node<'db> for Stmt<'db> {
 pub struct Val<'db>(RedNode<'db>);
 
 impl<'db> Val<'db> {
+    pub fn ty(&self, db: &'db dyn Database) -> Option<Type<'db>> {
+        child(db, self.syntax())
+    }
+
     pub fn expr(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         child(db, self.syntax())
     }
@@ -148,7 +152,7 @@ impl<'db> HasName<'db> for Val<'db> {}
 pub struct ExprStmt<'db>(RedNode<'db>);
 
 impl<'db> ExprStmt<'db> {
-    pub fn expr(&self, db: &'db dyn Database) -> Option<Expr> {
+    pub fn expr(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         child(db, self.syntax())
     }
 
@@ -346,6 +350,42 @@ impl<'db> Node<'db> for Name<'db> {
         &self.0
     }
 }
+
+pub enum Type<'db> {
+    Path(PathType<'db>),
+}
+
+impl<'db> Node<'db> for Type<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            PATH_TYPE => Type::Path(PathType(syntax)).into(),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        match self {
+            Type::Path(path_type) => &path_type.0,
+        }
+    }
+}
+
+pub struct PathType<'db>(RedNode<'db>);
+
+impl<'db> Node<'db> for PathType<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            PATH_TYPE => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
+    }
+}
+
+impl<'db> HasName<'db> for PathType<'db> {}
 
 fn child<'db, N: Node<'db>>(db: &'db dyn Database, parent: &RedNode<'db>) -> Option<N> {
     parent.children(db).find_map(|syntax| N::cast(db, syntax))

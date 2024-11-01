@@ -87,13 +87,13 @@ impl<'db> ExprScopesBuilder<'db> {
 
         for stmt in &block.stmts {
             match *stmt {
-                Stmt::Val { name: target, initializer: value } => {
-                    self.build_expr_scopes(value, scope);
+                Stmt::Val { name, ty: _, initializer } => {
+                    self.build_expr_scopes(initializer, scope);
                     scope = self.scope(scope);
 
-                    let name = self.function.bindings()[target];
+                    let symbol = self.function.bindings()[name];
                     let entry =
-                        self.scopes.scope_entries.alloc(ScopeEntry { name, binding: target });
+                        self.scopes.scope_entries.alloc(ScopeEntry { name: symbol, binding: name });
                     self.scopes.scopes[scope].entries =
                         IdxRange::new_inclusive(self.scopes.scopes[scope].entries.start()..=entry);
                 }

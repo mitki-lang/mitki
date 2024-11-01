@@ -206,7 +206,7 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
         }
         NAME => {
             let m = p.start();
-            p.advance();
+            name(p, &[]);
             m.complete(p, PATH_EXPR).into()
         }
         DOT => {

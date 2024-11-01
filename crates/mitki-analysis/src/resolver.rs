@@ -1,9 +1,10 @@
 mod scope;
 
+use mitki_span::Symbol;
 use salsa::Database;
 use scope::{ExprScopes, HasExprScopes, Scope};
 
-use crate::hir::Expr;
+use crate::hir::{Binding, Expr};
 use crate::item::scope::FunctionLocation;
 
 #[derive(Debug, Clone)]
@@ -42,6 +43,18 @@ impl<'db> Resolver<'db> {
 
     pub(crate) fn reset(&mut self, Guard(start): Guard) {
         self.scopes.truncate(start);
+    }
+
+    pub(crate) fn resolve_path(&self, path: Symbol<'db>) -> Option<Binding> {
+        for scope in self.scopes() {
+            if let Some(entry) =
+                self.expr_scopes.entries(scope).iter().find(|entry| entry.name == path)
+            {
+                return Some(entry.binding);
+            }
+        }
+
+        None
     }
 }
 

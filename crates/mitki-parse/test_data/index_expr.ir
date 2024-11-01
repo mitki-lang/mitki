@@ -12,7 +12,8 @@ MODULE
         INDEX_EXPR
           INDEX_EXPR
             PATH_EXPR
-              NAME: "x"
+              IDENT
+                NAME: "x"
             LEFT_BRACKET: "["
             LITERAL
               INT_NUMBER: "1"
