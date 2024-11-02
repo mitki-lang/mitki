@@ -22,7 +22,7 @@ pub(crate) enum ExprData<'db> {
     Path(Symbol<'db>),
     Int(Symbol<'db>),
     Float(Symbol<'db>),
-    If { condition: Expr<'db>, then_branch: Block<'db>, else_branch: Block<'db> },
+    If { condition: Expr<'db>, then_branch: Block<'db>, else_branch: Option<Block<'db>> },
     Missing,
 }
 

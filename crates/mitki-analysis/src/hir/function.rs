@@ -88,8 +88,7 @@ impl<'db> FunctionBuilder<'db> {
     fn build_stmt(&mut self, stmt: ast::Stmt<'db>) -> Stmt<'db> {
         match stmt {
             ast::Stmt::Val(val) => {
-                let name = val.name(self.db).map_or("", |name| name.as_str(self.db));
-                let name = Symbol::new(self.db, name);
+                let name = val.to_symbol(self.db);
 
                 let ty = val.ty(self.db).map(|ty| match ty {
                     ast::Type::Path(path_type) => Ty::Path(path_type.to_symbol(self.db)),
@@ -118,20 +117,18 @@ impl<'db> FunctionBuilder<'db> {
         };
 
         let expr = match &node {
-            ast::Expr::Path(path) => {
-                let name = path.name(self.db).map_or("", |name| name.as_str(self.db));
-                ExprData::Path(Symbol::new(self.db, name))
-            }
+            ast::Expr::Path(path) => ExprData::Path(path.to_symbol(self.db)),
             ast::Expr::Literal(_literal) => ExprData::Missing,
             ast::Expr::Binary(_binary) => ExprData::Missing,
             ast::Expr::Postfix(_postfix) => ExprData::Missing,
             ast::Expr::Prefix(_prefix) => ExprData::Missing,
-            ast::Expr::If(if_expr) => {
-                let condition = self.build_expr(if_expr.condition(self.db));
-                let then_branch = self.build_block(if_expr.then_branch(self.db));
-                let else_branch = self.build_block(if_expr.else_branch(self.db));
-                ExprData::If { condition, then_branch, else_branch }
-            }
+            ast::Expr::If(if_expr) => ExprData::If {
+                condition: self.build_expr(if_expr.condition(self.db)),
+                then_branch: self.build_block(if_expr.then_branch(self.db)),
+                else_branch: if_expr
+                    .else_branch(self.db)
+                    .map(|else_branch| self.build_block(else_branch.into())),
+            },
         };
 
         let expr = self.exprs.alloc(expr);

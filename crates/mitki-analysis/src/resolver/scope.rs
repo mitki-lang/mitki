@@ -115,7 +115,9 @@ impl<'db> ExprScopesBuilder<'db> {
             ExprData::If { condition, then_branch, else_branch } => {
                 self.build_expr_scopes(*condition, scope);
                 self.build_block(then_branch, scope);
-                self.build_block(else_branch, scope);
+                if let Some(else_branch) = else_branch {
+                    self.build_block(else_branch, scope);
+                }
             }
             ExprData::Missing => {}
             _ => {}
