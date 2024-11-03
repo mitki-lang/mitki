@@ -3,6 +3,7 @@ mod server;
 
 pub use server::Server;
 
+#[derive(Clone, Copy)]
 struct FilePosition {
     pub file: mitki_inputs::File,
     pub offset: text_size::TextSize,

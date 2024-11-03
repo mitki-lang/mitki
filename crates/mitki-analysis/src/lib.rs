@@ -1,11 +1,14 @@
 #![feature(async_closure)]
 
-mod ast_map;
-mod hir;
-mod infer;
-mod item;
-mod resolver;
-mod ty;
+pub mod ast_map;
+pub mod hir;
+pub mod infer;
+pub mod item;
+pub mod resolver;
+pub mod semantics;
+pub mod ty;
+
+pub use semantics::Semantics;
 
 trait ToSymbol<'db>: mitki_yellow::ast::HasName<'db> {
     fn to_symbol(&self, db: &'db dyn salsa::Database) -> mitki_span::Symbol<'db> {

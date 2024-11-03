@@ -41,7 +41,7 @@ impl HasItemTree for File {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct Function<'db>(Idx<FunctionData<'db>>);
+pub struct Function<'db>(Idx<FunctionData<'db>>);
 
 unsafe impl Update for Function<'_> {
     unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {

@@ -1,7 +1,7 @@
 use la_arena::ArenaMap;
 use salsa::Database;
 
-use crate::hir::{Block, Expr, ExprData, Function, HasBody as _, Stmt};
+use crate::hir::{Block, Expr, ExprData, Function, HasFunction as _, Stmt};
 use crate::item::scope::FunctionLocation;
 use crate::resolver::Resolver;
 use crate::ty::{Ty, TyKind};
@@ -18,7 +18,7 @@ impl<'db> Inferable<'db> for FunctionLocation<'db> {
             db,
             resolver: Resolver::new(db, self),
             inference: Inference::default(),
-            function: self.body(db),
+            function: self.hir_function(db),
         };
         builder.build()
     }

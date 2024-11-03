@@ -101,6 +101,10 @@ impl<'db> RedNode<'db> {
         Self::new(None, TextSize::new(0), 0.into(), root)
     }
 
+    pub fn ancestors(&self) -> impl Iterator<Item = RedNode<'db>> {
+        std::iter::successors(Some(self.clone()), |node| node.parent().cloned())
+    }
+
     pub fn preorder(self, db: &'db dyn Database) -> Preorder<'db> {
         Preorder::new(db, self.clone())
     }

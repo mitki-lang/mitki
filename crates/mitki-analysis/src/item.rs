@@ -1,2 +1,2 @@
-pub(crate) mod scope;
-pub(crate) mod tree;
+pub mod scope;
+pub mod tree;

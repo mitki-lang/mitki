@@ -2,7 +2,7 @@ use la_arena::{Arena, ArenaMap, Idx, IdxRange, RawIdx};
 use mitki_span::Symbol;
 use salsa::Database;
 
-use crate::hir::{Binding, Block, Expr, ExprData, Function, HasBody, Stmt};
+use crate::hir::{Binding, Block, Expr, ExprData, Function, HasFunction, Stmt};
 use crate::item::scope::FunctionLocation;
 
 pub(crate) trait HasExprScopes<'db> {
@@ -13,7 +13,7 @@ pub(crate) trait HasExprScopes<'db> {
 impl<'db> HasExprScopes<'db> for FunctionLocation<'db> {
     #[salsa::tracked(return_ref, no_eq)]
     fn expr_scopes(self, db: &'db dyn Database) -> ExprScopes<'db> {
-        ExprScopesBuilder::new(self.body(db)).build()
+        ExprScopesBuilder::new(self.hir_function(db)).build()
     }
 }
 

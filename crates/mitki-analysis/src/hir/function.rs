@@ -1,7 +1,7 @@
 use la_arena::Arena;
 use mitki_span::Symbol;
-use mitki_yellow::RedNodePtr;
 use mitki_yellow::ast::{self, HasName as _, Node as _};
+use mitki_yellow::{RedNode, RedNodePtr};
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
@@ -9,7 +9,7 @@ use super::syntax::{Binding, Block, Expr, ExprData, Stmt, Ty};
 use crate::ToSymbol;
 
 #[derive(Default, Debug)]
-pub(crate) struct Function<'db> {
+pub struct Function<'db> {
     body: Block<'db>,
 
     exprs: Arena<ExprData<'db>>,
@@ -18,7 +18,7 @@ pub(crate) struct Function<'db> {
 
     bindings: Arena<Symbol<'db>>,
     binding_map: FxHashMap<RedNodePtr, Binding<'db>>,
-    binding_map_back: FxHashMap<Binding<'db>, RedNodePtr>,
+    pub binding_map_back: FxHashMap<Binding<'db>, RedNodePtr>,
 }
 
 impl<'db> Function<'db> {
@@ -32,6 +32,10 @@ impl<'db> Function<'db> {
 
     pub(crate) fn bindings(&self) -> &Arena<Symbol<'db>> {
         &self.bindings
+    }
+
+    pub(crate) fn syntax_expr(&self, db: &dyn Database, syntax: &RedNode) -> Option<Expr> {
+        self.expr_map.get(&RedNodePtr::new(db, syntax)).copied()
     }
 }
 

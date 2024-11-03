@@ -1,4 +1,4 @@
-mod scope;
+pub(crate) mod scope;
 
 use mitki_span::Symbol;
 use salsa::Database;
@@ -8,7 +8,7 @@ use crate::hir::{Binding, Expr};
 use crate::item::scope::FunctionLocation;
 
 #[derive(Debug, Clone)]
-pub(crate) struct Resolver<'db> {
+pub struct Resolver<'db> {
     expr_scopes: &'db ExprScopes<'db>,
     scopes: Vec<Scope<'db>>,
 }
@@ -45,7 +45,7 @@ impl<'db> Resolver<'db> {
         self.scopes.truncate(start);
     }
 
-    pub(crate) fn resolve_path(&self, path: Symbol<'db>) -> Option<Binding> {
+    pub fn resolve_path(&self, path: Symbol<'db>) -> Option<Binding> {
         for scope in self.scopes() {
             if let Some(entry) =
                 self.expr_scopes.entries(scope).iter().find(|entry| entry.name == path)
@@ -55,6 +55,16 @@ impl<'db> Resolver<'db> {
         }
 
         None
+    }
+
+    pub(crate) fn for_scope(
+        expr_scopes: &'db ExprScopes<'db>,
+        scope: Option<Scope<'db>>,
+    ) -> Resolver<'db> {
+        Resolver {
+            scopes: expr_scopes.chain(scope).collect::<Vec<_>>().into_iter().collect(),
+            expr_scopes,
+        }
     }
 }
 

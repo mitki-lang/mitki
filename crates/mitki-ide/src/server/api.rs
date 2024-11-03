@@ -2,7 +2,8 @@ use std::collections::hash_map::Entry;
 
 use anyhow::Result;
 use mitki_inputs::File;
-use salsa::Setter;
+use salsa::{Database, Setter};
+use text_size::TextRange;
 
 use super::notifications::NotificationDispatcher;
 use super::requests::RequestDispatcher;
@@ -15,13 +16,33 @@ pub(crate) fn request(server: &mut Server, request: lsp_server::Request) {
         .finish();
 }
 
+#[expect(clippy::needless_pass_by_value)]
 fn handle_goto_definition(
     server: &mut Server,
     params: lsp_types::GotoDefinitionParams,
 ) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
-    let file_position = file_position(server, params.text_document_position_params);
-    server.analysis.goto_definition(file_position);
-    Ok(None)
+    let file_position = file_position(server, params.text_document_position_params.clone());
+
+    match server.analysis.goto_definition(file_position) {
+        Some((origin_selection_range, target_range)) => {
+            Ok(Some(lsp_types::GotoDefinitionResponse::Link(vec![lsp_types::LocationLink {
+                origin_selection_range: to_range(
+                    server.analysis.db(),
+                    file_position.file,
+                    origin_selection_range,
+                )
+                .into(),
+                target_uri: params.text_document_position_params.text_document.uri.clone(),
+                target_range: to_range(server.analysis.db(), file_position.file, target_range),
+                target_selection_range: to_range(
+                    server.analysis.db(),
+                    file_position.file,
+                    target_range,
+                ),
+            }])))
+        }
+        None => Ok(None),
+    }
 }
 
 #[expect(clippy::needless_pass_by_value)]
@@ -30,19 +51,13 @@ fn handle_document_diagnostic(
     params: lsp_types::DocumentDiagnosticParams,
 ) -> Result<lsp_types::DocumentDiagnosticReportResult> {
     let file = server.file(&params.text_document.uri);
-    let line_index = file.line_index(server.analysis.db());
+
     let diagnostics =
         mitki_db::check_file::accumulated::<mitki_db::Diagnostic>(server.analysis.db(), file)
             .into_iter()
             .map(|diagnostic| {
-                let start = line_index.line_col(diagnostic.range.start());
-                let end = line_index.line_col(diagnostic.range.end());
-
                 lsp_types::Diagnostic::new(
-                    lsp_types::Range {
-                        start: lsp_types::Position::new(start.line, start.col),
-                        end: lsp_types::Position::new(end.line, end.col),
-                    },
+                    to_range(server.analysis.db(), file, diagnostic.range),
                     lsp_types::DiagnosticSeverity::ERROR.into(),
                     None,
                     Some("mitki".to_string()),
@@ -100,4 +115,15 @@ fn handle_did_change_text_document(
     let change = params.content_changes.into_iter().next().unwrap();
     file.set_text(server.analysis.db_mut()).to(change.text);
     Ok(())
+}
+
+fn to_range(db: &dyn Database, file: File, range: TextRange) -> lsp_types::Range {
+    let line_index = file.line_index(db);
+    let start = line_index.line_col(range.start());
+    let end = line_index.line_col(range.end());
+
+    lsp_types::Range {
+        start: lsp_types::Position::new(start.line, start.col),
+        end: lsp_types::Position::new(end.line, end.col),
+    }
 }

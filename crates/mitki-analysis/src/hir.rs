@@ -4,14 +4,14 @@ mod syntax;
 pub(crate) use function::Function;
 pub(crate) use syntax::{Binding, Block, Expr, ExprData, Stmt};
 
-pub(crate) trait HasBody<'db> {
-    fn body(self, db: &'db dyn salsa::Database) -> &'db Function<'db>;
+pub trait HasFunction<'db> {
+    fn hir_function(self, db: &'db dyn salsa::Database) -> &'db Function<'db>;
 }
 
 #[salsa::tracked]
-impl<'db> HasBody<'db> for crate::item::scope::FunctionLocation<'db> {
+impl<'db> HasFunction<'db> for crate::item::scope::FunctionLocation<'db> {
     #[salsa::tracked(return_ref, no_eq)]
-    fn body(self, db: &'db dyn salsa::Database) -> Function<'db> {
+    fn hir_function(self, db: &'db dyn salsa::Database) -> Function<'db> {
         use mitki_parse::FileParse as _;
         use mitki_yellow::ast::{self, Node as _};
 

@@ -22,7 +22,7 @@ impl HasItemScope for File {
 }
 
 #[salsa::tracked]
-pub(crate) struct FunctionLocation<'db> {
+pub struct FunctionLocation<'db> {
     pub(crate) file: File,
     pub(crate) index: Function<'db>,
 }
