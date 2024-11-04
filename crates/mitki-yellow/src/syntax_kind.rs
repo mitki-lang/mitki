@@ -57,7 +57,6 @@ pub enum SyntaxKind {
     PATH_TYPE,
     PREFIX_EXPR,
     CALL_EXPR,
-    INDEX_EXPR,
     STMT_LIST,
     VAL_STMT,
     RETURN_STMT,

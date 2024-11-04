@@ -129,12 +129,7 @@ fn postfix_expr(p: &mut Parser) -> Option<CompletedMarker> {
                 m.complete(p, ARG_LIST);
                 head.precede(p).complete(p, CALL_EXPR)
             }
-            LEFT_BRACKET if p.next_token_on_same_line() => {
-                p.advance();
-                expr(p);
-                p.expect(RIGHT_BRACKET);
-                head.precede(p).complete(p, INDEX_EXPR)
-            }
+
             _ => break,
         }
     }
