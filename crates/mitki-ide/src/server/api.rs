@@ -55,10 +55,17 @@ fn handle_document_diagnostic(
     let diagnostics =
         mitki_db::check_file::accumulated::<mitki_db::Diagnostic>(server.analysis.db(), file)
             .into_iter()
-            .map(|diagnostic| {
+            .map(|diagnostic: mitki_db::Diagnostic| {
                 lsp_types::Diagnostic::new(
                     to_range(server.analysis.db(), file, diagnostic.range()),
-                    lsp_types::DiagnosticSeverity::ERROR.into(),
+                    Some(match diagnostic.level() {
+                        mitki_db::Level::Error => lsp_types::DiagnosticSeverity::ERROR,
+                        mitki_db::Level::Warning => lsp_types::DiagnosticSeverity::WARNING,
+                        mitki_db::Level::Info => lsp_types::DiagnosticSeverity::INFORMATION,
+                        mitki_db::Level::Note | mitki_db::Level::Help => {
+                            lsp_types::DiagnosticSeverity::HINT
+                        }
+                    }),
                     None,
                     Some("mitki".to_string()),
                     diagnostic.message().to_string(),

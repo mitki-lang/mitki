@@ -1,5 +1,5 @@
 pub use mitki_analysis::check_file;
-pub use mitki_errors::Diagnostic;
+pub use mitki_errors::{Diagnostic, Level};
 use salsa::{Database, Event};
 
 #[salsa::db]
