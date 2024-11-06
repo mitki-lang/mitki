@@ -90,7 +90,7 @@ fn parse() {
             let diagnostics = parse_module::accumulated::<Diagnostic>(&db, text);
             let diagnostics = diagnostics
                 .into_iter()
-                .map(|d| format!("  {}", d.message))
+                .map(|d| format!("  {}", d.message()))
                 .collect::<Vec<_>>()
                 .join("\n");
 

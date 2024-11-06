@@ -93,11 +93,11 @@ impl<'db> Parser<'db> {
     }
 
     pub(crate) fn error_with_range(&mut self, message: &str, range: TextRange) {
-        if self.diagnostics.last().is_some_and(|last| last.range.start() == range.start()) {
+        if self.diagnostics.last().is_some_and(|last| last.range().start() == range.start()) {
             return;
         }
 
-        self.diagnostics.push(Diagnostic { message: message.to_string(), range });
+        self.diagnostics.push(Diagnostic::error(message, range));
     }
 
     pub(crate) fn error(&mut self, message: &str) {

@@ -6,11 +6,23 @@ pub use text_size::TextRange;
 
 #[salsa::accumulator]
 pub struct Diagnostic {
-    pub message: String,
-    pub range: TextRange,
+    message: String,
+    range: TextRange,
 }
 
 impl Diagnostic {
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    pub fn range(&self) -> TextRange {
+        self.range
+    }
+
+    pub fn error(message: impl Into<String>, range: TextRange) -> Self {
+        Self { message: message.into(), range }
+    }
+
     pub fn render<'a>(
         &'a self,
         renderer: &'a Renderer,

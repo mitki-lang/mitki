@@ -57,11 +57,11 @@ fn handle_document_diagnostic(
             .into_iter()
             .map(|diagnostic| {
                 lsp_types::Diagnostic::new(
-                    to_range(server.analysis.db(), file, diagnostic.range),
+                    to_range(server.analysis.db(), file, diagnostic.range()),
                     lsp_types::DiagnosticSeverity::ERROR.into(),
                     None,
                     Some("mitki".to_string()),
-                    diagnostic.message,
+                    diagnostic.message().to_string(),
                     None,
                     None,
                 )
