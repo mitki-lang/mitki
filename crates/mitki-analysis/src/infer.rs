@@ -51,9 +51,9 @@ impl<'db> InferenceBuilder<'db> {
 
     fn infer_stmt(&mut self, stmt: Stmt<'db>) {
         match stmt {
-            Stmt::Val { name: _, ty, initializer: expr } => {
+            Stmt::Val { name: _, ty, initializer } => {
                 _ = ty;
-                self.infer_expr(expr);
+                self.infer_expr(initializer);
             }
             Stmt::Expr { expr, has_semi: _ } => {
                 self.infer_expr(expr);
