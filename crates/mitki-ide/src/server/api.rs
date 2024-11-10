@@ -13,6 +13,9 @@ pub(crate) fn request(server: &mut Server, request: lsp_server::Request) {
     RequestDispatcher::new(request, server)
         .on::<lsp_types::request::GotoDefinition>(handle_goto_definition)
         .on::<lsp_types::request::DocumentDiagnosticRequest>(handle_document_diagnostic)
+        .on::<lsp_types::request::SemanticTokensFullRequest>(handle_semantic_tokens_full)
+        .on::<lsp_types::request::SemanticTokensFullDeltaRequest>(handle_semantic_tokens_full_delta)
+        .on::<lsp_types::request::SemanticTokensRangeRequest>(handle_semantic_tokens_range)
         .finish();
 }
 
@@ -77,6 +80,27 @@ fn handle_document_diagnostic(
             },
         }),
     ))
+}
+
+fn handle_semantic_tokens_full(
+    _server: &mut Server,
+    _params: lsp_types::SemanticTokensParams,
+) -> Result<Option<lsp_types::SemanticTokensResult>> {
+    Ok(None)
+}
+
+fn handle_semantic_tokens_range(
+    _server: &mut Server,
+    _params: lsp_types::SemanticTokensRangeParams,
+) -> Result<Option<lsp_types::SemanticTokensRangeResult>> {
+    Ok(None)
+}
+
+fn handle_semantic_tokens_full_delta(
+    _server: &mut Server,
+    _params: lsp_types::SemanticTokensDeltaParams,
+) -> Result<Option<lsp_types::SemanticTokensFullDeltaResult>> {
+    Ok(None)
 }
 
 pub(crate) fn notification(server: &mut Server, notification: lsp_server::Notification) {

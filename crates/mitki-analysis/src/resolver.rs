@@ -22,6 +22,7 @@ impl<'db> Resolver<'db> {
         self.scopes.iter().rev().copied()
     }
 
+    #[expect(dead_code)]
     pub(crate) fn scopes_for_expr(&mut self, expr: Expr<'db>) -> Guard {
         let start = self.scopes.len();
 
@@ -41,6 +42,7 @@ impl<'db> Resolver<'db> {
         Guard(start)
     }
 
+    #[expect(dead_code)]
     pub(crate) fn reset(&mut self, Guard(start): Guard) {
         self.scopes.truncate(start);
     }

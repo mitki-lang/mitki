@@ -1,7 +1,7 @@
 use la_arena::Arena;
 use mitki_span::Symbol;
 use mitki_yellow::ast::{self, HasName as _, Node as _};
-use mitki_yellow::{RedNode, RedNodePtr};
+use mitki_yellow::{RedNode, RedNodePtr, RedToken};
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
@@ -99,12 +99,13 @@ impl<'db> FunctionBuilder<'db> {
                 });
 
                 let initializer = self.build_expr(val.expr(self.db));
-
-                let ptr = RedNodePtr::new(self.db, val.name(self.db).unwrap().syntax());
-
                 let name = self.bindings.alloc(name);
-                self.binding_map.insert(ptr, name);
-                self.binding_map_back.insert(name, ptr);
+
+                if let Some(ptr) = val.name(self.db) {
+                    let ptr = RedNodePtr::new(self.db, ptr.syntax());
+                    self.binding_map.insert(ptr, name);
+                    self.binding_map_back.insert(name, ptr);
+                }
 
                 Stmt::Val { name, ty, initializer }
             }
@@ -122,7 +123,11 @@ impl<'db> FunctionBuilder<'db> {
 
         let expr = match &node {
             ast::Expr::Path(path) => ExprData::Path(path.to_symbol(self.db)),
-            ast::Expr::Literal(_literal) => ExprData::Missing,
+            ast::Expr::Literal(literal) => match literal.kind(self.db) {
+                ast::LiteralKind::Bool(value) => ExprData::Bool(value),
+                ast::LiteralKind::Int(token) => ExprData::Int(self.token_text(&token)),
+                ast::LiteralKind::Float(token) => ExprData::Float(self.token_text(&token)),
+            },
             ast::Expr::Binary(_binary) => ExprData::Missing,
             ast::Expr::Postfix(_postfix) => ExprData::Missing,
             ast::Expr::Prefix(_prefix) => ExprData::Missing,
@@ -142,5 +147,9 @@ impl<'db> FunctionBuilder<'db> {
         self.expr_map_back.insert(expr, ptr);
 
         expr
+    }
+
+    fn token_text(&self, red_data: &RedToken<'db>) -> Symbol<'db> {
+        Symbol::new(self.db, red_data.green().text_trimmed(self.db))
     }
 }

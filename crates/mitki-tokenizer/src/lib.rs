@@ -137,6 +137,8 @@ impl<'db> Tokenizer<'db> {
                     "while" => WHILE_KW,
                     "return" => RETURN_KW,
                     "break" => BREAK_KW,
+                    "true" => TRUE_KW,
+                    "false" => FALSE_KW,
                     _ => NAME,
                 }
             }

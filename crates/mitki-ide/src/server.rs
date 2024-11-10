@@ -31,6 +31,21 @@ impl Server {
                 lsp_types::TextDocumentSyncKind::FULL,
             )),
             definition_provider: Some(lsp_types::OneOf::Left(true)),
+            semantic_tokens_provider: Some(
+                lsp_types::SemanticTokensOptions {
+                    work_done_progress_options: Default::default(),
+                    legend: lsp_types::SemanticTokensLegend {
+                        token_types: vec![
+                            lsp_types::SemanticTokenType::KEYWORD,
+                            lsp_types::SemanticTokenType::OPERATOR,
+                        ],
+                        token_modifiers: vec![],
+                    },
+                    range: Some(true),
+                    full: Some(lsp_types::SemanticTokensFullOptions::Delta { delta: Some(true) }),
+                }
+                .into(),
+            ),
             ..lsp_types::ServerCapabilities::default()
         }
     }
@@ -48,11 +63,17 @@ impl Server {
             }
         };
 
-        let initialize_data = serde_json::json!({
-            "capabilities": Self::server_capabilities(),
-        });
+        let initialize_result = serde_json::to_value(lsp_types::InitializeResult {
+            capabilities: Self::server_capabilities(),
+            server_info: Some(lsp_types::ServerInfo {
+                name: env!("CARGO_PKG_NAME").to_string(),
+                version: env!("CARGO_PKG_VERSION").to_string().into(),
+            }),
+        })
+        .unwrap();
 
-        if let Err(protocol_error) = connection.initialize_finish(initialize_id, initialize_data) {
+        if let Err(protocol_error) = connection.initialize_finish(initialize_id, initialize_result)
+        {
             if protocol_error.channel_is_disconnected() {
                 io_threads.join()?;
             }
@@ -86,7 +107,6 @@ impl Server {
                 }
             }
         }
-
         self.io_threads.join().map_err(Into::into)
     }
 }

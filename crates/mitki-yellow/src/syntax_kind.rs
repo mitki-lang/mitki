@@ -23,13 +23,13 @@ pub enum SyntaxKind {
     RETURN_KW,
     BREAK_KW,
     NAME,
-
+    TRUE_KW,
+    FALSE_KW,
     INT_NUMBER,
     FLOAT_NUMBER,
     BINARY_OPERATOR,
     POSTFIX_OPERATOR,
     PREFIX_OPERATOR,
-
     UNKNOWN,
     EOF,
 

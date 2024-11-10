@@ -11,6 +11,7 @@ pub(crate) struct Block<'db> {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[expect(dead_code)]
 pub(crate) enum Stmt<'db> {
     Val { name: Binding<'db>, ty: Option<Ty<'db>>, initializer: Expr<'db> },
     Expr { expr: Expr<'db>, has_semi: bool },
@@ -20,6 +21,7 @@ pub(crate) enum Stmt<'db> {
 #[allow(dead_code)]
 pub(crate) enum ExprData<'db> {
     Path(Symbol<'db>),
+    Bool(bool),
     Int(Symbol<'db>),
     Float(Symbol<'db>),
     If { condition: Expr<'db>, then_branch: Block<'db>, else_branch: Option<Block<'db>> },
