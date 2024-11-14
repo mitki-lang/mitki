@@ -22,12 +22,11 @@ impl<'me> RequestDispatcher<'me> {
         match res {
             Ok(params) => Some((request, params)),
             Err(error) => {
-                let response = lsp_server::Response::new_err(
+                self.server.respond(lsp_server::Response::new_err(
                     request.id,
                     lsp_server::ErrorCode::InvalidParams as i32,
                     error.to_string(),
-                );
-                self.server.respond(response);
+                ));
                 None
             }
         }

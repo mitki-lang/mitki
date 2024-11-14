@@ -30,10 +30,10 @@ fn handle_goto_definition(
     match server.analysis.goto_definition(file_position) {
         Some((origin_selection_range, target_range)) => {
             Ok(Some(lsp_types::GotoDefinitionResponse::Link(vec![lsp_types::LocationLink {
-                origin_selection_range: to_range(line_index, origin_selection_range).into(),
+                origin_selection_range: to_lsp_range(line_index, origin_selection_range).into(),
                 target_uri: params.text_document_position_params.text_document.uri.clone(),
-                target_range: to_range(line_index, target_range),
-                target_selection_range: to_range(line_index, target_range),
+                target_range: to_lsp_range(line_index, target_range),
+                target_selection_range: to_lsp_range(line_index, target_range),
             }])))
         }
         None => Ok(None),
@@ -48,38 +48,36 @@ fn handle_document_diagnostic(
     let file = server.file(&params.text_document.uri);
     let line_index = file.line_index(server.analysis.db());
 
-    let diagnostics =
-        mitki_db::check_file::accumulated::<mitki_db::Diagnostic>(server.analysis.db(), file)
-            .into_iter()
-            .map(|diagnostic: mitki_db::Diagnostic| {
-                lsp_types::Diagnostic::new(
-                    to_range(line_index, diagnostic.range()),
-                    Some(match diagnostic.level() {
-                        mitki_db::Level::Error => lsp_types::DiagnosticSeverity::ERROR,
-                        mitki_db::Level::Warning => lsp_types::DiagnosticSeverity::WARNING,
-                        mitki_db::Level::Info => lsp_types::DiagnosticSeverity::INFORMATION,
-                        mitki_db::Level::Note | mitki_db::Level::Help => {
-                            lsp_types::DiagnosticSeverity::HINT
-                        }
-                    }),
-                    None,
-                    Some("mitki".to_string()),
-                    diagnostic.message().to_string(),
-                    None,
-                    None,
-                )
-            })
-            .collect::<Vec<_>>();
+    let diagnostics = mitki_db::check_file::accumulated(server.analysis.db(), file)
+        .into_iter()
+        .map(|diagnostic: mitki_db::Diagnostic| {
+            lsp_types::Diagnostic::new(
+                to_lsp_range(line_index, diagnostic.range()),
+                Some(match diagnostic.level() {
+                    mitki_db::Level::Error => lsp_types::DiagnosticSeverity::ERROR,
+                    mitki_db::Level::Warning => lsp_types::DiagnosticSeverity::WARNING,
+                    mitki_db::Level::Info => lsp_types::DiagnosticSeverity::INFORMATION,
+                    mitki_db::Level::Note | mitki_db::Level::Help => {
+                        lsp_types::DiagnosticSeverity::HINT
+                    }
+                }),
+                None,
+                Some("mitki".to_string()),
+                diagnostic.message().to_string(),
+                None,
+                None,
+            )
+        })
+        .collect();
 
-    Ok(lsp_types::DocumentDiagnosticReportResult::Report(
-        lsp_types::DocumentDiagnosticReport::Full(lsp_types::RelatedFullDocumentDiagnosticReport {
-            related_documents: None,
-            full_document_diagnostic_report: lsp_types::FullDocumentDiagnosticReport {
-                result_id: None,
-                items: diagnostics,
-            },
-        }),
-    ))
+    Ok(lsp_types::DocumentDiagnosticReport::Full(lsp_types::RelatedFullDocumentDiagnosticReport {
+        related_documents: None,
+        full_document_diagnostic_report: lsp_types::FullDocumentDiagnosticReport {
+            result_id: None,
+            items: diagnostics,
+        },
+    })
+    .into())
 }
 
 fn handle_semantic_tokens_full(
@@ -141,7 +139,7 @@ fn handle_did_change_text_document(
     Ok(())
 }
 
-fn to_range(line_index: &mitki_inputs::LineIndex, range: TextRange) -> lsp_types::Range {
+fn to_lsp_range(line_index: &mitki_inputs::LineIndex, range: TextRange) -> lsp_types::Range {
     let start = line_index.line_col(range.start());
     let end = line_index.line_col(range.end());
 
