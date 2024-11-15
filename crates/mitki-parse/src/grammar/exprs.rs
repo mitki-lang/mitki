@@ -211,10 +211,7 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
             m.complete(p, FIELD_EXPR).into()
         }
         _ => {
-            let m = p.start();
-            p.error("expected expression");
-            p.advance();
-            m.complete(p, ERROR);
+            p.error_and_bump("expected expression");
             None
         }
     }
