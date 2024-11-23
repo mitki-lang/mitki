@@ -1,12 +1,12 @@
 use mitki_yellow::SyntaxKind::*;
 use mitki_yellow::SyntaxSet;
+use text_size::TextRange;
 
 use super::{delimited, name, types};
 use crate::parser::{CompletedMarker, Parser};
 
 pub(crate) fn stmt(p: &mut Parser) {
     match p.peek_kind() {
-        SEMICOLON => p.advance(),
         VAL_KW => {
             let m = p.start();
             p.advance();
@@ -54,14 +54,28 @@ pub(crate) fn block(p: &mut Parser<'_>) {
 
     let m = p.start();
     p.advance();
-    expr_block_contents(p);
+    block_contents(p);
     p.expect(RIGHT_BRACE);
     m.complete(p, STMT_LIST);
 }
+fn block_contents(parser: &mut Parser) {
+    let mut prev_had_semicolon = true;
 
-fn expr_block_contents(p: &mut Parser) {
-    while !matches!(p.peek_kind(), RIGHT_BRACE | EOF) {
-        stmt(p);
+    while !matches!(parser.peek_kind(), RIGHT_BRACE | EOF) {
+        let consecutive_statements_on_same_line =
+            !prev_had_semicolon && parser.next_token_on_same_line();
+
+        let stmt_start = parser.peek_range().start();
+        stmt(parser);
+
+        if consecutive_statements_on_same_line {
+            parser.error_with_range(
+                "Consecutive statements on the same line must be separated by ';'",
+                TextRange::new(stmt_start, parser.previous_range().end()),
+            );
+        }
+
+        prev_had_semicolon = parser.eat(SEMICOLON);
     }
 }
 
@@ -249,7 +263,7 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
 
             let stmts = p.start();
             if !p.at(RIGHT_BRACE) {
-                expr_block_contents(p);
+                block_contents(p);
             }
             stmts.complete(p, STMT_LIST);
 

@@ -12,6 +12,7 @@ pub(crate) struct Parser<'db> {
     tokenizer: Tokenizer<'db>,
     events: Vec<Event>,
     diagnostics: Vec<Diagnostic>,
+    previous_range: TextRange,
 }
 
 impl<'db> Parser<'db> {
@@ -22,6 +23,7 @@ impl<'db> Parser<'db> {
             tokenizer: Tokenizer::new(text),
             events: Vec::new(),
             diagnostics: Vec::new(),
+            previous_range: TextRange::default(),
         }
     }
 
@@ -39,11 +41,16 @@ impl<'db> Parser<'db> {
             tokenizer: self.tokenizer.clone(),
             events: Vec::new(),
             diagnostics: Vec::new(),
+            previous_range: TextRange::default(),
         }
     }
 
     pub(crate) fn peek_kind(&self) -> SyntaxKind {
         self.tokenizer.peek().kind
+    }
+
+    pub(crate) fn peek_range(&self) -> TextRange {
+        self.tokenizer.peek().kind_range
     }
 
     pub(crate) fn next_token_on_same_line(&self) -> bool {
@@ -56,6 +63,7 @@ impl<'db> Parser<'db> {
         }
 
         let token = self.tokenizer.next_token();
+        self.previous_range = token.kind_range;
         self.events.push(Event::Token(token));
     }
 
@@ -129,7 +137,7 @@ impl<'db> Parser<'db> {
     pub(crate) fn build_tree(self) -> GreenNode<'db> {
         use salsa::Accumulator;
 
-        let Parser { db, text, tokenizer: _, mut events, diagnostics } = self;
+        let Parser { db, text, mut events, diagnostics, .. } = self;
         let mut builder = Builder::new(db, text);
         let mut forward_parents = Vec::new();
 
@@ -173,6 +181,10 @@ impl<'db> Parser<'db> {
         }
 
         builder.finish()
+    }
+
+    pub(crate) fn previous_range(&self) -> TextRange {
+        self.previous_range
     }
 }
 
