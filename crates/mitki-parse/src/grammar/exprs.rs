@@ -1,4 +1,5 @@
 use mitki_yellow::SyntaxKind::*;
+use mitki_yellow::SyntaxSet;
 
 use super::{delimited, name, types};
 use crate::parser::{CompletedMarker, Parser};
@@ -9,7 +10,7 @@ pub(crate) fn stmt(p: &mut Parser) {
         VAL_KW => {
             let m = p.start();
             p.advance();
-            name(p, &[VAL_KW, SEMICOLON]);
+            name(p, &SyntaxSet::new([VAL_KW, SEMICOLON]));
             if p.at(COLON) {
                 types::ascription(p);
             }
@@ -123,7 +124,7 @@ fn postfix_expr(p: &mut Parser) -> Option<CompletedMarker> {
                     RIGHT_PAREN,
                     COMMA,
                     "expected expression",
-                    &[INT_NUMBER, FLOAT_NUMBER, LEFT_PAREN, PREFIX_OPERATOR],
+                    &SyntaxSet::new([INT_NUMBER, FLOAT_NUMBER, LEFT_PAREN, PREFIX_OPERATOR]),
                     |p| expr(p).is_some(),
                 );
                 m.complete(p, ARG_LIST);
@@ -201,7 +202,7 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
         }
         NAME => {
             let m = p.start();
-            name(p, &[]);
+            name(p, &SyntaxSet::EMPTY);
             m.complete(p, PATH_EXPR).into()
         }
         DOT => {

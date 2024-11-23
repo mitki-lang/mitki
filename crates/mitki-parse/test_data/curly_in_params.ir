@@ -5,13 +5,16 @@ MODULE
       NAME: "foo"
     PARAM_LIST
       LEFT_PAREN: "("
-  RIGHT_BRACE: "}"
-  RIGHT_PAREN: ")"
-  LEFT_BRACE: "{"
-  RIGHT_BRACE: "}"
+  ERROR
+    RIGHT_BRACE: "}"
+  ERROR
+    RIGHT_PAREN: ")"
+  ERROR
+    LEFT_BRACE: "{"
+  ERROR
+    RIGHT_BRACE: "}"
 
 Errors:
   expected parameter name
-  expected item
-  expected item
-  expected item
+  expected an item
+  expected an item

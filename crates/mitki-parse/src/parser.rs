@@ -2,7 +2,7 @@ use drop_bomb::DropBomb;
 use mitki_errors::Diagnostic;
 use mitki_tokenizer::{Token, Tokenizer};
 use mitki_yellow::SyntaxKind::{self, *};
-use mitki_yellow::{Builder, GreenNode};
+use mitki_yellow::{Builder, GreenNode, SyntaxSet};
 use salsa::Database;
 use text_size::TextRange;
 
@@ -69,12 +69,12 @@ impl<'db> Parser<'db> {
     }
 
     pub(crate) fn error_and_bump(&mut self, message: &str) {
-        self.error_recover(message, &[]);
+        self.error_recover(message, &SyntaxSet::EMPTY);
     }
 
-    pub(crate) fn error_recover(&mut self, message: &str, recovery: &[SyntaxKind]) {
+    pub(crate) fn error_recover(&mut self, message: &str, recovery: &SyntaxSet) {
         if matches!(self.peek_kind(), LEFT_BRACE | RIGHT_BRACE)
-            || !recovery.contains(&self.peek_kind())
+            || recovery.contains(self.peek_kind())
         {
             self.error(message);
             return;
