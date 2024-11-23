@@ -25,6 +25,23 @@ impl<'db> Parser<'db> {
         }
     }
 
+    pub(crate) fn try_parse(&mut self, parser: fn(&mut Self) -> bool) {
+        let mut snapshot = self.fork();
+        if parser(&mut snapshot) {
+            self.merge(snapshot);
+        }
+    }
+
+    fn fork(&self) -> Self {
+        Self {
+            db: self.db,
+            text: self.text,
+            tokenizer: self.tokenizer.clone(),
+            events: Vec::new(),
+            diagnostics: Vec::new(),
+        }
+    }
+
     pub(crate) fn peek_kind(&self) -> SyntaxKind {
         self.tokenizer.peek().kind
     }
@@ -73,9 +90,7 @@ impl<'db> Parser<'db> {
     }
 
     pub(crate) fn error_recover(&mut self, message: &str, recovery: &SyntaxSet) {
-        if matches!(self.peek_kind(), LEFT_BRACE | RIGHT_BRACE)
-            || recovery.contains(self.peek_kind())
-        {
+        if recovery.contains(self.peek_kind()) {
             self.error(message);
             return;
         }
@@ -90,6 +105,12 @@ impl<'db> Parser<'db> {
         let pos = self.events.len() as u32;
         self.events.push(Event::TOMBSTONE);
         Marker::new(pos)
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.tokenizer = other.tokenizer;
+        self.events.extend(other.events);
+        self.diagnostics.extend(other.diagnostics);
     }
 
     pub(crate) fn error_with_range(&mut self, message: &str, range: TextRange) {

@@ -41,18 +41,6 @@ fn item(p: &mut Parser) {
             m.complete(p, FN);
         }
         SEMICOLON => p.error_and_bump("expected item, found `;`"),
-        LEFT_BRACE => {
-            let m = p.start();
-            p.advance();
-            p.error("expected an item");
-            m.complete(p, ERROR);
-        }
-        RIGHT_BRACE => {
-            let m = p.start();
-            p.error("unmatched `}`");
-            p.advance();
-            m.complete(p, ERROR);
-        }
         _ => p.error_and_bump("expected an item"),
     }
 }

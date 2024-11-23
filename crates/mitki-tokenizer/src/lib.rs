@@ -33,6 +33,7 @@ enum TriviaMode {
     NoNewlines,
 }
 
+#[derive(Clone)]
 pub struct Tokenizer<'db> {
     text: &'db str,
     cursor: Cursor<'db>,
@@ -139,6 +140,7 @@ impl<'db> Tokenizer<'db> {
                     "break" => BREAK_KW,
                     "true" => TRUE_KW,
                     "false" => FALSE_KW,
+                    "in" => IN_KW,
                     _ => NAME,
                 }
             }

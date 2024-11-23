@@ -54,13 +54,15 @@ pub(crate) fn block(p: &mut Parser<'_>) {
 
     let m = p.start();
     p.advance();
+    expr_block_contents(p);
+    p.expect(RIGHT_BRACE);
+    m.complete(p, STMT_LIST);
+}
 
+fn expr_block_contents(p: &mut Parser) {
     while !matches!(p.peek_kind(), RIGHT_BRACE | EOF) {
         stmt(p);
     }
-
-    p.expect(RIGHT_BRACE);
-    m.complete(p, STMT_LIST);
 }
 
 fn unary_expr(p: &mut Parser) -> Option<CompletedMarker> {
@@ -124,7 +126,18 @@ fn postfix_expr(p: &mut Parser) -> Option<CompletedMarker> {
                     RIGHT_PAREN,
                     COMMA,
                     "expected expression",
-                    &SyntaxSet::new([INT_NUMBER, FLOAT_NUMBER, LEFT_PAREN, PREFIX_OPERATOR]),
+                    &SyntaxSet::new([
+                        INT_NUMBER,
+                        FLOAT_NUMBER,
+                        DOT,
+                        NAME,
+                        IF_KW,
+                        LOOP_KW,
+                        LEFT_PAREN,
+                        LEFT_BRACE,
+                        LEFT_BRACKET,
+                        PREFIX_OPERATOR,
+                    ]),
                     |p| expr(p).is_some(),
                 );
                 m.complete(p, ARG_LIST);
@@ -210,6 +223,38 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
             p.advance();
             p.expect(NAME);
             m.complete(p, FIELD_EXPR).into()
+        }
+        LEFT_BRACE => {
+            let closure = p.start();
+            p.advance();
+
+            p.try_parse(|lookahead| {
+                let m = lookahead.start();
+                while lookahead.at(NAME) {
+                    let m = lookahead.start();
+                    lookahead.advance();
+                    m.complete(lookahead, PARAM);
+
+                    if !lookahead.eat(COMMA) {
+                        if lookahead.peek_kind() == NAME {
+                            lookahead.expect(COMMA);
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                m.complete(lookahead, PARAM_LIST);
+                lookahead.eat(IN_KW)
+            });
+
+            let stmts = p.start();
+            if !p.at(RIGHT_BRACE) {
+                expr_block_contents(p);
+            }
+            stmts.complete(p, STMT_LIST);
+
+            p.expect(RIGHT_BRACE);
+            closure.complete(p, CLOSURE_EXPR).into()
         }
         _ => {
             p.error_and_bump("expected expression");

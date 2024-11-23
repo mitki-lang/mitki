@@ -119,6 +119,9 @@ impl<'db> ExprScopesBuilder<'db> {
                     self.build_block(else_branch, scope);
                 }
             }
+            ExprData::Closure { body } => {
+                self.build_block(body, scope);
+            }
             ExprData::Missing => {}
             _ => {}
         }

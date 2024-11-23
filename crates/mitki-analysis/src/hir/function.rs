@@ -138,6 +138,9 @@ impl<'db> FunctionBuilder<'db> {
                     .else_branch(self.db)
                     .map(|else_branch| self.build_block(else_branch.into())),
             },
+            ast::Expr::Closure(closure) => {
+                ExprData::Closure { body: self.build_block(closure.body(self.db).into()) }
+            }
         };
 
         let expr = self.exprs.alloc(expr);
