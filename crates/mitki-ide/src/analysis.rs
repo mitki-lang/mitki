@@ -38,6 +38,10 @@ impl Analysis {
         })?;
 
         let path = original_token.parent().unwrap();
+        if path.kind(db) != SyntaxKind::NAME_REF {
+            return None;
+        }
+
         let location = path
             .ancestors()
             .find_map(|syntax| ast::Item::cast(db, syntax))

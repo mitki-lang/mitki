@@ -11,7 +11,7 @@ MODULE
       EXPR_STMT
         CALL_EXPR
           PATH_EXPR
-            IDENT
+            NAME_REF
               NAME: "f"
           ARG_LIST
             LEFT_PAREN: "("
@@ -21,7 +21,7 @@ MODULE
           CALL_EXPR
             CALL_EXPR
               PATH_EXPR
-                IDENT
+                NAME_REF
                   NAME: "f"
               ARG_LIST
                 LEFT_PAREN: "("

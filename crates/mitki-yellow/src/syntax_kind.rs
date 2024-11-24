@@ -46,6 +46,7 @@ pub enum SyntaxKind {
     RETURN_TYPE,
     IDENT,
     PATH_EXPR,
+    NAME_REF,
     TYPE_PARAM,
     LITERAL,
     TUPLE_EXPR,
