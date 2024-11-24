@@ -126,6 +126,12 @@ impl<'db> ExprScopesBuilder<'db> {
             ExprData::Closure { params, body } => {
                 self.build_block(body, scope, params);
             }
+            ExprData::Call { callee, args } => {
+                self.build_expr_scopes(*callee, scope);
+                for &arg in args {
+                    self.build_expr_scopes(arg, scope);
+                }
+            }
             ExprData::Missing => {}
             _ => {}
         }

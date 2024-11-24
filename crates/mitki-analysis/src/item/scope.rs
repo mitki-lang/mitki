@@ -23,8 +23,29 @@ impl HasItemScope for File {
 
 #[salsa::tracked]
 pub struct FunctionLocation<'db> {
-    pub(crate) file: File,
-    pub(crate) index: Function<'db>,
+    pub file: File,
+    pub index: Function<'db>,
+}
+
+impl<'db> FunctionLocation<'db> {
+    pub fn source(&self, db: &'db dyn Database) -> mitki_yellow::ast::Function<'db> {
+        use mitki_parse::FileParse as _;
+        use mitki_yellow::ast::{self, Node as _};
+
+        use crate::ast_map::HasAstMap as _;
+        use crate::item::tree::HasItemTree as _;
+
+        let file = self.file(db);
+        let item_tree = file.item_tree(db);
+        let ast_map = file.ast_map(db);
+        let index = self.index(db);
+
+        let item = item_tree[index].id;
+        let ptr = ast_map.find_node(item);
+
+        let syntax = ptr.to_node(db, &file.parse(db).syntax_node());
+        ast::Function::cast(db, syntax).unwrap()
+    }
 }
 
 #[derive(Debug, Default)]
@@ -34,6 +55,10 @@ pub(crate) struct ItemScope<'db> {
 }
 
 impl<'db> ItemScope<'db> {
+    pub(crate) fn get(&self, name: &Symbol<'db>) -> Option<FunctionLocation<'db>> {
+        self.values.get(name).copied()
+    }
+
     pub(crate) fn declarations(&self) -> impl ExactSizeIterator<Item = FunctionLocation<'db>> + '_ {
         self.declarations.iter().copied()
     }

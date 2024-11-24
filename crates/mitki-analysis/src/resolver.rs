@@ -2,20 +2,27 @@ pub(crate) mod scope;
 
 use mitki_span::Symbol;
 use salsa::Database;
-use scope::{ExprScopes, HasExprScopes, Scope};
+use scope::{ExprScopes, HasExprScopes as _, Scope};
 
 use crate::hir::{Binding, Expr};
-use crate::item::scope::FunctionLocation;
+use crate::item::scope::{FunctionLocation, HasItemScope as _, ItemScope};
 
 #[derive(Debug, Clone)]
 pub struct Resolver<'db> {
+    item_scope: &'db ItemScope<'db>,
     expr_scopes: &'db ExprScopes<'db>,
     scopes: Vec<Scope<'db>>,
 }
 
 impl<'db> Resolver<'db> {
     pub(crate) fn new(db: &'db dyn Database, function: FunctionLocation<'db>) -> Self {
-        Self { expr_scopes: function.expr_scopes(db), scopes: Vec::new() }
+        let file = function.file(db);
+
+        Self {
+            item_scope: file.item_scope(db),
+            expr_scopes: function.expr_scopes(db),
+            scopes: Vec::new(),
+        }
     }
 
     pub(crate) fn scopes(&self) -> impl ExactSizeIterator<Item = Scope<'db>> + '_ {
@@ -47,27 +54,37 @@ impl<'db> Resolver<'db> {
         self.scopes.truncate(start);
     }
 
-    pub fn resolve_path(&self, path: Symbol<'db>) -> Option<Binding> {
+    pub fn resolve_path(&self, path: Symbol<'db>) -> Option<PathResolution> {
         for scope in self.scopes() {
             if let Some(entry) =
                 self.expr_scopes.entries(scope).iter().find(|entry| entry.name == path)
             {
-                return Some(entry.binding);
+                return PathResolution::Local(entry.binding).into();
             }
+        }
+
+        if let Some(item) = self.item_scope.get(&path) {
+            return PathResolution::Function(item).into();
         }
 
         None
     }
 
     pub(crate) fn for_scope(
+        item_scope: &'db ItemScope<'db>,
         expr_scopes: &'db ExprScopes<'db>,
         scope: Option<Scope<'db>>,
     ) -> Resolver<'db> {
         let mut scopes: Vec<_> = expr_scopes.chain(scope).collect::<Vec<_>>().into_iter().collect();
         scopes.reverse();
 
-        Resolver { scopes, expr_scopes }
+        Resolver { item_scope, scopes, expr_scopes }
     }
 }
 
 pub(crate) struct Guard(usize);
+
+pub enum PathResolution<'db> {
+    Local(Binding<'db>),
+    Function(FunctionLocation<'db>),
+}

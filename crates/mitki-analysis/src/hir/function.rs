@@ -172,6 +172,11 @@ impl<'db> FunctionBuilder<'db> {
 
                 ExprData::Closure { params, body }
             }
+            ast::Expr::Call(call_expr) => {
+                let callee = self.build_expr(call_expr.callee(self.db));
+
+                ExprData::Call { callee, args: Vec::new() }
+            }
         };
 
         let expr = self.exprs.alloc(expr);
