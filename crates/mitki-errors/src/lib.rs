@@ -12,6 +12,14 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
+    pub fn new(level: Level, message: impl Into<String>, range: TextRange) -> Self {
+        Self { level, message: message.into(), range }
+    }
+
+    pub fn error(message: impl Into<String>, range: TextRange) -> Self {
+        Self::new(Level::Error, message, range)
+    }
+
     pub fn level(&self) -> Level {
         self.level
     }
@@ -22,10 +30,6 @@ impl Diagnostic {
 
     pub fn range(&self) -> TextRange {
         self.range
-    }
-
-    pub fn error(message: impl Into<String>, range: TextRange) -> Self {
-        Self { level: Level::Error, message: message.into(), range }
     }
 
     pub fn render<'a>(
