@@ -1,0 +1,35 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      VAL_STMT
+        VAL_KW: "val"
+        IDENT
+          NAME: "foo"
+        EQ: "="
+        CLOSURE_EXPR
+          LEFT_BRACE: "{"
+          PARAM_LIST
+            PARAM
+              IDENT
+                NAME: "bar"
+            COMMA: ","
+            PARAM
+              IDENT
+                NAME: "baz"
+            COMMA: ","
+            PARAM
+              IDENT
+                NAME: "qux"
+          IN_KW: "in"
+          STMT_LIST
+          RIGHT_BRACE: "}"
+      RIGHT_BRACE: "}"
+
+Errors:

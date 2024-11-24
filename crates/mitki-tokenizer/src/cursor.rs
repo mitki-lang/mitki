@@ -4,6 +4,7 @@ use text_size::{TextLen, TextSize};
 
 pub(crate) const EOF_CHAR: char = '\0';
 
+#[derive(Clone)]
 pub(crate) struct Cursor<'db> {
     chars: Chars<'db>,
     len: TextSize,

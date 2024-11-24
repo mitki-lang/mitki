@@ -50,7 +50,7 @@ impl<'db> Semantics<'db> {
             .and_then(|expr| scopes.scope_by_expr.get(expr))
             .copied();
 
-        Resolver::for_scope(scopes, scope)
+        Resolver::for_scope(location.file(db).item_scope(db), scopes, scope)
     }
 }
 

@@ -82,8 +82,9 @@ impl<'db> ExprScopesBuilder<'db> {
         })
     }
 
-    fn build_block(&mut self, block: &Block<'db>, scope: Scope<'db>) {
+    fn build_block(&mut self, block: &Block<'db>, scope: Scope<'db>, bindings: &[Binding<'db>]) {
         let mut scope = self.scope(scope);
+        self.add_bindings(bindings, scope);
 
         for stmt in &block.stmts {
             match *stmt {
@@ -91,11 +92,7 @@ impl<'db> ExprScopesBuilder<'db> {
                     self.build_expr_scopes(initializer, scope);
                     scope = self.scope(scope);
 
-                    let symbol = self.function.bindings()[name];
-                    let entry =
-                        self.scopes.scope_entries.alloc(ScopeEntry { name: symbol, binding: name });
-                    self.scopes.scopes[scope].entries =
-                        IdxRange::new_inclusive(self.scopes.scopes[scope].entries.start()..=entry);
+                    self.add_binding(name, scope);
                 }
                 Stmt::Expr { expr, has_semi: _ } => {
                     self.build_expr_scopes(expr, scope);
@@ -108,15 +105,31 @@ impl<'db> ExprScopesBuilder<'db> {
         }
     }
 
+    fn add_binding(&mut self, name: Idx<Symbol<'db>>, scope: Idx<ScopeData<'db>>) {
+        let symbol = self.function.bindings()[name];
+        let entry = self.scopes.scope_entries.alloc(ScopeEntry { name: symbol, binding: name });
+        self.scopes.scopes[scope].entries =
+            IdxRange::new_inclusive(self.scopes.scopes[scope].entries.start()..=entry);
+    }
+
     fn build_expr_scopes(&mut self, expr: Expr<'db>, scope: Scope<'db>) {
         self.scopes.scope_by_expr.insert(expr, scope);
 
         match &self.function.exprs()[expr] {
             ExprData::If { condition, then_branch, else_branch } => {
                 self.build_expr_scopes(*condition, scope);
-                self.build_block(then_branch, scope);
+                self.build_block(then_branch, scope, &[]);
                 if let Some(else_branch) = else_branch {
-                    self.build_block(else_branch, scope);
+                    self.build_block(else_branch, scope, &[]);
+                }
+            }
+            ExprData::Closure { params, body } => {
+                self.build_block(body, scope, params);
+            }
+            ExprData::Call { callee, args } => {
+                self.build_expr_scopes(*callee, scope);
+                for &arg in args {
+                    self.build_expr_scopes(arg, scope);
                 }
             }
             ExprData::Missing => {}
@@ -126,7 +139,13 @@ impl<'db> ExprScopesBuilder<'db> {
 
     fn build(mut self) -> ExprScopes<'db> {
         let scope = self.root_scope();
-        self.build_block(self.function.body(), scope);
+        self.build_block(self.function.body(), scope, self.function.params());
         self.scopes
+    }
+
+    fn add_bindings(&mut self, params: &[Binding<'db>], scope: Scope<'db>) {
+        for &name in params {
+            self.add_binding(name, scope);
+        }
     }
 }

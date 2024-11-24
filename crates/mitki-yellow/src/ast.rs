@@ -59,6 +59,10 @@ impl<'db> Node<'db> for Item<'db> {
 pub struct Function<'db>(RedNode<'db>);
 
 impl<'db> Function<'db> {
+    pub fn params(&self, db: &'db dyn Database) -> Option<Params<'db>> {
+        child(db, &self.0)
+    }
+
     pub fn body(&self, db: &'db dyn Database) -> Option<Block<'db>> {
         child(db, &self.0)
     }
@@ -78,6 +82,48 @@ impl<'db> Node<'db> for Function<'db> {
 }
 
 impl<'db> HasName<'db> for Function<'db> {}
+
+pub struct Params<'db>(RedNode<'db>);
+
+impl<'db> Params<'db> {
+    pub fn iter(&self, db: &'db dyn Database) -> impl Iterator<Item = Param<'db>> + '_ {
+        self.0.children(db).filter_map(move |syntax| Param::cast(db, syntax))
+    }
+}
+
+impl<'db> Node<'db> for Params<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            PARAM_LIST => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
+    }
+}
+
+pub struct Param<'db>(RedNode<'db>);
+
+impl<'db> Param<'db> {
+    pub fn name(&self, db: &'db dyn Database) -> Name<'db> {
+        child(db, self.syntax()).unwrap()
+    }
+}
+
+impl<'db> Node<'db> for Param<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            PARAM => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
+    }
+}
 
 pub struct Block<'db>(RedNode<'db>);
 
@@ -184,6 +230,8 @@ pub enum Expr<'db> {
     Postfix(Postfix<'db>),
     Prefix(Prefix<'db>),
     If(IfExpr<'db>),
+    Closure(Closure<'db>),
+    Call(CallExpr<'db>),
 }
 
 impl<'db> Node<'db> for Expr<'db> {
@@ -195,6 +243,8 @@ impl<'db> Node<'db> for Expr<'db> {
             POSTFIX_EXPR => Expr::Postfix(Postfix(syntax)).into(),
             PREFIX_EXPR => Expr::Prefix(Prefix(syntax)).into(),
             IF_EXPR => Expr::If(IfExpr(syntax)).into(),
+            CLOSURE_EXPR => Expr::Closure(Closure(syntax)).into(),
+            CALL_EXPR => Expr::Call(CallExpr(syntax)).into(),
             _ => None,
         }
     }
@@ -207,6 +257,8 @@ impl<'db> Node<'db> for Expr<'db> {
             Expr::Postfix(postfix) => &postfix.0,
             Expr::Prefix(prefix) => &prefix.0,
             Expr::If(if_) => if_.syntax(),
+            Expr::Closure(closure) => closure.syntax(),
+            Expr::Call(call) => call.syntax(),
         }
     }
 }
@@ -305,6 +357,52 @@ impl<'db> IfExpr<'db> {
 
     pub fn else_branch(&self, db: &'db dyn Database) -> Option<Block<'db>> {
         self.syntax().children(db).nth(2).and_then(|syntax| Block::cast(db, syntax))
+    }
+}
+
+pub struct Closure<'db>(RedNode<'db>);
+
+impl<'db> Closure<'db> {
+    pub fn params(&self, db: &'db dyn Database) -> Option<Params<'db>> {
+        child(db, &self.0)
+    }
+
+    pub fn body(&self, db: &'db dyn Database) -> Block<'db> {
+        child(db, self.syntax()).unwrap()
+    }
+}
+
+impl<'db> Node<'db> for Closure<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            CLOSURE_EXPR => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
+    }
+}
+
+pub struct CallExpr<'db>(RedNode<'db>);
+
+impl<'db> CallExpr<'db> {
+    pub fn callee(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
+        child(db, self.syntax())
+    }
+}
+
+impl<'db> Node<'db> for CallExpr<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            CALL_EXPR => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
     }
 }
 
