@@ -29,8 +29,8 @@ fn main() -> anyhow::Result<()> {
             let path = file.path(&db).as_str();
             let text = file.text(&db).as_str();
 
-            let stdout = std::io::stdout();
-            let mut lock = stdout.lock();
+            let stderr = std::io::stderr();
+            let mut lock = stderr.lock();
 
             for diagnostic in diagnostics {
                 writeln!(lock, "{}", diagnostic.render(&renderer, path, text))?;
