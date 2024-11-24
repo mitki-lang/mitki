@@ -10,6 +10,7 @@ use crate::ToSymbol;
 
 #[derive(Default, Debug)]
 pub struct Function<'db> {
+    params: Vec<Binding<'db>>,
     body: Block<'db>,
 
     exprs: Arena<ExprData<'db>>,
@@ -22,6 +23,10 @@ pub struct Function<'db> {
 }
 
 impl<'db> Function<'db> {
+    pub fn params(&self) -> &[Binding<'db>] {
+        &self.params
+    }
+
     pub(crate) fn body(&self) -> &Block<'db> {
         &self.body
     }
@@ -65,8 +70,31 @@ impl<'db> FunctionBuilder<'db> {
 
     #[expect(clippy::needless_pass_by_value)]
     pub(super) fn build(mut self, node: ast::Function<'db>) -> Function<'db> {
+        self.function.params = self.build_params(node.params(self.db));
         self.function.body = self.build_block(node.body(self.db));
         self.function
+    }
+
+    fn build_params(&mut self, params: Option<ast::Params<'db>>) -> Vec<Binding<'db>> {
+        let Some(params) = params else {
+            return Vec::new();
+        };
+
+        params
+            .iter(self.db)
+            .map(|param| {
+                let name = self
+                    .function
+                    .bindings
+                    .alloc(Symbol::new(self.db, param.name(self.db).as_str(self.db)));
+                let ptr = RedNodePtr::new(self.db, param.name(self.db).syntax());
+
+                self.binding_map.insert(ptr, name);
+                self.binding_map_back.insert(name, ptr);
+
+                name
+            })
+            .collect()
     }
 
     fn build_block(&mut self, block: Option<ast::Block<'db>>) -> Block<'db> {
@@ -139,7 +167,10 @@ impl<'db> FunctionBuilder<'db> {
                     .map(|else_branch| self.build_block(else_branch.into())),
             },
             ast::Expr::Closure(closure) => {
-                ExprData::Closure { body: self.build_block(closure.body(self.db).into()) }
+                let params = self.build_params(closure.params(self.db));
+                let body = self.build_block(closure.body(self.db).into());
+
+                ExprData::Closure { params, body }
             }
         };
 

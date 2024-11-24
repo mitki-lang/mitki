@@ -59,6 +59,10 @@ impl<'db> Node<'db> for Item<'db> {
 pub struct Function<'db>(RedNode<'db>);
 
 impl<'db> Function<'db> {
+    pub fn params(&self, db: &'db dyn Database) -> Option<Params<'db>> {
+        child(db, &self.0)
+    }
+
     pub fn body(&self, db: &'db dyn Database) -> Option<Block<'db>> {
         child(db, &self.0)
     }
@@ -78,6 +82,48 @@ impl<'db> Node<'db> for Function<'db> {
 }
 
 impl<'db> HasName<'db> for Function<'db> {}
+
+pub struct Params<'db>(RedNode<'db>);
+
+impl<'db> Params<'db> {
+    pub fn iter(&self, db: &'db dyn Database) -> impl Iterator<Item = Param<'db>> + '_ {
+        self.0.children(db).filter_map(move |syntax| Param::cast(db, syntax))
+    }
+}
+
+impl<'db> Node<'db> for Params<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            PARAM_LIST => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
+    }
+}
+
+pub struct Param<'db>(RedNode<'db>);
+
+impl<'db> Param<'db> {
+    pub fn name(&self, db: &'db dyn Database) -> Name<'db> {
+        child(db, self.syntax()).unwrap()
+    }
+}
+
+impl<'db> Node<'db> for Param<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            PARAM => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
+    }
+}
 
 pub struct Block<'db>(RedNode<'db>);
 
@@ -314,6 +360,10 @@ impl<'db> IfExpr<'db> {
 pub struct Closure<'db>(RedNode<'db>);
 
 impl<'db> Closure<'db> {
+    pub fn params(&self, db: &'db dyn Database) -> Option<Params<'db>> {
+        child(db, &self.0)
+    }
+
     pub fn body(&self, db: &'db dyn Database) -> Block<'db> {
         child(db, self.syntax()).unwrap()
     }

@@ -246,7 +246,7 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
                 let m = lookahead.start();
                 while lookahead.at(NAME) {
                     let m = lookahead.start();
-                    lookahead.advance();
+                    name(lookahead, &SyntaxSet::EMPTY);
                     m.complete(lookahead, PARAM);
 
                     if !lookahead.eat(COMMA) {

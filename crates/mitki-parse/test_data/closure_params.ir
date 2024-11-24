@@ -17,13 +17,16 @@ MODULE
           LEFT_BRACE: "{"
           PARAM_LIST
             PARAM
-              NAME: "bar"
+              IDENT
+                NAME: "bar"
             COMMA: ","
             PARAM
-              NAME: "baz"
+              IDENT
+                NAME: "baz"
             COMMA: ","
             PARAM
-              NAME: "qux"
+              IDENT
+                NAME: "qux"
           IN_KW: "in"
           STMT_LIST
           RIGHT_BRACE: "}"
