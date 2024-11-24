@@ -27,6 +27,11 @@ impl Token {
     }
 }
 
+#[derive(Clone)]
+pub enum Diagnostic {
+    InconsistentWhitespaceAroundEqual(TextRange),
+}
+
 #[derive(PartialEq, Eq, Clone, Copy)]
 enum TriviaMode {
     Normal,
@@ -39,6 +44,7 @@ pub struct Tokenizer<'db> {
     cursor: Cursor<'db>,
     current: Token,
     trivia_pieces: Vec<TriviaPiece>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 impl<'db> Tokenizer<'db> {
@@ -48,7 +54,9 @@ impl<'db> Tokenizer<'db> {
             cursor: Cursor::new(text),
             current: Token::EOF,
             trivia_pieces: Vec::with_capacity(4),
+            diagnostics: Vec::new(),
         };
+
         tokenizer.next_token();
         tokenizer
     }
@@ -163,7 +171,15 @@ impl<'db> Tokenizer<'db> {
                     };
 
                     match self.text() {
-                        "=" => EQ,
+                        "=" => {
+                            if left_bound != right_bound {
+                                self.diagnostics.push(
+                                    Diagnostic::InconsistentWhitespaceAroundEqual(self.range()),
+                                );
+                            }
+
+                            EQ
+                        }
                         "." => DOT,
                         _ => {
                             if left_bound == right_bound {
@@ -244,6 +260,10 @@ impl<'db> Tokenizer<'db> {
             }
             self.digits(false);
         }
+    }
+
+    pub fn diagnostics(self) -> Vec<Diagnostic> {
+        self.diagnostics
     }
 }
 

@@ -137,7 +137,7 @@ impl<'db> Parser<'db> {
     pub(crate) fn build_tree(self) -> GreenNode<'db> {
         use salsa::Accumulator;
 
-        let Parser { db, text, mut events, diagnostics, .. } = self;
+        let Parser { db, text, tokenizer, mut events, diagnostics, .. } = self;
         let mut builder = Builder::new(db, text);
         let mut forward_parents = Vec::new();
 
@@ -178,6 +178,15 @@ impl<'db> Parser<'db> {
 
         for diagnostic in diagnostics {
             diagnostic.accumulate(db);
+        }
+
+        for diagnostic in tokenizer.diagnostics() {
+            match diagnostic {
+                mitki_tokenizer::Diagnostic::InconsistentWhitespaceAroundEqual(range) => {
+                    Diagnostic::error("Consistent whitespace required around '='", range)
+                        .accumulate(db);
+                }
+            }
         }
 
         builder.finish()
