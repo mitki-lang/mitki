@@ -3,7 +3,7 @@ pub use mitki_errors::{Diagnostic, Level};
 use salsa::{Database, Event};
 
 #[salsa::db]
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct RootDatabase {
     storage: salsa::Storage<Self>,
 }
