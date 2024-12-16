@@ -1,5 +1,3 @@
-#![feature(async_closure)]
-
 pub mod ast_map;
 pub mod hir;
 pub mod infer;
