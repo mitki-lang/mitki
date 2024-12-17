@@ -3,7 +3,7 @@ use std::rc::Rc;
 use salsa::Database;
 use text_size::{TextRange, TextSize};
 
-use crate::cursor::Preorder;
+use crate::cursor::{Preorder, PreorderWithTokens};
 use crate::green::GreenChild;
 use crate::{GreenNode, GreenToken, NodeOrToken, SyntaxKind};
 
@@ -75,11 +75,31 @@ impl<'db, T> RedData<'db, T> {
         }
     }
 
-    fn next_sibling_or_token(&self, db: &'db dyn Database) -> Option<Red<'db>> {
+    pub fn next_sibling_or_token(&self, db: &'db dyn Database) -> Option<Red<'db>> {
         let mut siblings = self.green_siblings(db).enumerate();
         let index = self.index() + TextSize::new(1);
 
         siblings.nth(index.into()).and_then(|(index, child)| {
+            let index = TextSize::new(index as u32);
+            let parent = self.parent()?.clone();
+            let offset = parent.data.offset + child.offset();
+
+            match child {
+                GreenChild::Node { node, .. } => {
+                    Red::Node(RedData::new(parent.into(), index, offset, *node)).into()
+                }
+                GreenChild::Token { token, .. } => {
+                    Red::Token(RedData::new(parent.into(), index, offset, *token)).into()
+                }
+            }
+        })
+    }
+
+    pub fn prev_sibling_or_token(&self, db: &'db dyn Database) -> Option<Red<'db>> {
+        let siblings = self.green_siblings(db).enumerate();
+        let index = self.index() + TextSize::new(1);
+
+        siblings.rev().nth(index.into()).and_then(|(index, child)| {
             let index = TextSize::new(index as u32);
             let parent = self.parent()?.clone();
             let offset = parent.data.offset + child.offset();
@@ -101,6 +121,28 @@ impl<'db> RedNode<'db> {
         Self::new(None, TextSize::new(0), 0.into(), root)
     }
 
+    pub fn token_in_direction(
+        &self,
+        db: &'db dyn Database,
+        direction: crate::cursor::Direction,
+    ) -> Option<RedToken<'db>> {
+        PreorderWithTokens::new(db, self.clone(), direction).find_map(|event| {
+            if let crate::cursor::WalkEvent::Enter(element) = event {
+                element.into_token()
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn first_token(&self, db: &'db dyn Database) -> Option<RedToken<'db>> {
+        self.token_in_direction(db, crate::cursor::Direction::Next)
+    }
+
+    pub fn last_token(&self, db: &'db dyn Database) -> Option<RedToken<'db>> {
+        self.token_in_direction(db, crate::cursor::Direction::Prev)
+    }
+
     pub fn ancestors(&self) -> impl Iterator<Item = RedNode<'db>> {
         std::iter::successors(Some(self.clone()), |node| node.parent().cloned())
     }
@@ -117,6 +159,23 @@ impl<'db> RedNode<'db> {
             GreenChild::Token { token, .. } => {
                 Red::Token(RedData::new(self.clone().into(), 0.into(), self.data.offset, *token))
             }
+        })
+    }
+
+    pub fn last_child_or_token(&self, db: &'db dyn Database) -> Option<Red<'db>> {
+        self.green().children(db).iter().next_back().map(|child| match child {
+            GreenChild::Node { offset, node } => Red::Node(RedData::new(
+                self.clone().into(),
+                TextSize::new(self.green().children(db).len() as u32),
+                self.data.offset + offset,
+                *node,
+            )),
+            GreenChild::Token { offset, token } => Red::Token(RedData::new(
+                self.clone().into(),
+                TextSize::new(self.green().children(db).len() as u32),
+                self.data.offset + offset,
+                *token,
+            )),
         })
     }
 
@@ -204,8 +263,8 @@ impl<'db> RedNode<'db> {
         let mut start = range.start();
         let mut end = range.end();
 
-        let tokens: Vec<_> = self.children_with_tokens(db).filter_map(Red::into_token).collect();
-        for first_token in tokens.iter() {
+        let mut first_token = self.first_token(db);
+        if let Some(first_token) = first_token.take() {
             let (leading_len, trailing_len, total_len) =
                 first_token.green().leading_trailing_total_len(db);
             let token_len = total_len - leading_len - trailing_len;
@@ -213,11 +272,10 @@ impl<'db> RedNode<'db> {
                 start += total_len;
             } else {
                 start += leading_len;
-                break;
             }
         }
 
-        for last_token in tokens.iter().rev() {
+        if let Some(last_token) = self.last_token(db) {
             let (leading_len, trailing_len, total_len) =
                 last_token.green().leading_trailing_total_len(db);
             let token_len = total_len - leading_len - trailing_len;
@@ -225,7 +283,6 @@ impl<'db> RedNode<'db> {
                 end -= total_len;
             } else {
                 end -= trailing_len;
-                break;
             }
         }
 
@@ -294,6 +351,27 @@ impl<'db> RedToken<'db> {
 }
 
 impl<'db> Red<'db> {
+    pub fn parent(&self) -> Option<&RedNode<'db>> {
+        match self {
+            NodeOrToken::Node(node) => node.parent(),
+            NodeOrToken::Token(token) => token.parent(),
+        }
+    }
+
+    pub fn next_sibling_or_token(&self, db: &'db dyn Database) -> Option<Red<'db>> {
+        match self {
+            NodeOrToken::Node(node) => node.next_sibling_or_token(db),
+            NodeOrToken::Token(token) => token.next_sibling_or_token(db),
+        }
+    }
+
+    pub fn prev_sibling_or_token(&self, db: &'db dyn Database) -> Option<Red<'db>> {
+        match self {
+            NodeOrToken::Node(node) => node.prev_sibling_or_token(db),
+            NodeOrToken::Token(token) => token.prev_sibling_or_token(db),
+        }
+    }
+
     pub fn into_node(self) -> Option<RedNode<'db>> {
         match self {
             NodeOrToken::Node(node) => Some(node),
