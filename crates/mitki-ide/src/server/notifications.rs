@@ -15,7 +15,6 @@ impl<'me> NotificationDispatcher<'me> {
     pub(crate) fn on<N>(&mut self, f: fn(&mut Server, N::Params) -> Result<()>) -> &mut Self
     where
         N: lsp_types::notification::Notification,
-        N::Params: serde::de::DeserializeOwned + Send + std::fmt::Debug,
     {
         let Some(notification) = self.notification.take() else {
             return self;

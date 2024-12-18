@@ -15,7 +15,6 @@ impl<'me> RequestDispatcher<'me> {
     fn parse<R>(&mut self) -> Option<(lsp_server::Request, R::Params)>
     where
         R: lsp_types::request::Request,
-        R::Params: serde::de::DeserializeOwned + std::fmt::Debug,
     {
         let request = self.request.take_if(|request| request.method == R::METHOD)?;
         let res = from_json(R::METHOD, &request.params);
@@ -35,8 +34,6 @@ impl<'me> RequestDispatcher<'me> {
     pub(crate) fn on<R>(mut self, f: fn(&mut Server, R::Params) -> Result<R::Result>) -> Self
     where
         R: lsp_types::request::Request,
-        R::Params: serde::de::DeserializeOwned + std::fmt::Debug,
-        R::Result: serde::Serialize,
     {
         let (request, params) = match self.parse::<R>() {
             Some(it) => it,

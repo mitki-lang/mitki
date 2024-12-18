@@ -125,8 +125,6 @@ fn result_to_response<R>(
 ) -> lsp_server::Response
 where
     R: lsp_types::request::Request,
-    R::Params: serde::de::DeserializeOwned,
-    R::Result: serde::Serialize,
 {
     match result {
         Ok(resp) => lsp_server::Response::new_ok(id, &resp),
