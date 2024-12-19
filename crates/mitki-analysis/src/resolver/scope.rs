@@ -60,7 +60,8 @@ pub(crate) struct ExprScopesBuilder<'db> {
 }
 
 fn empty_entries<'db>(idx: usize) -> IdxRange<ScopeEntry<'db>> {
-    IdxRange::new(Idx::from_raw(RawIdx::from(idx as u32))..Idx::from_raw(RawIdx::from(idx as u32)))
+    let idx = Idx::from_raw(RawIdx::from(idx as u32));
+    IdxRange::new(idx..idx)
 }
 
 impl<'db> ExprScopesBuilder<'db> {
