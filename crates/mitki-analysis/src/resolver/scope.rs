@@ -70,15 +70,12 @@ impl<'db> ExprScopesBuilder<'db> {
     }
 
     fn root_scope(&mut self) -> Scope<'db> {
-        self.scopes.scopes.alloc(ScopeData {
-            parent: None,
-            entries: empty_entries(self.scopes.scope_entries.len()),
-        })
+        self.scope(None)
     }
 
-    fn scope(&mut self, parent: Scope<'db>) -> Scope<'db> {
+    fn scope(&mut self, parent: impl Into<Option<Scope<'db>>>) -> Scope<'db> {
         self.scopes.scopes.alloc(ScopeData {
-            parent: Some(parent),
+            parent: parent.into(),
             entries: empty_entries(self.scopes.scope_entries.len()),
         })
     }
