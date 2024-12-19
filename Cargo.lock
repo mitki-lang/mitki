@@ -589,8 +589,8 @@ dependencies = [
  "clap",
  "mitki-db",
  "mitki-errors",
- "mitki-ide",
  "mitki-inputs",
+ "mitki-lsp-server",
  "mitki-yellow",
  "salsa",
 ]
@@ -636,10 +636,6 @@ dependencies = [
 name = "mitki-ide"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "crossbeam-channel",
- "lsp-server",
- "lsp-types",
  "mitki-analysis",
  "mitki-db",
  "mitki-inputs",
@@ -647,8 +643,6 @@ dependencies = [
  "mitki-span",
  "mitki-yellow",
  "salsa",
- "serde",
- "serde_json",
  "text-size",
 ]
 
@@ -659,6 +653,27 @@ dependencies = [
  "camino",
  "line-index",
  "salsa",
+]
+
+[[package]]
+name = "mitki-lsp-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel",
+ "lsp-server",
+ "lsp-types",
+ "mitki-analysis",
+ "mitki-db",
+ "mitki-ide",
+ "mitki-inputs",
+ "mitki-parse",
+ "mitki-span",
+ "mitki-yellow",
+ "salsa",
+ "serde",
+ "serde_json",
+ "text-size",
 ]
 
 [[package]]
@@ -848,7 +863,7 @@ checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
 [[package]]
 name = "salsa"
 version = "0.18.0"
-source = "git+https://github.com/salsa-rs/salsa/#f6b40b0815701f6e27001c2cba6892393faadc41"
+source = "git+https://github.com/salsa-rs/salsa/#3c7f1694c9efba751dbeeacfbc93b227586e316a"
 dependencies = [
  "append-only-vec",
  "arc-swap",
@@ -869,12 +884,12 @@ dependencies = [
 [[package]]
 name = "salsa-macro-rules"
 version = "0.1.0"
-source = "git+https://github.com/salsa-rs/salsa/#f6b40b0815701f6e27001c2cba6892393faadc41"
+source = "git+https://github.com/salsa-rs/salsa/#3c7f1694c9efba751dbeeacfbc93b227586e316a"
 
 [[package]]
 name = "salsa-macros"
 version = "0.18.0"
-source = "git+https://github.com/salsa-rs/salsa/#f6b40b0815701f6e27001c2cba6892393faadc41"
+source = "git+https://github.com/salsa-rs/salsa/#3c7f1694c9efba751dbeeacfbc93b227586e316a"
 dependencies = [
  "heck",
  "proc-macro2",

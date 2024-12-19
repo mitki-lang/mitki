@@ -11,20 +11,20 @@ use text_size::TextRange;
 use crate::{FilePosition, pick_best_token};
 
 #[derive(Default)]
-pub(crate) struct Analysis {
+pub struct Analysis {
     db: RootDatabase,
 }
 
 impl Analysis {
-    pub(crate) fn db(&self) -> &RootDatabase {
+    pub fn db(&self) -> &RootDatabase {
         &self.db
     }
 
-    pub(crate) fn db_mut(&mut self) -> &mut RootDatabase {
+    pub fn db_mut(&mut self) -> &mut RootDatabase {
         &mut self.db
     }
 
-    pub(crate) fn goto_definition(
+    pub fn goto_definition(
         &self,
         FilePosition { file, offset }: FilePosition,
     ) -> Option<(TextRange, TextRange)> {

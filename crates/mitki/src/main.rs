@@ -38,6 +38,6 @@ fn main() -> anyhow::Result<()> {
 
             Ok(())
         }
-        Options::Ide => mitki_ide::Server::new()?.run(),
+        Options::Ide => mitki_lsp_server::Server::new()?.run(),
     }
 }

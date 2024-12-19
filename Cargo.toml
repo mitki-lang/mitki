@@ -40,6 +40,7 @@ mitki-db = { path = "crates/mitki-db" }
 mitki-errors = { path = "crates/mitki-errors" }
 mitki-ide = { path = "crates/mitki-ide" }
 mitki-inputs = { path = "crates/mitki-inputs" }
+mitki-lsp-server = { path = "crates/mitki-lsp-server" }
 mitki-parse = { path = "crates/mitki-parse" }
 mitki-span = { path = "crates/mitki-span" }
 mitki-tokenizer = { path = "crates/mitki-tokenizer" }

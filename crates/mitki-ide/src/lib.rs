@@ -1,10 +1,9 @@
 mod analysis;
-mod server;
 
-pub use server::Server;
+pub use analysis::Analysis;
 
 #[derive(Clone, Copy)]
-struct FilePosition {
+pub struct FilePosition {
     pub file: mitki_inputs::File,
     pub offset: text_size::TextSize,
 }
