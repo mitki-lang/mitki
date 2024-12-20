@@ -19,7 +19,7 @@ pub struct Function<'db> {
 
     bindings: Arena<Symbol<'db>>,
     binding_map: FxHashMap<RedNodePtr, Binding<'db>>,
-    pub binding_map_back: FxHashMap<Binding<'db>, RedNodePtr>,
+    binding_map_back: FxHashMap<Binding<'db>, RedNodePtr>,
 }
 
 impl<'db> Function<'db> {
@@ -31,16 +31,20 @@ impl<'db> Function<'db> {
         &self.body
     }
 
-    pub(crate) fn exprs(&self) -> &Arena<ExprData<'db>> {
-        &self.exprs
+    pub(crate) fn expr(&self, expr: Expr<'db>) -> &ExprData {
+        &self.exprs[expr]
     }
 
-    pub(crate) fn bindings(&self) -> &Arena<Symbol<'db>> {
-        &self.bindings
+    pub(crate) fn binding_symbol(&self, binding: Binding<'db>) -> Symbol<'db> {
+        self.bindings[binding]
     }
 
     pub(crate) fn syntax_expr(&self, db: &dyn Database, syntax: &RedNode) -> Option<Expr> {
         self.expr_map.get(&RedNodePtr::new(db, syntax)).copied()
+    }
+
+    pub fn binding_syntax(&self, binding: &Binding<'db>) -> RedNodePtr {
+        self.binding_map_back[binding]
     }
 }
 

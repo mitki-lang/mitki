@@ -55,7 +55,7 @@ impl Analysis {
         match resolver.resolve_path(path)? {
             PathResolution::Local(path) => {
                 let function = location.hir_function(db);
-                let ptr = function.binding_map_back[&path];
+                let ptr = function.binding_syntax(&path);
                 let node = ptr.to_node(db, &root);
 
                 Some((original_token.text_trimmed_range(db), node.text_trimmed_range(db)))

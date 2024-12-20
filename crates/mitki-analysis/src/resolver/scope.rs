@@ -103,8 +103,8 @@ impl<'db> ExprScopesBuilder<'db> {
         }
     }
 
-    fn add_binding(&mut self, name: Idx<Symbol<'db>>, scope: Idx<ScopeData<'db>>) {
-        let symbol = self.function.bindings()[name];
+    fn add_binding(&mut self, name: Binding<'db>, scope: Idx<ScopeData<'db>>) {
+        let symbol = self.function.binding_symbol(name);
         let entry = self.scopes.scope_entries.alloc(ScopeEntry { name: symbol, binding: name });
         self.scopes.scopes[scope].entries =
             IdxRange::new_inclusive(self.scopes.scopes[scope].entries.start()..=entry);
@@ -113,7 +113,7 @@ impl<'db> ExprScopesBuilder<'db> {
     fn build_expr_scopes(&mut self, expr: Expr<'db>, scope: Scope<'db>) {
         self.scopes.scope_by_expr.insert(expr, scope);
 
-        match &self.function.exprs()[expr] {
+        match &self.function.expr(expr) {
             ExprData::If { condition, then_branch, else_branch } => {
                 self.build_expr_scopes(*condition, scope);
                 self.build_block(then_branch, scope, &[]);
