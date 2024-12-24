@@ -660,16 +660,11 @@ name = "mitki-lsp-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "crossbeam-channel",
  "lsp-server",
  "lsp-types",
- "mitki-analysis",
  "mitki-db",
  "mitki-ide",
  "mitki-inputs",
- "mitki-parse",
- "mitki-span",
- "mitki-yellow",
  "salsa",
  "serde",
  "serde_json",
