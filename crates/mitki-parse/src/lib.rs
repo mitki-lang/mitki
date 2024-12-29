@@ -48,7 +48,6 @@ pub trait FileParse {
     fn parse(self, db: &dyn salsa::Database) -> Parsed<ast::Module<'_>>;
 }
 
-#[allow(clippy::use_self)]
 #[salsa::tracked]
 impl FileParse for File {
     #[salsa::tracked]
