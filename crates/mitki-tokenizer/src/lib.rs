@@ -134,63 +134,11 @@ impl<'db> Tokenizer<'db> {
             ',' => COMMA,
             ';' => SEMICOLON,
             first_char @ '0'..='9' => self.number(first_char),
-            'A'..='Z' | 'a'..='z' | '_' => {
-                self.cursor.advance_while(|c| c.is_ascii_alphanumeric() || c == '_');
-
-                match self.text() {
-                    "fun" => FUN_KW,
-                    "if" => IF_KW,
-                    "else" => ELSE_KW,
-                    "loop" => LOOP_KW,
-                    "val" => VAL_KW,
-                    "while" => WHILE_KW,
-                    "return" => RETURN_KW,
-                    "break" => BREAK_KW,
-                    "true" => TRUE_KW,
-                    "false" => FALSE_KW,
-                    "in" => IN_KW,
-                    _ => NAME,
-                }
-            }
+            'A'..='Z' | 'a'..='z' | '_' => self.identifier_or_keyword(),
             EOF_CHAR => EOF,
             first_char => {
                 if is_operator(first_char) {
-                    self.cursor.advance_while(is_operator);
-
-                    let left_bound = match previous {
-                        '(' | '[' | '{' | ',' | ':' | ';' => false,
-                        EOF_CHAR => false,
-                        prev => !prev.is_ascii_whitespace(),
-                    };
-
-                    let right_bound = match self.cursor.peek() {
-                        ')' | ']' | '}' | ',' | ':' | ';' => false,
-                        '.' => !left_bound,
-                        EOF_CHAR => false,
-                        peeked => !peeked.is_ascii_whitespace(),
-                    };
-
-                    match self.text() {
-                        "=" => {
-                            if left_bound != right_bound {
-                                self.diagnostics.push(
-                                    Diagnostic::InconsistentWhitespaceAroundEqual(self.range()),
-                                );
-                            }
-
-                            EQ
-                        }
-                        "." => DOT,
-                        _ => {
-                            if left_bound == right_bound {
-                                BINARY_OPERATOR
-                            } else if left_bound {
-                                POSTFIX_OPERATOR
-                            } else {
-                                PREFIX_OPERATOR
-                            }
-                        }
-                    }
+                    self.operator(previous)
                 } else {
                     UNKNOWN
                 }
@@ -201,6 +149,63 @@ impl<'db> Tokenizer<'db> {
         self.cursor.reset_pos_within_token();
 
         (kind, range)
+    }
+
+    fn identifier_or_keyword(&mut self) -> SyntaxKind {
+        self.cursor.advance_while(|c| c.is_ascii_alphanumeric() || c == '_');
+
+        match self.text() {
+            "fun" => FUN_KW,
+            "if" => IF_KW,
+            "else" => ELSE_KW,
+            "loop" => LOOP_KW,
+            "val" => VAL_KW,
+            "while" => WHILE_KW,
+            "return" => RETURN_KW,
+            "break" => BREAK_KW,
+            "true" => TRUE_KW,
+            "false" => FALSE_KW,
+            "in" => IN_KW,
+            _ => NAME,
+        }
+    }
+
+    fn operator(&mut self, previous: char) -> SyntaxKind {
+        self.cursor.advance_while(is_operator);
+
+        let left_bound = match previous {
+            '(' | '[' | '{' | ',' | ':' | ';' => false,
+            EOF_CHAR => false,
+            prev => !prev.is_ascii_whitespace(),
+        };
+
+        let right_bound = match self.cursor.peek() {
+            ')' | ']' | '}' | ',' | ':' | ';' => false,
+            '.' => !left_bound,
+            EOF_CHAR => false,
+            peeked => !peeked.is_ascii_whitespace(),
+        };
+
+        match self.text() {
+            "=" => {
+                if left_bound != right_bound {
+                    self.diagnostics
+                        .push(Diagnostic::InconsistentWhitespaceAroundEqual(self.range()));
+                }
+
+                EQ
+            }
+            "." => DOT,
+            _ => {
+                if left_bound == right_bound {
+                    BINARY_OPERATOR
+                } else if left_bound {
+                    POSTFIX_OPERATOR
+                } else {
+                    PREFIX_OPERATOR
+                }
+            }
+        }
     }
 
     fn number(&mut self, c: char) -> SyntaxKind {
