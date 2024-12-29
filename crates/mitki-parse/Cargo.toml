@@ -9,10 +9,6 @@ doctest = false
 [lints]
 workspace = true
 
-[[bench]]
-name = "parse"
-harness = false
-
 [dependencies]
 drop_bomb = "0.1"
 mitki-errors.workspace = true

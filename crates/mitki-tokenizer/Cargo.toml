@@ -6,13 +6,6 @@ edition.workspace = true
 [lints]
 workspace = true
 
-[[bench]]
-name = "tokenizer"
-harness = false
-
 [dependencies]
 mitki-yellow.workspace = true
 text-size.workspace = true
-
-[dev-dependencies]
-codspeed-criterion-compat = { version = "2.7", default-features = false }
