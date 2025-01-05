@@ -6,6 +6,7 @@ resolver = "2"
 edition = "2021"
 
 [workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(test)'] }
 unreachable_pub = "warn"
 unused_qualifications = "warn"
 
