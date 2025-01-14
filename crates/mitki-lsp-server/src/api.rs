@@ -24,7 +24,7 @@ fn handle_goto_definition(
     server: &mut Server,
     params: lsp_types::GotoDefinitionParams,
 ) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
-    let file_position = file_position(server, params.text_document_position_params.clone());
+    let file_position = file_position(server, &params.text_document_position_params);
     let line_index = file_position.file.line_index(server.analysis.db());
 
     match server.analysis.goto_definition(file_position) {
