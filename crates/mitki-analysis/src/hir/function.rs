@@ -72,8 +72,7 @@ impl<'db> FunctionBuilder<'db> {
         Self { db, function: Function::default() }
     }
 
-    #[expect(clippy::needless_pass_by_value)]
-    pub(super) fn build(mut self, node: ast::Function<'db>) -> Function<'db> {
+    pub(super) fn build(mut self, node: &ast::Function<'db>) -> Function<'db> {
         self.function.params = self.build_params(node.params(self.db));
         self.function.body = self.build_block(node.body(self.db));
         self.function

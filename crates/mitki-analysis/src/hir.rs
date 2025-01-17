@@ -12,6 +12,6 @@ pub trait HasFunction<'db> {
 impl<'db> HasFunction<'db> for crate::item::scope::FunctionLocation<'db> {
     #[salsa::tracked(return_ref, no_eq)]
     fn hir_function(self, db: &'db dyn salsa::Database) -> Function<'db> {
-        function::FunctionBuilder::new(db).build(self.source(db))
+        function::FunctionBuilder::new(db).build(&self.source(db))
     }
 }
