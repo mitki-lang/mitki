@@ -29,7 +29,6 @@ impl<'db> ExprScopes<'db> {
         std::iter::successors(scope, move |&scope| self.scopes[scope].parent)
     }
 
-    #[allow(dead_code)]
     pub(crate) fn entries(&self, scope: Scope<'db>) -> &[ScopeEntry<'db>] {
         &self.scope_entries[self.scopes[scope].entries.clone()]
     }
