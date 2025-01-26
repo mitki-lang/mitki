@@ -2,7 +2,6 @@ use hashbrown::HashMap;
 use la_arena::{Arena, Idx};
 use mitki_inputs::File;
 use mitki_parse::FileParse;
-use mitki_yellow::cursor::WalkEvent;
 use mitki_yellow::{RedNode, RedNodePtr, SyntaxKind};
 use salsa::Database;
 
@@ -28,12 +27,10 @@ impl AstMap {
     pub(crate) fn from_root(db: &dyn Database, root: &RedNode<'_>) -> Self {
         let mut arena = Arena::new();
 
-        bdfs(db, root, |node| match node.kind(db) {
-            SyntaxKind::FN => {
+        root.children(db).for_each(|node| {
+            if let SyntaxKind::FN = node.kind(db) {
                 arena.alloc(RedNodePtr::new(db, &node));
-                TreeOrder::BreadthFirst
             }
-            _ => TreeOrder::DepthFirst,
         });
 
         let mut map = HashMap::with_capacity_and_hasher(arena.len(), ());
@@ -69,40 +66,6 @@ impl AstMap {
 
     pub(crate) fn find_node(&self, index: Idx<RedNodePtr>) -> &RedNodePtr {
         &self.arena[index]
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-enum TreeOrder {
-    BreadthFirst,
-    DepthFirst,
-}
-
-fn bdfs<'db>(
-    db: &'db dyn Database,
-    node: &'db RedNode,
-    mut f: impl FnMut(RedNode<'db>) -> TreeOrder,
-) {
-    let mut current = vec![node.clone()];
-    let mut next = Vec::new();
-
-    while !current.is_empty() {
-        current.drain(..).for_each(|node| {
-            let mut preorder = node.preorder(db);
-            while let Some(event) = preorder.next() {
-                match event {
-                    WalkEvent::Enter(node) => {
-                        if f(node.clone()) == TreeOrder::BreadthFirst {
-                            next.extend(node.children(db));
-                            preorder.skip_subtree();
-                        }
-                    }
-                    WalkEvent::Leave(_) => {}
-                }
-            }
-        });
-
-        std::mem::swap(&mut current, &mut next);
     }
 }
 
