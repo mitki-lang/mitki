@@ -19,7 +19,7 @@ pub struct RedNodePtr {
 
 impl RedNodePtr {
     pub fn new(db: &dyn Database, node: &RedNode) -> Self {
-        Self { kind: node.kind(db), range: node.text_range(db) }
+        Self { kind: node.kind(db), range: node.range(db) }
     }
 
     pub fn try_to_node<'db>(
@@ -34,7 +34,7 @@ impl RedNodePtr {
         std::iter::successors(Some(root.clone()), |node| {
             node.child_or_token_at_range(db, self.range)?.into_node()
         })
-        .find(|node| node.text_range(db) == self.range && node.kind(db) == self.kind)
+        .find(|node| node.range(db) == self.range && node.kind(db) == self.kind)
     }
 
     pub fn to_node<'db>(&self, db: &'db dyn Database, root: &RedNode<'db>) -> RedNode<'db> {
@@ -252,14 +252,14 @@ impl<'db> RedNode<'db> {
         })
     }
 
-    pub fn text_range(&self, db: &'db dyn Database) -> TextRange {
+    pub fn range(&self, db: &'db dyn Database) -> TextRange {
         let offset = self.data.offset;
         let len = self.green().text_len(db);
         TextRange::at(offset, len)
     }
 
-    pub fn text_trimmed_range(&self, db: &'db dyn Database) -> TextRange {
-        let range = self.text_range(db);
+    pub fn trimmed_range(&self, db: &'db dyn Database) -> TextRange {
+        let range = self.range(db);
         let mut start = range.start();
         let mut end = range.end();
 
@@ -290,7 +290,7 @@ impl<'db> RedNode<'db> {
     }
 
     pub fn token_at_offset(&self, db: &'db dyn Database, offset: TextSize) -> TokenAtOffset<'db> {
-        let range = self.text_trimmed_range(db);
+        let range = self.trimmed_range(db);
 
         if range.is_empty() {
             return TokenAtOffset::None;
@@ -334,18 +334,18 @@ impl<'db> RedToken<'db> {
         self.green().kind(db)
     }
 
-    pub fn text_range(&self, db: &dyn Database) -> TextRange {
+    pub fn range(&self, db: &dyn Database) -> TextRange {
         let offset = self.data.offset;
         let len = self.green().text_len(db);
         TextRange::at(offset, len)
     }
 
-    pub fn text_trimmed_range(&self, db: &dyn Database) -> TextRange {
+    pub fn trimmed_range(&self, db: &dyn Database) -> TextRange {
         let green_token = self.green();
         let leading_len = green_token.leading(db).len();
         let trailing_len = green_token.trailing(db).len();
 
-        let range = self.text_range(db);
+        let range = self.range(db);
         TextRange::new(range.start() + leading_len, range.end() - trailing_len)
     }
 }
@@ -388,15 +388,15 @@ impl<'db> Red<'db> {
 
     pub fn text_range(&self, db: &'db dyn Database) -> TextRange {
         match self {
-            NodeOrToken::Node(node) => node.text_range(db),
-            NodeOrToken::Token(token) => token.text_range(db),
+            NodeOrToken::Node(node) => node.range(db),
+            NodeOrToken::Token(token) => token.range(db),
         }
     }
 
     pub fn text_trimmed_range(&self, db: &'db dyn Database) -> TextRange {
         match self {
-            NodeOrToken::Node(node) => node.text_trimmed_range(db),
-            NodeOrToken::Token(token) => token.text_trimmed_range(db),
+            NodeOrToken::Node(node) => node.trimmed_range(db),
+            NodeOrToken::Token(token) => token.trimmed_range(db),
         }
     }
 

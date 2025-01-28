@@ -44,14 +44,13 @@ impl super::Analysis {
                 let ptr = function.binding_syntax(&path);
                 let node = ptr.to_node(db, &root);
 
-                Some((original_token.text_trimmed_range(db), node.text_trimmed_range(db)))
+                Some((original_token.trimmed_range(db), node.trimmed_range(db)))
             }
             PathResolution::Function(function_location) => {
                 let function = function_location.source(db);
-                let function_name_range =
-                    function.name(db).unwrap().syntax().text_trimmed_range(db);
+                let function_name_range = function.name(db).unwrap().syntax().trimmed_range(db);
 
-                Some((original_token.text_trimmed_range(db), function_name_range))
+                Some((original_token.trimmed_range(db), function_name_range))
             }
         }
     }
