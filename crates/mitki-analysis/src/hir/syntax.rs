@@ -2,13 +2,13 @@ use mitki_span::Symbol;
 use mitki_yellow::{RedToken, ast};
 
 #[derive(Default, Debug)]
-pub(crate) struct Hir<'db> {
+pub(crate) struct NodeStore<'db> {
     nodes: Vec<Node>,
     symbols: Vec<Symbol<'db>>,
     node_ids: Vec<NodeId>,
 }
 
-impl<'db> Hir<'db> {
+impl<'db> NodeStore<'db> {
     pub(crate) fn alloc_binding(&mut self, symbol: Symbol<'db>) -> NodeId {
         self.symbols.push_with_index(symbol).into()
     }

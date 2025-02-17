@@ -4,12 +4,12 @@ use mitki_yellow::{RedNode, RedNodePtr};
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
-use super::syntax::{Hir, LocalVar, NodeId, NodeKind};
+use super::syntax::{LocalVar, NodeId, NodeKind, NodeStore};
 use crate::ToSymbol;
 
 #[derive(Default, Debug)]
 pub struct Function<'db> {
-    hir: Hir<'db>,
+    node_store: NodeStore<'db>,
 
     params: Vec<NodeId>,
     body: NodeId,
@@ -28,15 +28,15 @@ impl<'db> Function<'db> {
     }
 
     pub(crate) fn node_kind(&self, node: NodeId) -> NodeKind {
-        self.hir.node_kind(node)
+        self.node_store.node_kind(node)
     }
 
     pub(crate) fn block_stmts(&self, block: NodeId) -> &[NodeId] {
-        self.hir.block_stmts(block)
+        self.node_store.block_stmts(block)
     }
 
     pub(crate) fn binding_symbol(&self, binding: NodeId) -> Symbol<'db> {
-        self.hir.symbol(binding)
+        self.node_store.symbol(binding)
     }
 
     pub(crate) fn syntax_expr(&self, db: &dyn Database, syntax: &RedNode) -> Option<NodeId> {
@@ -48,7 +48,7 @@ impl<'db> Function<'db> {
     }
 
     pub(crate) fn local_var(&self, node: NodeId) -> LocalVar {
-        self.hir.local_var(node)
+        self.node_store.local_var(node)
     }
 }
 
@@ -92,7 +92,7 @@ impl<'db> FunctionBuilder<'db> {
             .map(|param| {
                 let name = self
                     .function
-                    .hir
+                    .node_store
                     .alloc_binding(Symbol::new(self.db, param.name(self.db).as_str(self.db)));
 
                 self.alloc_ptr(name, param.name(self.db).syntax());
@@ -108,7 +108,7 @@ impl<'db> FunctionBuilder<'db> {
         };
 
         let stmts = block.stmts(self.db).map(|stmt| self.build_stmt(stmt)).collect();
-        self.hir.alloc_block(stmts)
+        self.node_store.alloc_block(stmts)
     }
 
     fn build_stmt(&mut self, stmt: ast::Stmt<'db>) -> NodeId {
@@ -121,13 +121,13 @@ impl<'db> FunctionBuilder<'db> {
                 });
 
                 let initializer = self.build_expr(val.expr(self.db));
-                let name = self.hir.alloc_binding(name);
+                let name = self.node_store.alloc_binding(name);
 
                 if let Some(ptr) = val.name(self.db) {
                     self.alloc_ptr(name, ptr.syntax());
                 }
 
-                self.hir.alloc_local_var(name, ty, initializer)
+                self.node_store.alloc_local_var(name, ty, initializer)
             }
             ast::Stmt::Expr(stmt) => self.build_expr(stmt.expr(self.db)),
         }
@@ -141,22 +141,22 @@ impl<'db> FunctionBuilder<'db> {
 
     fn build_expr(&mut self, expr: Option<ast::Expr<'db>>) -> NodeId {
         let Some(expr) = expr else {
-            return self.hir.alloc_error();
+            return self.node_store.alloc_error();
         };
 
         let db = self.db;
         let node = match &expr {
-            ast::Expr::Path(path) => self.hir.alloc_name(path.to_symbol(db)),
-            ast::Expr::Literal(literal) => self.hir.alloc_literal(db, literal),
-            ast::Expr::Binary(_binary) => self.hir.alloc_error(),
-            ast::Expr::Postfix(_postfix) => self.hir.alloc_error(),
-            ast::Expr::Prefix(_prefix) => self.hir.alloc_error(),
-            ast::Expr::If(_if_expr) => self.hir.alloc_error(),
-            ast::Expr::Closure(_closure) => self.hir.alloc_error(),
+            ast::Expr::Path(path) => self.node_store.alloc_name(path.to_symbol(db)),
+            ast::Expr::Literal(literal) => self.node_store.alloc_literal(db, literal),
+            ast::Expr::Binary(_binary) => self.node_store.alloc_error(),
+            ast::Expr::Postfix(_postfix) => self.node_store.alloc_error(),
+            ast::Expr::Prefix(_prefix) => self.node_store.alloc_error(),
+            ast::Expr::If(_if_expr) => self.node_store.alloc_error(),
+            ast::Expr::Closure(_closure) => self.node_store.alloc_error(),
             ast::Expr::Call(call_expr) => {
                 let callee = self.build_expr(call_expr.callee(db));
                 let args = vec![];
-                self.hir.alloc_call(callee, args)
+                self.node_store.alloc_call(callee, args)
             }
         };
         self.alloc_ptr(node, expr.syntax());
