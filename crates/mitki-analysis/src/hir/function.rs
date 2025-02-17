@@ -141,7 +141,7 @@ impl<'db> FunctionBuilder<'db> {
 
     fn build_expr(&mut self, expr: Option<ast::Expr<'db>>) -> NodeId {
         let Some(expr) = expr else {
-            return NodeId::ZERO;
+            return self.hir.alloc_error();
         };
 
         let db = self.db;
