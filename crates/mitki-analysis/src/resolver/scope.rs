@@ -1,8 +1,9 @@
-use la_arena::{Arena, ArenaMap, Idx, IdxRange, RawIdx};
+use la_arena::{Arena, Idx, IdxRange, RawIdx};
 use mitki_span::Symbol;
+use rustc_hash::FxHashMap;
 use salsa::Database;
 
-use crate::hir::{Binding, Block, Expr, ExprData, Function, HasFunction, Stmt};
+use crate::hir::{Function, HasFunction, NodeId, NodeKind};
 use crate::item::scope::FunctionLocation;
 
 pub(crate) trait HasExprScopes<'db> {
@@ -21,7 +22,7 @@ impl<'db> HasExprScopes<'db> for FunctionLocation<'db> {
 pub(crate) struct ExprScopes<'db> {
     pub scopes: Arena<ScopeData<'db>>,
     pub scope_entries: Arena<ScopeEntry<'db>>,
-    pub scope_by_expr: ArenaMap<Expr<'db>, Scope<'db>>,
+    pub scope_by_node: FxHashMap<NodeId, Scope<'db>>,
 }
 
 impl<'db> ExprScopes<'db> {
@@ -33,8 +34,8 @@ impl<'db> ExprScopes<'db> {
         &self.scope_entries[self.scopes[scope].entries.clone()]
     }
 
-    pub(crate) fn scope_for(&self, expr: Expr<'db>) -> Option<Scope<'db>> {
-        self.scope_by_expr.get(expr).copied()
+    pub(crate) fn scope_for(&self, expr: NodeId) -> Option<Scope<'db>> {
+        self.scope_by_node.get(&expr).copied()
     }
 }
 
@@ -42,7 +43,7 @@ impl<'db> ExprScopes<'db> {
 #[allow(dead_code)]
 pub(crate) struct ScopeEntry<'db> {
     pub(crate) name: Symbol<'db>,
-    pub(crate) binding: Binding<'db>,
+    pub(crate) binding: NodeId,
 }
 
 pub(crate) type Scope<'db> = Idx<ScopeData<'db>>;
@@ -79,68 +80,46 @@ impl<'db> ExprScopesBuilder<'db> {
         })
     }
 
-    fn build_block(&mut self, block: &Block<'db>, scope: Scope<'db>, bindings: &[Binding<'db>]) {
-        let mut scope = self.scope(scope);
-        self.add_bindings(bindings, scope);
-
-        for stmt in &block.stmts {
-            match *stmt {
-                Stmt::Val { name, ty: _, initializer } => {
-                    self.build_expr_scopes(initializer, scope);
-                    scope = self.scope(scope);
-
-                    self.add_binding(name, scope);
-                }
-                Stmt::Expr { expr, has_semi: _ } => {
-                    self.build_expr_scopes(expr, scope);
-                }
-            }
-        }
-
-        if let Some(tail) = block.tail {
-            self.build_expr_scopes(tail, scope);
-        }
-    }
-
-    fn add_binding(&mut self, name: Binding<'db>, scope: Idx<ScopeData<'db>>) {
+    fn add_binding(&mut self, name: NodeId, scope: Idx<ScopeData<'db>>) {
         let symbol = self.function.binding_symbol(name);
         let entry = self.scopes.scope_entries.alloc(ScopeEntry { name: symbol, binding: name });
         self.scopes.scopes[scope].entries =
             IdxRange::new_inclusive(self.scopes.scopes[scope].entries.start()..=entry);
     }
 
-    fn build_expr_scopes(&mut self, expr: Expr<'db>, scope: Scope<'db>) {
-        self.scopes.scope_by_expr.insert(expr, scope);
+    fn build_node_scopes(&mut self, node: NodeId, scope: &mut Scope<'db>) {
+        self.scopes.scope_by_node.insert(node, *scope);
 
-        match &self.function.expr(expr) {
-            ExprData::If { condition, then_branch, else_branch } => {
-                self.build_expr_scopes(*condition, scope);
-                self.build_block(then_branch, scope, &[]);
-                if let Some(else_branch) = else_branch {
-                    self.build_block(else_branch, scope, &[]);
+        match self.function.node_kind(node) {
+            NodeKind::LocalVar => {
+                let var = self.function.local_var(node);
+                self.build_node_scopes(var.initializer, scope);
+
+                *scope = self.scope(*scope);
+                self.add_binding(var.name, *scope);
+            }
+            NodeKind::Call => {}
+            NodeKind::Block => {
+                let scope = &mut self.scope(*scope);
+                for &stmt in self.function.block_stmts(node) {
+                    self.build_node_scopes(stmt, scope);
                 }
             }
-            ExprData::Closure { params, body } => {
-                self.build_block(body, scope, params);
+            NodeKind::Int | NodeKind::Float | NodeKind::True | NodeKind::False | NodeKind::Name => {
             }
-            ExprData::Call { callee, args } => {
-                self.build_expr_scopes(*callee, scope);
-                for &arg in args {
-                    self.build_expr_scopes(arg, scope);
-                }
-            }
-            ExprData::Missing => {}
-            _ => {}
         }
     }
 
     fn build(mut self) -> ExprScopes<'db> {
-        let scope = self.root_scope();
-        self.build_block(self.function.body(), scope, self.function.params());
+        let mut scope = self.root_scope();
+
+        self.add_bindings(self.function.params(), scope);
+        self.build_node_scopes(self.function.body(), &mut scope);
+
         self.scopes
     }
 
-    fn add_bindings(&mut self, params: &[Binding<'db>], scope: Scope<'db>) {
+    fn add_bindings(&mut self, params: &[NodeId], scope: Scope<'db>) {
         for &name in params {
             self.add_binding(name, scope);
         }

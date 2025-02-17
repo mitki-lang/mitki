@@ -1,7 +1,7 @@
-use la_arena::ArenaMap;
+use rustc_hash::FxHashMap;
 use salsa::Database;
 
-use crate::hir::{Expr, Function, HasFunction as _};
+use crate::hir::{Function, HasFunction as _, NodeId};
 use crate::item::scope::FunctionLocation;
 use crate::resolver::Resolver;
 use crate::ty::Ty;
@@ -27,7 +27,7 @@ impl<'db> Inferable<'db> for FunctionLocation<'db> {
 #[derive(Debug, Default)]
 #[expect(dead_code)]
 pub(crate) struct Inference<'db> {
-    type_of_expr: ArenaMap<Expr<'db>, Ty<'db>>,
+    type_of_expr: FxHashMap<NodeId, Ty<'db>>,
 }
 
 #[expect(dead_code)]

@@ -2,7 +2,7 @@ mod function;
 mod syntax;
 
 pub(crate) use function::Function;
-pub(crate) use syntax::{Binding, Block, Expr, ExprData, Stmt};
+pub(crate) use syntax::{NodeId, NodeKind};
 
 pub trait HasFunction<'db> {
     fn hir_function(self, db: &'db dyn salsa::Database) -> &'db Function<'db>;

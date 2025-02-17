@@ -1,50 +1,54 @@
-use la_arena::Arena;
 use mitki_span::Symbol;
 use mitki_yellow::ast::{self, HasName as _, Node as _};
-use mitki_yellow::{RedNode, RedNodePtr, RedToken};
+use mitki_yellow::{RedNode, RedNodePtr};
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
-use super::syntax::{Binding, Block, Expr, ExprData, Stmt, Ty};
+use super::syntax::{Hir, LocalVar, NodeId, NodeKind};
 use crate::ToSymbol;
 
 #[derive(Default, Debug)]
 pub struct Function<'db> {
-    params: Vec<Binding<'db>>,
-    body: Block<'db>,
+    hir: Hir<'db>,
 
-    exprs: Arena<ExprData<'db>>,
-    expr_map: FxHashMap<RedNodePtr, Expr<'db>>,
-    expr_map_back: FxHashMap<Expr<'db>, RedNodePtr>,
+    params: Vec<NodeId>,
+    body: NodeId,
 
-    bindings: Arena<Symbol<'db>>,
-    binding_map: FxHashMap<RedNodePtr, Binding<'db>>,
-    binding_map_back: FxHashMap<Binding<'db>, RedNodePtr>,
+    node_map: FxHashMap<RedNodePtr, NodeId>,
+    node_map_back: FxHashMap<NodeId, RedNodePtr>,
 }
 
 impl<'db> Function<'db> {
-    pub fn params(&self) -> &[Binding<'db>] {
+    pub fn params(&self) -> &[NodeId] {
         &self.params
     }
 
-    pub(crate) fn body(&self) -> &Block<'db> {
-        &self.body
+    pub(crate) fn body(&self) -> NodeId {
+        self.body
     }
 
-    pub(crate) fn expr(&self, expr: Expr<'db>) -> &ExprData {
-        &self.exprs[expr]
+    pub(crate) fn node_kind(&self, node: NodeId) -> NodeKind {
+        self.hir.node_kind(node)
     }
 
-    pub(crate) fn binding_symbol(&self, binding: Binding<'db>) -> Symbol<'db> {
-        self.bindings[binding]
+    pub(crate) fn block_stmts(&self, block: NodeId) -> &[NodeId] {
+        self.hir.block_stmts(block)
     }
 
-    pub(crate) fn syntax_expr(&self, db: &dyn Database, syntax: &RedNode) -> Option<Expr> {
-        self.expr_map.get(&RedNodePtr::new(db, syntax)).copied()
+    pub(crate) fn binding_symbol(&self, binding: NodeId) -> Symbol<'db> {
+        self.hir.symbol(binding)
     }
 
-    pub fn binding_syntax(&self, binding: &Binding<'db>) -> RedNodePtr {
-        self.binding_map_back[binding]
+    pub(crate) fn syntax_expr(&self, db: &dyn Database, syntax: &RedNode) -> Option<NodeId> {
+        self.node_map.get(&RedNodePtr::new(db, syntax)).copied()
+    }
+
+    pub fn binding_syntax(&self, binding: &NodeId) -> RedNodePtr {
+        self.node_map_back[binding]
+    }
+
+    pub(crate) fn local_var(&self, node: NodeId) -> LocalVar {
+        self.hir.local_var(node)
     }
 }
 
@@ -78,7 +82,7 @@ impl<'db> FunctionBuilder<'db> {
         self.function
     }
 
-    fn build_params(&mut self, params: Option<ast::Params<'db>>) -> Vec<Binding<'db>> {
+    fn build_params(&mut self, params: Option<ast::Params<'db>>) -> Vec<NodeId> {
         let Some(params) = params else {
             return Vec::new();
         };
@@ -88,110 +92,79 @@ impl<'db> FunctionBuilder<'db> {
             .map(|param| {
                 let name = self
                     .function
-                    .bindings
-                    .alloc(Symbol::new(self.db, param.name(self.db).as_str(self.db)));
-                let ptr = RedNodePtr::new(self.db, param.name(self.db).syntax());
+                    .hir
+                    .alloc_binding(Symbol::new(self.db, param.name(self.db).as_str(self.db)));
 
-                self.binding_map.insert(ptr, name);
-                self.binding_map_back.insert(name, ptr);
+                let ptr = RedNodePtr::new(self.db, param.name(self.db).syntax());
+                self.node_map.insert(ptr, name);
+                self.node_map_back.insert(name, ptr);
 
                 name
             })
             .collect()
     }
 
-    fn build_block(&mut self, block: Option<ast::Block<'db>>) -> Block<'db> {
+    fn build_block(&mut self, block: Option<ast::Block<'db>>) -> NodeId {
         let Some(block) = block else {
-            return Block::default();
+            return NodeId::ZERO;
         };
 
-        let mut stmts: Vec<Stmt<'_>> =
-            block.stmts(self.db).map(|stmt| self.build_stmt(stmt)).collect();
-
-        let tail = match &stmts[..] {
-            [.., Stmt::Expr { expr, has_semi: false }] => {
-                let tail = Some(*expr);
-                stmts.pop();
-                tail
-            }
-            _ => None,
-        };
-
-        Block { stmts, tail }
+        let stmts = block.stmts(self.db).map(|stmt| self.build_stmt(stmt)).collect();
+        self.hir.alloc_block(stmts)
     }
 
-    fn build_stmt(&mut self, stmt: ast::Stmt<'db>) -> Stmt<'db> {
+    fn build_stmt(&mut self, stmt: ast::Stmt<'db>) -> NodeId {
         match stmt {
             ast::Stmt::Val(val) => {
                 let name = val.to_symbol(self.db);
 
-                let ty = val.ty(self.db).map(|ty| match ty {
-                    ast::Type::Path(path_type) => Ty::Path(path_type.to_symbol(self.db)),
+                let ty = val.ty(self.db).map_or(NodeId::ZERO, |ty| match ty {
+                    ast::Type::Path(_) => NodeId::ZERO,
                 });
 
                 let initializer = self.build_expr(val.expr(self.db));
-                let name = self.bindings.alloc(name);
+                let name = self.hir.alloc_binding(name);
 
                 if let Some(ptr) = val.name(self.db) {
                     let ptr = RedNodePtr::new(self.db, ptr.syntax());
-                    self.binding_map.insert(ptr, name);
-                    self.binding_map_back.insert(name, ptr);
+                    self.node_map.insert(ptr, name);
+                    self.node_map_back.insert(name, ptr);
                 }
 
-                Stmt::Val { name, ty, initializer }
+                self.hir.alloc_local_var(name, ty, initializer)
             }
-            ast::Stmt::Expr(expr) => Stmt::Expr {
-                expr: self.build_expr(expr.expr(self.db)),
-                has_semi: expr.semi(self.db).is_some(),
-            },
+            ast::Stmt::Expr(stmt) => self.build_expr(stmt.expr(self.db)),
         }
     }
 
-    fn build_expr(&mut self, node: Option<ast::Expr<'db>>) -> Expr<'db> {
+    fn build_expr(&mut self, node: Option<ast::Expr<'db>>) -> NodeId {
         let Some(node) = node else {
-            return self.function.exprs.alloc(ExprData::Missing);
+            return NodeId::ZERO;
         };
 
+        let db = self.db;
         let expr = match &node {
-            ast::Expr::Path(path) => ExprData::Path(path.to_symbol(self.db)),
-            ast::Expr::Literal(literal) => match literal.kind(self.db) {
-                ast::LiteralKind::Bool(value) => ExprData::Bool(value),
-                ast::LiteralKind::Int(token) => ExprData::Int(self.token_text(&token)),
-                ast::LiteralKind::Float(token) => ExprData::Float(self.token_text(&token)),
-            },
-            ast::Expr::Binary(_binary) => ExprData::Missing,
-            ast::Expr::Postfix(_postfix) => ExprData::Missing,
-            ast::Expr::Prefix(_prefix) => ExprData::Missing,
-            ast::Expr::If(if_expr) => ExprData::If {
-                condition: self.build_expr(if_expr.condition(self.db)),
-                then_branch: self.build_block(if_expr.then_branch(self.db)),
-                else_branch: if_expr
-                    .else_branch(self.db)
-                    .map(|else_branch| self.build_block(else_branch.into())),
-            },
-            ast::Expr::Closure(closure) => {
-                let params = self.build_params(closure.params(self.db));
-                let body = self.build_block(closure.body(self.db).into());
-
-                ExprData::Closure { params, body }
+            ast::Expr::Path(path) => self.hir.alloc_name(path.to_symbol(db)),
+            ast::Expr::Literal(literal) => self.hir.alloc_literal(db, literal),
+            ast::Expr::Binary(_binary) => todo!(),
+            ast::Expr::Postfix(_postfix) => todo!(),
+            ast::Expr::Prefix(_prefix) => todo!(),
+            ast::Expr::If(_if_expr) => todo!(),
+            ast::Expr::Closure(_closure) => {
+                todo!()
             }
             ast::Expr::Call(call_expr) => {
-                let callee = self.build_expr(call_expr.callee(self.db));
-
-                ExprData::Call { callee, args: Vec::new() }
+                let callee = self.build_expr(call_expr.callee(db));
+                let args = vec![];
+                self.hir.alloc_call(callee, args)
             }
         };
 
-        let expr = self.exprs.alloc(expr);
-        let ptr = RedNodePtr::new(self.db, node.syntax());
+        let ptr = RedNodePtr::new(db, node.syntax());
 
-        self.expr_map.insert(ptr, expr);
-        self.expr_map_back.insert(expr, ptr);
+        self.node_map.insert(ptr, expr);
+        self.node_map_back.insert(expr, ptr);
 
         expr
-    }
-
-    fn token_text(&self, red_data: &RedToken<'db>) -> Symbol<'db> {
-        Symbol::new(self.db, red_data.green().text_trimmed(self.db))
     }
 }
