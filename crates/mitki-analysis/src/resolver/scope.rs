@@ -104,8 +104,12 @@ impl<'db> ExprScopesBuilder<'db> {
                     self.build_node_scopes(stmt, scope);
                 }
             }
-            NodeKind::Int | NodeKind::Float | NodeKind::True | NodeKind::False | NodeKind::Name => {
-            }
+            NodeKind::Int
+            | NodeKind::Float
+            | NodeKind::True
+            | NodeKind::False
+            | NodeKind::Name
+            | NodeKind::Error => {}
         }
     }
 

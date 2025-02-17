@@ -148,13 +148,11 @@ impl<'db> FunctionBuilder<'db> {
         let node = match &expr {
             ast::Expr::Path(path) => self.hir.alloc_name(path.to_symbol(db)),
             ast::Expr::Literal(literal) => self.hir.alloc_literal(db, literal),
-            ast::Expr::Binary(_binary) => todo!(),
-            ast::Expr::Postfix(_postfix) => todo!(),
-            ast::Expr::Prefix(_prefix) => todo!(),
-            ast::Expr::If(_if_expr) => todo!(),
-            ast::Expr::Closure(_closure) => {
-                todo!()
-            }
+            ast::Expr::Binary(_binary) => self.hir.alloc_error(),
+            ast::Expr::Postfix(_postfix) => self.hir.alloc_error(),
+            ast::Expr::Prefix(_prefix) => self.hir.alloc_error(),
+            ast::Expr::If(_if_expr) => self.hir.alloc_error(),
+            ast::Expr::Closure(_closure) => self.hir.alloc_error(),
             ast::Expr::Call(call_expr) => {
                 let callee = self.build_expr(call_expr.callee(db));
                 let args = vec![];

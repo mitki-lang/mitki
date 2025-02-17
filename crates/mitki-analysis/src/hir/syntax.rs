@@ -64,6 +64,10 @@ impl<'db> Hir<'db> {
         self.alloc(NodeKind::Block, start, end)
     }
 
+    pub(crate) fn alloc_error(&mut self) -> NodeId {
+        self.alloc(NodeKind::Error, NodeId::ZERO, NodeId::ZERO)
+    }
+
     pub(crate) fn alloc_call(&mut self, callee: NodeId, _args: Vec<NodeId>) -> NodeId {
         let lhs = self.node_ids.push_with_index(callee).into();
         self.alloc(NodeKind::Call, lhs, NodeId::ZERO)
@@ -149,6 +153,7 @@ pub(crate) enum NodeKind {
     Int,
     Call,
     Block,
+    Error,
 }
 
 trait VecExtension<T> {
