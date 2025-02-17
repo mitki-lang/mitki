@@ -24,15 +24,13 @@ impl<'db> NodeStore<'db> {
         literal: &ast::Literal<'db>,
     ) -> NodeId {
         let (kind, lhs) = match literal.kind(db) {
-            ast::LiteralKind::Bool(true) => (NodeKind::True, None),
-            ast::LiteralKind::Bool(false) => (NodeKind::False, None),
-            ast::LiteralKind::Int(token) => (NodeKind::Int, self.alloc_token(db, &token).into()),
-            ast::LiteralKind::Float(token) => {
-                (NodeKind::Float, self.alloc_token(db, &token).into())
-            }
+            ast::LiteralKind::Bool(true) => (NodeKind::True, NodeId::ZERO),
+            ast::LiteralKind::Bool(false) => (NodeKind::False, NodeId::ZERO),
+            ast::LiteralKind::Int(token) => (NodeKind::Int, self.alloc_token(db, &token)),
+            ast::LiteralKind::Float(token) => (NodeKind::Float, self.alloc_token(db, &token)),
         };
 
-        self.alloc(kind, lhs.unwrap_or(NodeId::ZERO), NodeId::ZERO)
+        self.alloc(kind, lhs, NodeId::ZERO)
     }
 
     fn alloc_token(&mut self, db: &'db dyn salsa::Database, token: &RedToken<'db>) -> NodeId {
@@ -47,12 +45,11 @@ impl<'db> NodeStore<'db> {
     pub(crate) fn alloc_local_var(
         &mut self,
         name: NodeId,
-        _ty: NodeId,
+        ty: NodeId,
         initializer: NodeId,
     ) -> NodeId {
         let lhs: NodeId = self.node_ids.push_with_index(name).into();
-        let rhs = self.node_ids.push_with_index(_ty).into();
-
+        let rhs = self.node_ids.push_with_index(ty).into();
         self.node_ids.push(initializer);
         self.alloc(NodeKind::LocalVar, lhs, rhs)
     }
