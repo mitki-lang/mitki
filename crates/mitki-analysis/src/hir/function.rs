@@ -95,9 +95,7 @@ impl<'db> FunctionBuilder<'db> {
                     .hir
                     .alloc_binding(Symbol::new(self.db, param.name(self.db).as_str(self.db)));
 
-                let ptr = RedNodePtr::new(self.db, param.name(self.db).syntax());
-                self.node_map.insert(ptr, name);
-                self.node_map_back.insert(name, ptr);
+                self.alloc_ptr(name, param.name(self.db).syntax());
 
                 name
             })
@@ -126,9 +124,7 @@ impl<'db> FunctionBuilder<'db> {
                 let name = self.hir.alloc_binding(name);
 
                 if let Some(ptr) = val.name(self.db) {
-                    let ptr = RedNodePtr::new(self.db, ptr.syntax());
-                    self.node_map.insert(ptr, name);
-                    self.node_map_back.insert(name, ptr);
+                    self.alloc_ptr(name, ptr.syntax());
                 }
 
                 self.hir.alloc_local_var(name, ty, initializer)
@@ -137,13 +133,19 @@ impl<'db> FunctionBuilder<'db> {
         }
     }
 
-    fn build_expr(&mut self, node: Option<ast::Expr<'db>>) -> NodeId {
-        let Some(node) = node else {
+    fn alloc_ptr(&mut self, node: NodeId, ptr: &RedNode) {
+        let ptr = RedNodePtr::new(self.db, ptr);
+        self.node_map.insert(ptr, node);
+        self.node_map_back.insert(node, ptr);
+    }
+
+    fn build_expr(&mut self, expr: Option<ast::Expr<'db>>) -> NodeId {
+        let Some(expr) = expr else {
             return NodeId::ZERO;
         };
 
         let db = self.db;
-        let expr = match &node {
+        let node = match &expr {
             ast::Expr::Path(path) => self.hir.alloc_name(path.to_symbol(db)),
             ast::Expr::Literal(literal) => self.hir.alloc_literal(db, literal),
             ast::Expr::Binary(_binary) => todo!(),
@@ -159,12 +161,7 @@ impl<'db> FunctionBuilder<'db> {
                 self.hir.alloc_call(callee, args)
             }
         };
-
-        let ptr = RedNodePtr::new(db, node.syntax());
-
-        self.node_map.insert(ptr, expr);
-        self.node_map_back.insert(expr, ptr);
-
-        expr
+        self.alloc_ptr(node, expr.syntax());
+        node
     }
 }
