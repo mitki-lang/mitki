@@ -151,12 +151,6 @@ pub(crate) enum NodeKind {
     Block,
 }
 
-#[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
-pub(crate) enum Ty<'db> {
-    Path(Symbol<'db>),
-}
-
 trait VecExtension<T> {
     fn push_with_index(&mut self, element: T) -> usize;
 }
