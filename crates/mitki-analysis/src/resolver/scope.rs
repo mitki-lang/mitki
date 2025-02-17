@@ -40,7 +40,6 @@ impl<'db> ExprScopes<'db> {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub(crate) struct ScopeEntry<'db> {
     pub(crate) name: Symbol<'db>,
     pub(crate) binding: NodeId,
