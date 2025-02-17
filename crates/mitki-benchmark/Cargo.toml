@@ -7,6 +7,10 @@ edition.workspace = true
 workspace = true
 
 [[bench]]
+name = "goto_definition"
+harness = false
+
+[[bench]]
 name = "tokenizer"
 harness = false
 
@@ -16,7 +20,9 @@ harness = false
 
 [dev-dependencies]
 codspeed-criterion-compat = { version = "2.7", default-features = false }
+mitki-ide.workspace = true
 mitki-inputs.workspace = true
 mitki-parse.workspace = true
 mitki-tokenizer.workspace = true
 salsa.workspace = true
+text-size.workspace = true

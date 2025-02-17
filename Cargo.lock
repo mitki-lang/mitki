@@ -618,10 +618,12 @@ name = "mitki-benchmark"
 version = "0.1.0"
 dependencies = [
  "codspeed-criterion-compat",
+ "mitki-ide",
  "mitki-inputs",
  "mitki-parse",
  "mitki-tokenizer",
  "salsa",
+ "text-size",
 ]
 
 [[package]]
