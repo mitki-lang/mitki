@@ -19,5 +19,4 @@ salsa.workspace = true
 text-size.workspace = true
 
 [dev-dependencies]
-codspeed-criterion-compat = { version = "2.7", default-features = false }
 expect-test = "1.5"

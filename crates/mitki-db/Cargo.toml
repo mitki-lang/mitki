@@ -10,10 +10,6 @@ doctest = false
 workspace = true
 
 [dependencies]
-camino.workspace = true
 mitki-analysis.workspace = true
 mitki-errors.workspace = true
-mitki-inputs.workspace = true
-mitki-parse.workspace = true
-mitki-yellow.workspace = true
 salsa.workspace = true

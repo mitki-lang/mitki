@@ -594,7 +594,6 @@ dependencies = [
  "mitki-errors",
  "mitki-inputs",
  "mitki-lsp-server",
- "mitki-yellow",
  "salsa",
 ]
 
@@ -630,12 +629,8 @@ dependencies = [
 name = "mitki-db"
 version = "0.1.0"
 dependencies = [
- "camino",
  "mitki-analysis",
  "mitki-errors",
- "mitki-inputs",
- "mitki-parse",
- "mitki-yellow",
  "salsa",
 ]
 
@@ -691,7 +686,6 @@ dependencies = [
 name = "mitki-parse"
 version = "0.1.0"
 dependencies = [
- "codspeed-criterion-compat",
  "drop_bomb",
  "expect-test",
  "mitki-errors",
