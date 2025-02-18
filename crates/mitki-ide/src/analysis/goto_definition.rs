@@ -123,6 +123,7 @@ mod tests {
         annotations
     }
 
+    #[track_caller]
     fn check(fixture: &str) {
         let analysis = Analysis::default();
         let (offset, fixture) = extract_offset(fixture);

@@ -4,7 +4,7 @@ use mitki_span::Symbol;
 use salsa::Database;
 use scope::{ExprScopes, HasExprScopes as _, Scope};
 
-use crate::hir::{Binding, Expr};
+use crate::hir::NodeId;
 use crate::item::scope::{FunctionLocation, HasItemScope as _, ItemScope};
 
 #[derive(Debug, Clone)]
@@ -30,7 +30,7 @@ impl<'db> Resolver<'db> {
     }
 
     #[expect(dead_code)]
-    pub(crate) fn scopes_for_expr(&mut self, expr: Expr<'db>) -> Guard {
+    pub(crate) fn scopes_for_expr(&mut self, expr: NodeId) -> Guard {
         let start = self.scopes.len();
 
         let innermost_scope = self.scopes().next();
@@ -85,6 +85,6 @@ impl<'db> Resolver<'db> {
 pub(crate) struct Guard(usize);
 
 pub enum PathResolution<'db> {
-    Local(Binding<'db>),
+    Local(NodeId),
     Function(FunctionLocation<'db>),
 }

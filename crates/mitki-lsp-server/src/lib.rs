@@ -67,8 +67,7 @@ impl Server {
                 name: env!("CARGO_PKG_NAME").to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string().into(),
             }),
-        })
-        .unwrap();
+        })?;
 
         if let Err(protocol_error) = connection.initialize_finish(initialize_id, initialize_result)
         {
