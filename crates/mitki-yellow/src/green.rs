@@ -34,6 +34,10 @@ impl GreenTrivia {
         Self { ptr: Some(ThinArc::from_header_and_slice(total_len, pieces)) }
     }
 
+    pub fn whitespace(len: u32) -> GreenTrivia {
+        GreenTrivia::new(&[TriviaPiece::new(TriviaPieceKind::Whitespace, len.into())])
+    }
+
     pub const fn empty() -> Self {
         Self { ptr: None }
     }
@@ -202,16 +206,17 @@ mod tests {
 
     use super::*;
 
-    fn whitespace(len: u32) -> GreenTrivia {
-        GreenTrivia::new(&[TriviaPiece::new(TriviaPieceKind::Whitespace, len.into())])
-    }
-
     #[test]
     fn token_text() {
         let db = DatabaseImpl::new();
 
-        let token =
-            GreenToken::new(&db, whitespace(3), SyntaxKind::VAL_KW, "\n\t val \t\t", whitespace(3));
+        let token = GreenToken::new(
+            &db,
+            GreenTrivia::whitespace(3),
+            SyntaxKind::VAL_KW,
+            "\n\t val \t\t",
+            GreenTrivia::whitespace(3),
+        );
 
         assert_eq!("\n\t val \t\t", token.text(&db).as_ref());
         assert_eq!("val", token.text_trimmed(&db));

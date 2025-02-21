@@ -45,6 +45,7 @@ pub struct Tokenizer<'db> {
     current: Token,
     trivia_pieces: Vec<TriviaPiece>,
     diagnostics: Vec<Diagnostic>,
+    whitespace: GreenTrivia,
 }
 
 impl<'db> Tokenizer<'db> {
@@ -55,6 +56,7 @@ impl<'db> Tokenizer<'db> {
             current: Token::EOF,
             trivia_pieces: Vec::with_capacity(4),
             diagnostics: Vec::new(),
+            whitespace: GreenTrivia::whitespace(1),
         };
 
         tokenizer.next_token();
@@ -87,11 +89,21 @@ impl<'db> Tokenizer<'db> {
         self.trivia(TriviaMode::NoNewlines);
 
         let (leading, trailing) = self.trivia_pieces.split_at(trailing_start);
-        let leading = GreenTrivia::new(leading);
-        let trailing = GreenTrivia::new(trailing);
+        let leading = self.green_trivia(leading);
+        let trailing = self.green_trivia(trailing);
 
         self.trivia_pieces.clear();
         std::mem::replace(&mut self.current, Token { leading, kind, kind_range, trailing })
+    }
+
+    fn green_trivia(&self, pieces: &[TriviaPiece]) -> GreenTrivia {
+        match pieces {
+            [] => GreenTrivia::empty(),
+            [TriviaPiece { kind: TriviaPieceKind::Whitespace, len }] if *len == 1.into() => {
+                self.whitespace.clone()
+            }
+            _ => GreenTrivia::new(pieces),
+        }
     }
 
     fn trivia(&mut self, mode: TriviaMode) {
