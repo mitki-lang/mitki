@@ -45,7 +45,7 @@ pub struct Function<'db>(Idx<FunctionData<'db>>);
 
 unsafe impl Update for Function<'_> {
     unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {
-        u32::maybe_update(old_pointer.cast(), new_value.0.into_raw().into_u32())
+        unsafe { u32::maybe_update(old_pointer.cast(), new_value.0.into_raw().into_u32()) }
     }
 }
 
