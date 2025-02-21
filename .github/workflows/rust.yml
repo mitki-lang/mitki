@@ -26,7 +26,7 @@ jobs:
           rustup default ${{ env.RUST_CHANNEL }}
           rustup component add --toolchain ${{ env.RUST_CHANNEL }} rustfmt clippy
       - name: Cache Dependencies
-        uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609
+        uses: Swatinem/rust-cache@v2
         with:
           key: ${{ env.RUST_CHANNEL }}
       - name: cargo build
