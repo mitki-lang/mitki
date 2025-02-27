@@ -12,7 +12,6 @@ workspace = true
 [dependencies]
 hashbrown = "0.15"
 indexmap = "2.6"
-la-arena = "0.3"
 mitki-inputs.workspace = true
 mitki-parse.workspace = true
 mitki-span.workspace = true

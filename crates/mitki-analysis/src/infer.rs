@@ -24,8 +24,7 @@ impl<'db> Inferable<'db> for FunctionLocation<'db> {
     }
 }
 
-#[derive(Debug, Default)]
-#[expect(dead_code)]
+#[derive(Debug, Default, salsa::Update)]
 pub(crate) struct Inference<'db> {
     type_of_expr: FxHashMap<NodeId, Ty<'db>>,
 }

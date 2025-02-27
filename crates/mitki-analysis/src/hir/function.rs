@@ -7,7 +7,7 @@ use salsa::Database;
 use super::syntax::{LocalVar, NodeId, NodeKind, NodeStore};
 use crate::ToSymbol;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, salsa::Update)]
 pub struct Function<'db> {
     node_store: NodeStore<'db>,
 

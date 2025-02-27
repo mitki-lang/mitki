@@ -2,8 +2,8 @@ use mitki_inputs::File;
 use mitki_span::Symbol;
 use salsa::Database;
 
-use super::tree::{Function, Item, ItemTree};
-use crate::item::tree::HasItemTree as _;
+use super::tree::{Item, ItemTree};
+use crate::item::tree::{Function, HasItemTree as _};
 
 type FxIndexMap<K, V> =
     indexmap::IndexMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
@@ -48,7 +48,7 @@ impl<'db> FunctionLocation<'db> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, salsa::Update)]
 pub(crate) struct ItemScope<'db> {
     values: FxIndexMap<Symbol<'db>, FunctionLocation<'db>>,
     declarations: Vec<FunctionLocation<'db>>,

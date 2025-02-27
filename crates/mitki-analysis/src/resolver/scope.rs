@@ -1,8 +1,8 @@
-use la_arena::{Arena, Idx, IdxRange, RawIdx};
 use mitki_span::Symbol;
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
+use crate::arena::{Arena, Idx, IdxRange};
 use crate::hir::{Function, HasFunction, NodeId, NodeKind};
 use crate::item::scope::FunctionLocation;
 
@@ -18,7 +18,7 @@ impl<'db> HasExprScopes<'db> for FunctionLocation<'db> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, salsa::Update)]
 pub(crate) struct ExprScopes<'db> {
     pub scopes: Arena<ScopeData<'db>>,
     pub scope_entries: Arena<ScopeEntry<'db>>,
@@ -31,7 +31,7 @@ impl<'db> ExprScopes<'db> {
     }
 
     pub(crate) fn entries(&self, scope: Scope<'db>) -> &[ScopeEntry<'db>] {
-        &self.scope_entries[self.scopes[scope].entries.clone()]
+        &self.scope_entries[self.scopes[scope].entries]
     }
 
     pub(crate) fn scope_for(&self, expr: NodeId) -> Option<Scope<'db>> {
@@ -39,7 +39,7 @@ impl<'db> ExprScopes<'db> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, salsa::Update)]
 pub(crate) struct ScopeEntry<'db> {
     pub(crate) name: Symbol<'db>,
     pub(crate) binding: NodeId,
@@ -47,7 +47,7 @@ pub(crate) struct ScopeEntry<'db> {
 
 pub(crate) type Scope<'db> = Idx<ScopeData<'db>>;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, salsa::Update)]
 pub(crate) struct ScopeData<'db> {
     parent: Option<Scope<'db>>,
     entries: IdxRange<ScopeEntry<'db>>,
@@ -59,8 +59,8 @@ pub(crate) struct ExprScopesBuilder<'db> {
 }
 
 fn empty_entries<'db>(idx: usize) -> IdxRange<ScopeEntry<'db>> {
-    let idx = Idx::from_raw(RawIdx::from(idx as u32));
-    IdxRange::new(idx..idx)
+    let idx = Idx::new(idx as u32);
+    IdxRange::new(idx, idx)
 }
 
 impl<'db> ExprScopesBuilder<'db> {
@@ -83,7 +83,7 @@ impl<'db> ExprScopesBuilder<'db> {
         let symbol = self.function.binding_symbol(name);
         let entry = self.scopes.scope_entries.alloc(ScopeEntry { name: symbol, binding: name });
         self.scopes.scopes[scope].entries =
-            IdxRange::new_inclusive(self.scopes.scopes[scope].entries.start()..=entry);
+            IdxRange::new_inclusive(self.scopes.scopes[scope].entries.start, entry);
     }
 
     fn build_node_scopes(&mut self, node: NodeId, scope: &mut Scope<'db>) {
