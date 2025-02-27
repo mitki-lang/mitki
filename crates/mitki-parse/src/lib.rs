@@ -8,7 +8,7 @@ mod parser;
 #[cfg(test)]
 mod tests;
 
-#[derive(Copy)]
+#[derive(Copy, salsa::Update)]
 pub struct Parsed<'db, T> {
     root: GreenNode<'db>,
     phantom: PhantomData<fn() -> T>,

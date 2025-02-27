@@ -1,3 +1,4 @@
+mod arena;
 pub mod ast_map;
 pub mod hir;
 pub mod infer;

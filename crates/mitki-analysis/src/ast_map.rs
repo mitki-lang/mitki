@@ -1,9 +1,10 @@
-use hashbrown::HashMap;
-use la_arena::{Arena, Idx};
 use mitki_inputs::File;
 use mitki_parse::FileParse;
 use mitki_yellow::{RedNode, RedNodePtr, SyntaxKind};
+use rustc_hash::FxHashMap;
 use salsa::Database;
+
+use crate::arena::{Arena, Idx};
 
 pub(crate) trait HasAstMap {
     fn ast_map(self, db: &dyn Database) -> &AstMap;
@@ -17,10 +18,10 @@ impl HasAstMap for File {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, salsa::Update)]
 pub(crate) struct AstMap {
     arena: Arena<RedNodePtr>,
-    map: HashMap<Idx<RedNodePtr>, (), ()>,
+    map: FxHashMap<RedNodePtr, Idx<RedNodePtr>>,
 }
 
 impl AstMap {
@@ -33,44 +34,19 @@ impl AstMap {
             }
         });
 
-        let mut map = HashMap::with_capacity_and_hasher(arena.len(), ());
+        let mut map = FxHashMap::with_capacity_and_hasher(arena.len(), Default::default());
         for (index, node) in arena.iter() {
-            let hash = hash_one(node);
-
-            match map.raw_entry_mut().from_hash(hash, |&found| found == index) {
-                hashbrown::hash_map::RawEntryMut::Vacant(entry) => {
-                    entry.insert_with_hasher(hash, index, (), |&idx| hash_one(&arena[idx]));
-                }
-                hashbrown::hash_map::RawEntryMut::Occupied(_) => {
-                    unreachable!("duplicate node");
-                }
-            }
+            map.insert(*node, index);
         }
 
         Self { arena, map }
     }
 
     pub(crate) fn find_id(&self, db: &dyn Database, node: &RedNode<'_>) -> Idx<RedNodePtr> {
-        let ptr = RedNodePtr::new(db, node);
-        let hash = hash_one(&ptr);
-
-        match self.map.raw_entry().from_hash(hash, |&index| self.arena[index] == ptr) {
-            Some((&index, &())) => index,
-            None => panic!(
-                "Can't find {:?} in AstMap:\n{:?}",
-                RedNodePtr::new(db, node),
-                self.arena.iter().map(|(_id, i)| i).collect::<Vec<_>>(),
-            ),
-        }
+        self.map[&RedNodePtr::new(db, node)]
     }
 
     pub(crate) fn find_node(&self, index: Idx<RedNodePtr>) -> &RedNodePtr {
         &self.arena[index]
     }
-}
-
-fn hash_one<T: std::hash::Hash>(t: &T) -> u64 {
-    use std::hash::BuildHasher as _;
-
-    std::hash::BuildHasherDefault::<rustc_hash::FxHasher>::default().hash_one(t)
 }

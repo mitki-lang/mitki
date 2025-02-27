@@ -1,14 +1,16 @@
 use std::ops::Index;
 
-use la_arena::{Arena, Idx};
 use mitki_inputs::File;
 use mitki_parse::FileParse as _;
 use mitki_span::Symbol;
 use mitki_yellow::RedNodePtr;
 use mitki_yellow::ast::{HasName as _, Node};
-use salsa::{Database, Update};
+use salsa::Database;
 
+use crate::arena::{Arena, Idx};
 use crate::ast_map::HasAstMap as _;
+
+pub type Function<'db> = Idx<FunctionData<'db>>;
 
 pub(crate) trait HasItemTree {
     fn item_tree(self, db: &dyn Database) -> &ItemTree<'_>;
@@ -29,7 +31,8 @@ impl HasItemTree for File {
                     else {
                         continue;
                     };
-                    Item::Function(Function(item_tree.functions.alloc(FunctionData { id, name })))
+
+                    Item::Function(item_tree.functions.alloc(FunctionData { id, name }))
                 }
             };
 
@@ -40,16 +43,7 @@ impl HasItemTree for File {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Function<'db>(Idx<FunctionData<'db>>);
-
-unsafe impl Update for Function<'_> {
-    unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {
-        unsafe { u32::maybe_update(old_pointer.cast(), new_value.0.into_raw().into_u32()) }
-    }
-}
-
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, salsa::Update)]
 pub(crate) struct ItemTree<'db> {
     items: Vec<Item<'db>>,
     functions: Arena<FunctionData<'db>>,
@@ -59,7 +53,7 @@ impl<'db> Index<Function<'db>> for ItemTree<'db> {
     type Output = FunctionData<'db>;
 
     fn index(&self, index: Function<'db>) -> &Self::Output {
-        &self.functions[index.0]
+        &self.functions[index]
     }
 }
 
@@ -69,13 +63,13 @@ impl<'db> ItemTree<'db> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, salsa::Update)]
 pub(crate) enum Item<'db> {
     Function(Function<'db>),
 }
 
-#[derive(Debug)]
-pub(crate) struct FunctionData<'db> {
+#[derive(Debug, PartialEq, Eq, salsa::Update)]
+pub struct FunctionData<'db> {
     pub(crate) id: Idx<RedNodePtr>,
     pub(crate) name: Symbol<'db>,
 }
