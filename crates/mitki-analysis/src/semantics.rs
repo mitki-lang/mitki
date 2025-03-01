@@ -6,7 +6,7 @@ use salsa::Database;
 
 use crate::ast_map::HasAstMap as _;
 use crate::hir::HasFunction as _;
-use crate::item::scope::{FunctionLocation, HasItemScope as _};
+use crate::item::scope::{Declaration, FunctionLocation, HasItemScope as _};
 use crate::item::tree::HasItemTree as _;
 use crate::resolver::Resolver;
 use crate::resolver::scope::HasExprScopes as _;
@@ -22,10 +22,14 @@ impl<'db> Semantics<'db> {
         let item_scope = file.item_scope(db);
         let ast_map = file.ast_map(db);
 
-        for func in item_scope.declarations() {
-            let id = item_tree[func.index(db)].id;
-            let &ptr = ast_map.find_node(id);
-            source_map.functions.insert(ptr, func);
+        for declaration in item_scope.declarations() {
+            match declaration {
+                Declaration::Function(func) => {
+                    let id = item_tree[func.index(db)].id;
+                    let &ptr = ast_map.find_node(id);
+                    source_map.functions.insert(ptr, func);
+                }
+            }
         }
 
         Self { source_map }

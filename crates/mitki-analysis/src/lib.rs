@@ -7,6 +7,7 @@ pub mod resolver;
 pub mod semantics;
 pub mod ty;
 
+use item::scope::Declaration;
 pub use semantics::Semantics;
 
 trait ToSymbol<'db>: mitki_yellow::ast::HasName<'db> {
@@ -23,6 +24,8 @@ pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) {
     use item::scope::HasItemScope as _;
 
     for declaration in file.item_scope(db).declarations() {
-        declaration.infer(db);
+        match declaration {
+            Declaration::Function(func) => _ = func.infer(db),
+        }
     }
 }

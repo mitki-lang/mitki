@@ -50,7 +50,7 @@ fn handle_document_diagnostic(
 
     let diagnostics = mitki_db::check_file::accumulated(server.analysis.db(), file)
         .into_iter()
-        .map(|diagnostic: mitki_db::Diagnostic| {
+        .map(|diagnostic: &mitki_db::Diagnostic| {
             lsp_types::Diagnostic::new(
                 to_lsp_range(line_index, diagnostic.range()),
                 Some(match diagnostic.level() {

@@ -21,6 +21,11 @@ impl HasItemScope for File {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy, salsa::Update)]
+pub enum Declaration<'db> {
+    Function(FunctionLocation<'db>),
+}
+
 #[salsa::tracked]
 pub struct FunctionLocation<'db> {
     pub file: File,
@@ -51,7 +56,7 @@ impl<'db> FunctionLocation<'db> {
 #[derive(Debug, Default, PartialEq, salsa::Update)]
 pub(crate) struct ItemScope<'db> {
     values: FxIndexMap<Symbol<'db>, FunctionLocation<'db>>,
-    declarations: Vec<FunctionLocation<'db>>,
+    declarations: Vec<Declaration<'db>>,
 }
 
 impl<'db> ItemScope<'db> {
@@ -59,7 +64,7 @@ impl<'db> ItemScope<'db> {
         self.values.get(name).copied()
     }
 
-    pub(crate) fn declarations(&self) -> impl ExactSizeIterator<Item = FunctionLocation<'db>> + '_ {
+    pub(crate) fn declarations(&self) -> impl ExactSizeIterator<Item = Declaration<'db>> + '_ {
         self.declarations.iter().copied()
     }
 }
@@ -78,7 +83,7 @@ impl<'db> ItemScopeBuilder<'db> {
                     let func = &self.item_tree[index];
                     let func_loc = FunctionLocation::new(self.db, file, index);
 
-                    self.scope.declarations.push(func_loc);
+                    self.scope.declarations.push(Declaration::Function(func_loc));
                     self.scope.values.insert(func.name, func_loc);
                 }
             }
