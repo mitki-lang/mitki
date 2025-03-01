@@ -47,5 +47,4 @@ mitki-span = { path = "crates/mitki-span" }
 mitki-tokenizer = { path = "crates/mitki-tokenizer" }
 mitki-yellow = { path = "crates/mitki-yellow" }
 salsa = { git = "https://github.com/salsa-rs/salsa/" }
-#salsa = { path = "C:/Users/gvozdvmozgu/Projects/salsa" }
 text-size = "1.1"
