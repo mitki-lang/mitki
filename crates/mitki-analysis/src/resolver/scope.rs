@@ -2,7 +2,7 @@ use mitki_span::Symbol;
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
-use crate::arena::{Arena, Idx, IdxRange};
+use crate::arena::{Arena, Key, Range};
 use crate::hir::{Function, HasFunction, NodeId, NodeKind};
 use crate::item::scope::FunctionLocation;
 
@@ -45,12 +45,12 @@ pub(crate) struct ScopeEntry<'db> {
     pub(crate) binding: NodeId,
 }
 
-pub(crate) type Scope<'db> = Idx<ScopeData<'db>>;
+pub(crate) type Scope<'db> = Key<ScopeData<'db>>;
 
 #[derive(Debug, PartialEq, Eq, salsa::Update)]
 pub(crate) struct ScopeData<'db> {
     parent: Option<Scope<'db>>,
-    entries: IdxRange<ScopeEntry<'db>>,
+    entries: Range<ScopeEntry<'db>>,
 }
 
 pub(crate) struct ExprScopesBuilder<'db> {
@@ -58,9 +58,9 @@ pub(crate) struct ExprScopesBuilder<'db> {
     scopes: ExprScopes<'db>,
 }
 
-fn empty_entries<'db>(idx: usize) -> IdxRange<ScopeEntry<'db>> {
-    let idx = Idx::new(idx as u32);
-    IdxRange::new(idx, idx)
+fn empty_entries<'db>(idx: usize) -> Range<ScopeEntry<'db>> {
+    let idx = Key::new(idx as u32);
+    Range::new(idx, idx)
 }
 
 impl<'db> ExprScopesBuilder<'db> {
@@ -79,11 +79,11 @@ impl<'db> ExprScopesBuilder<'db> {
         })
     }
 
-    fn add_binding(&mut self, name: NodeId, scope: Idx<ScopeData<'db>>) {
+    fn add_binding(&mut self, name: NodeId, scope: Key<ScopeData<'db>>) {
         let symbol = self.function.binding_symbol(name);
         let entry = self.scopes.scope_entries.alloc(ScopeEntry { name: symbol, binding: name });
         self.scopes.scopes[scope].entries =
-            IdxRange::new_inclusive(self.scopes.scopes[scope].entries.start, entry);
+            Range::new_inclusive(self.scopes.scopes[scope].entries.start, entry);
     }
 
     fn build_node_scopes(&mut self, node: NodeId, scope: &mut Scope<'db>) {
