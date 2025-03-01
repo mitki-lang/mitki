@@ -52,6 +52,7 @@ jobs:
       - name: cargo udeps
         run: cargo udeps
   benchmarks:
+    if: github.event_name != 'merge_group'
     name: Benchmarks
     runs-on: ubuntu-latest
     steps:
