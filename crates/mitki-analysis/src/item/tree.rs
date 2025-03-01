@@ -7,10 +7,10 @@ use mitki_yellow::RedNodePtr;
 use mitki_yellow::ast::{HasName as _, Node};
 use salsa::Database;
 
-use crate::arena::{Arena, Idx};
+use crate::arena::{Arena, Key};
 use crate::ast_map::HasAstMap as _;
 
-pub type Function<'db> = Idx<FunctionData<'db>>;
+pub type Function<'db> = Key<FunctionData<'db>>;
 
 pub(crate) trait HasItemTree {
     fn item_tree(self, db: &dyn Database) -> &ItemTree<'_>;
@@ -70,6 +70,6 @@ pub(crate) enum Item<'db> {
 
 #[derive(Debug, PartialEq, Eq, salsa::Update)]
 pub struct FunctionData<'db> {
-    pub(crate) id: Idx<RedNodePtr>,
+    pub(crate) id: Key<RedNodePtr>,
     pub(crate) name: Symbol<'db>,
 }

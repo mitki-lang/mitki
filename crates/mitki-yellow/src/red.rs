@@ -11,7 +11,7 @@ pub type RedNode<'db> = RedData<'db, GreenNode<'db>>;
 pub type RedToken<'db> = RedData<'db, GreenToken<'db>>;
 pub type Red<'db> = NodeOrToken<RedNode<'db>, RedToken<'db>>;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, salsa::Update)]
 pub struct RedNodePtr {
     pub kind: SyntaxKind,
     pub range: TextRange,
