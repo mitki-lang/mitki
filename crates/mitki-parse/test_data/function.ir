@@ -8,9 +8,8 @@ MODULE
       RIGHT_PAREN: ")"
     STMT_LIST
       LEFT_BRACE: "{"
-      EXPR_STMT
-        LITERAL
-          INT_NUMBER: "42"
+      LITERAL
+        INT_NUMBER: "42"
       RIGHT_BRACE: "}"
 
 Errors:
