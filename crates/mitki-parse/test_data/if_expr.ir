@@ -8,19 +8,36 @@ MODULE
       RIGHT_PAREN: ")"
     STMT_LIST
       LEFT_BRACE: "{"
-      EXPR_STMT
+      IF_EXPR
+        IF_KW: "if"
+        LITERAL
+          TRUE_KW: "true"
+        STMT_LIST
+          LEFT_BRACE: "{"
+          RIGHT_BRACE: "}"
+      IF_EXPR
+        IF_KW: "if"
+        LITERAL
+          TRUE_KW: "true"
+        STMT_LIST
+          LEFT_BRACE: "{"
+          RIGHT_BRACE: "}"
+        ELSE_KW: "else"
+        STMT_LIST
+          LEFT_BRACE: "{"
+          RIGHT_BRACE: "}"
+      IF_EXPR
+        IF_KW: "if"
+        LITERAL
+          TRUE_KW: "true"
+        STMT_LIST
+          LEFT_BRACE: "{"
+          RIGHT_BRACE: "}"
+        ELSE_KW: "else"
         IF_EXPR
           IF_KW: "if"
           LITERAL
-            TRUE_KW: "true"
-          STMT_LIST
-            LEFT_BRACE: "{"
-            RIGHT_BRACE: "}"
-      EXPR_STMT
-        IF_EXPR
-          IF_KW: "if"
-          LITERAL
-            TRUE_KW: "true"
+            FALSE_KW: "false"
           STMT_LIST
             LEFT_BRACE: "{"
             RIGHT_BRACE: "}"
@@ -28,26 +45,6 @@ MODULE
           STMT_LIST
             LEFT_BRACE: "{"
             RIGHT_BRACE: "}"
-      EXPR_STMT
-        IF_EXPR
-          IF_KW: "if"
-          LITERAL
-            TRUE_KW: "true"
-          STMT_LIST
-            LEFT_BRACE: "{"
-            RIGHT_BRACE: "}"
-          ELSE_KW: "else"
-          IF_EXPR
-            IF_KW: "if"
-            LITERAL
-              FALSE_KW: "false"
-            STMT_LIST
-              LEFT_BRACE: "{"
-              RIGHT_BRACE: "}"
-            ELSE_KW: "else"
-            STMT_LIST
-              LEFT_BRACE: "{"
-              RIGHT_BRACE: "}"
       RIGHT_BRACE: "}"
 
 Errors:

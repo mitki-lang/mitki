@@ -1,4 +1,5 @@
 #[salsa::interned]
 pub struct Symbol<'db> {
-    pub data: Box<str>,
+    #[return_ref]
+    pub text: Box<str>,
 }

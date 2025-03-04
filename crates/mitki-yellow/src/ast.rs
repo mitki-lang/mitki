@@ -63,6 +63,10 @@ impl<'db> Function<'db> {
         child(db, &self.0)
     }
 
+    pub fn ret_type(&self, db: &'db dyn Database) -> Option<RetType> {
+        child(db, self.syntax())
+    }
+
     pub fn body(&self, db: &'db dyn Database) -> Option<Block<'db>> {
         child(db, &self.0)
     }
@@ -78,6 +82,31 @@ impl<'db> Node<'db> for Function<'db> {
 
     fn syntax(&self) -> &RedNode<'db> {
         &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetType<'db> {
+    pub(crate) syntax: RedNode<'db>,
+}
+
+impl<'db> RetType<'db> {
+    #[inline]
+    pub fn ty(&self, db: &'db dyn Database) -> Option<Type<'db>> {
+        child(db, &self.syntax)
+    }
+}
+
+impl<'db> Node<'db> for RetType<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            RETURN_TYPE => Some(Self { syntax }),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.syntax
     }
 }
 
@@ -130,6 +159,10 @@ pub struct Block<'db>(RedNode<'db>);
 impl<'db> Block<'db> {
     pub fn stmts(&self, db: &'db dyn Database) -> impl Iterator<Item = Stmt<'db>> + '_ {
         self.0.children(db).filter_map(move |syntax| Stmt::cast(db, syntax))
+    }
+
+    pub fn tail_expr(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
+        child(db, self.syntax())
     }
 }
 
@@ -441,7 +474,7 @@ impl<'db> Name<'db> {
 impl<'db> Node<'db> for Name<'db> {
     fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
         match syntax.kind(db) {
-            IDENT => Self(syntax).into(),
+            IDENT | NAME_REF => Self(syntax).into(),
             _ => None,
         }
     }

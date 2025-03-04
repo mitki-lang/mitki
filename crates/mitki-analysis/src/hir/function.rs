@@ -1,5 +1,5 @@
 use mitki_span::Symbol;
-use mitki_yellow::ast::{self, HasName as _, Node as _};
+use mitki_yellow::ast::{self, HasName, Node as _};
 use mitki_yellow::{RedNode, RedNodePtr};
 use rustc_hash::FxHashMap;
 use salsa::Database;
@@ -13,6 +13,7 @@ pub struct Function<'db> {
 
     params: Vec<NodeId>,
     body: NodeId,
+    ret_type: NodeId,
 
     node_map: FxHashMap<RedNodePtr, NodeId>,
     node_map_back: FxHashMap<NodeId, RedNodePtr>,
@@ -23,19 +24,25 @@ impl<'db> Function<'db> {
         &self.params
     }
 
+    pub fn ret_type(&self) -> NodeId {
+        self.ret_type
+    }
+
     pub(crate) fn body(&self) -> NodeId {
         self.body
     }
 
-    pub(crate) fn node_kind(&self, node: NodeId) -> NodeKind {
+    #[track_caller]
+    pub fn node_kind(&self, node: NodeId) -> NodeKind {
         self.node_store.node_kind(node)
     }
 
-    pub(crate) fn block_stmts(&self, block: NodeId) -> &[NodeId] {
+    pub(crate) fn block_stmts(&self, block: NodeId) -> (&[NodeId], NodeId) {
         self.node_store.block_stmts(block)
     }
 
-    pub(crate) fn binding_symbol(&self, binding: NodeId) -> Symbol<'db> {
+    #[track_caller]
+    pub fn binding_symbol(&self, binding: NodeId) -> Symbol<'db> {
         self.node_store.symbol(binding)
     }
 
@@ -43,12 +50,19 @@ impl<'db> Function<'db> {
         self.node_map.get(&RedNodePtr::new(db, syntax)).copied()
     }
 
-    pub fn binding_syntax(&self, binding: &NodeId) -> RedNodePtr {
-        self.node_map_back[binding]
+    #[track_caller]
+    pub fn node_syntax(&self, node: &NodeId) -> RedNodePtr {
+        self.node_map_back[node]
     }
 
-    pub(crate) fn local_var(&self, node: NodeId) -> LocalVar {
+    #[track_caller]
+    pub fn local_var(&self, node: NodeId) -> LocalVar {
         self.node_store.local_var(node)
+    }
+
+    #[track_caller]
+    pub(crate) fn name(&self, node: NodeId) -> Symbol<'db> {
+        self.node_store.name(node)
     }
 }
 
@@ -78,6 +92,8 @@ impl<'db> FunctionBuilder<'db> {
 
     pub(super) fn build(mut self, node: &ast::Function<'db>) -> Function<'db> {
         self.function.params = self.build_params(node.params(self.db));
+        self.function.ret_type =
+            self.build_ty(node.ret_type(self.db).and_then(|ret_type| ret_type.ty(self.db)));
         self.function.body = self.build_block(node.body(self.db));
         self.function
     }
@@ -93,7 +109,7 @@ impl<'db> FunctionBuilder<'db> {
                 let name = self
                     .function
                     .node_store
-                    .alloc_binding(Symbol::new(self.db, param.name(self.db).as_str(self.db)));
+                    .alloc_name(Symbol::new(self.db, param.name(self.db).as_str(self.db)));
 
                 self.alloc_ptr(name, param.name(self.db).syntax());
 
@@ -107,29 +123,33 @@ impl<'db> FunctionBuilder<'db> {
             return NodeId::ZERO;
         };
 
-        let stmts = block.stmts(self.db).map(|stmt| self.build_stmt(stmt)).collect();
-        self.node_store.alloc_block(stmts)
+        let stmts = block.stmts(self.db).map(|stmt| self.build_stmt(&stmt)).collect();
+        let tail =
+            block.tail_expr(self.db).map_or(NodeId::ZERO, |tail| self.build_expr(tail.into()));
+
+        self.node_store.alloc_block(stmts, tail)
     }
 
-    fn build_stmt(&mut self, stmt: ast::Stmt<'db>) -> NodeId {
-        match stmt {
+    fn build_stmt(&mut self, stmt: &ast::Stmt<'db>) -> NodeId {
+        let db = self.db;
+        match &stmt {
             ast::Stmt::Val(val) => {
-                let name = val.to_symbol(self.db);
+                let name = val.to_symbol(db);
+                let ty = self.build_ty(val.ty(db));
+                let initializer = self.build_expr(val.expr(db));
 
-                let ty = val.ty(self.db).map_or(NodeId::ZERO, |ty| match ty {
-                    ast::Type::Path(_) => NodeId::ZERO,
-                });
+                let name = self.node_store.alloc_name(name);
+                let node = self.node_store.alloc_local_var(name, ty, initializer);
 
-                let initializer = self.build_expr(val.expr(self.db));
-                let name = self.node_store.alloc_binding(name);
-
-                if let Some(ptr) = val.name(self.db) {
-                    self.alloc_ptr(name, ptr.syntax());
+                if let Some(a) = val.name(db) {
+                    self.alloc_ptr(name, a.syntax());
                 }
 
-                self.node_store.alloc_local_var(name, ty, initializer)
+                self.alloc_ptr(node, stmt.syntax());
+
+                node
             }
-            ast::Stmt::Expr(stmt) => self.build_expr(stmt.expr(self.db)),
+            ast::Stmt::Expr(stmt) => self.build_expr(stmt.expr(db)),
         }
     }
 
@@ -159,7 +179,16 @@ impl<'db> FunctionBuilder<'db> {
                 self.node_store.alloc_call(callee, args)
             }
         };
+
         self.alloc_ptr(node, expr.syntax());
+
         node
+    }
+
+    #[allow(clippy::unused_self)]
+    fn build_ty(&self, ty: Option<ast::Type<'_>>) -> NodeId {
+        ty.map_or(NodeId::ZERO, |ty| match ty {
+            ast::Type::Path(_) => NodeId::ZERO,
+        })
     }
 }

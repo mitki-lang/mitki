@@ -1,15 +1,10 @@
-use anyhow::Context;
-use camino::Utf8PathBuf;
+use anyhow::Context as _;
 use clap::Parser;
-use mitki_db::check_file;
-use mitki_errors::{Diagnostic, Renderer};
-use mitki_inputs::File;
-use salsa::DatabaseImpl;
 
 #[derive(Parser)]
 enum Options {
-    Run { path: Utf8PathBuf },
-    Ide,
+    Run { path: camino::Utf8PathBuf },
+    Lsp,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -17,27 +12,23 @@ fn main() -> anyhow::Result<()> {
         Options::Run { path } => {
             use std::io::Write as _;
 
-            let db = DatabaseImpl::default();
+            let db = salsa::DatabaseImpl::default();
             let text = std::fs::read_to_string(&path)
                 .with_context(|| format!("failed to read `{path}`"))?;
 
-            let renderer = Renderer::styled();
-
-            let file = File::new(&db, path, text);
-            let diagnostics = check_file::accumulated::<Diagnostic>(&db, file);
-
+            let file = mitki_inputs::File::new(&db, path, text);
             let path = file.path(&db).as_str();
             let text = file.text(&db).as_str();
 
-            let stderr = std::io::stderr();
-            let mut lock = stderr.lock();
+            let mut stderr = std::io::stderr().lock();
+            let renderer = mitki_errors::Renderer::styled();
 
-            for diagnostic in diagnostics {
-                writeln!(lock, "{}", diagnostic.render(&renderer, path, text))?;
+            for diagnostic in mitki_db::check_file::accumulated::<mitki_db::Diagnostic>(&db, file) {
+                writeln!(stderr, "{}", diagnostic.render(&renderer, path, text))?;
             }
 
             Ok(())
         }
-        Options::Ide => mitki_lsp_server::Server::new()?.run(),
+        Options::Lsp => mitki_lsp_server::Server::new()?.run(),
     }
 }
