@@ -79,13 +79,15 @@ impl<'db> ExprScopesBuilder<'db> {
         })
     }
 
+    #[track_caller]
     fn add_binding(&mut self, name: NodeId, scope: Key<ScopeData<'db>>) {
-        let symbol = self.function.binding_symbol(name);
+        let symbol = self.function.name(name);
         let entry = self.scopes.scope_entries.alloc(ScopeEntry { name: symbol, binding: name });
         self.scopes.scopes[scope].entries =
             Range::new_inclusive(self.scopes.scopes[scope].entries.start, entry);
     }
 
+    #[track_caller]
     fn build_node_scopes(&mut self, node: NodeId, scope: &mut Scope<'db>) {
         self.scopes.scope_by_node.insert(node, *scope);
 
@@ -100,8 +102,13 @@ impl<'db> ExprScopesBuilder<'db> {
             NodeKind::Call => {}
             NodeKind::Block => {
                 let scope = &mut self.scope(*scope);
-                for &stmt in self.function.block_stmts(node) {
+                let (stmts, tail) = self.function.block_stmts(node);
+                for &stmt in stmts {
                     self.build_node_scopes(stmt, scope);
+                }
+
+                if tail != NodeId::ZERO {
+                    self.build_node_scopes(tail, scope);
                 }
             }
             NodeKind::Int
@@ -117,11 +124,14 @@ impl<'db> ExprScopesBuilder<'db> {
         let mut scope = self.root_scope();
 
         self.add_bindings(self.function.params(), scope);
-        self.build_node_scopes(self.function.body(), &mut scope);
+        if self.function.body() != NodeId::ZERO {
+            self.build_node_scopes(self.function.body(), &mut scope);
+        }
 
         self.scopes
     }
 
+    #[track_caller]
     fn add_bindings(&mut self, params: &[NodeId], scope: Scope<'db>) {
         for &name in params {
             self.add_binding(name, scope);
