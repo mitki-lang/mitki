@@ -1,6 +1,6 @@
 pub use line_index::LineIndex;
 
-#[salsa::input]
+#[salsa::input(debug)]
 pub struct File {
     #[return_ref]
     pub path: camino::Utf8PathBuf,

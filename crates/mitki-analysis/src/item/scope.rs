@@ -26,7 +26,7 @@ pub enum Declaration<'db> {
     Function(FunctionLocation<'db>),
 }
 
-#[salsa::tracked]
+#[salsa::tracked(debug)]
 pub struct FunctionLocation<'db> {
     pub file: File,
     pub index: Function<'db>,

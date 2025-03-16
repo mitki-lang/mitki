@@ -66,7 +66,7 @@ impl std::fmt::Debug for GreenTrivia {
     }
 }
 
-#[salsa::interned(constructor = alloc)]
+#[salsa::interned(debug, constructor = alloc)]
 pub struct GreenNode<'db> {
     pub kind: SyntaxKind,
     #[return_ref]
@@ -106,7 +106,7 @@ impl<'db> GreenChild<'db> {
     }
 }
 
-#[salsa::interned]
+#[salsa::interned(debug)]
 pub struct GreenToken<'db> {
     pub leading: GreenTrivia,
     pub kind: SyntaxKind,

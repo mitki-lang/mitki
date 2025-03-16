@@ -803,6 +803,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
 
 [[package]]
+name = "portable-atomic"
+version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "350e9b48cbc6b0e028b0473b114454c6316e57336ee184ceab6e53f72c178b3e"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -913,8 +919,8 @@ checksum = "6ea1a2d0a644769cc99faa24c3ad26b379b786fe7c36fd3c546254801650e6dd"
 
 [[package]]
 name = "salsa"
-version = "0.18.0"
-source = "git+https://github.com/salsa-rs/salsa/#4d9225342ec19ebcc90f3f1f02a3765105d7f330"
+version = "0.19.0"
+source = "git+https://github.com/salsa-rs/salsa/#778b9bc7c9b2be17d48ecb7cd9b4545ab8bbe892"
 dependencies = [
  "boxcar",
  "crossbeam-queue",
@@ -923,6 +929,7 @@ dependencies = [
  "hashlink",
  "indexmap",
  "parking_lot",
+ "portable-atomic",
  "rayon",
  "rustc-hash",
  "salsa-macro-rules",
@@ -933,13 +940,13 @@ dependencies = [
 
 [[package]]
 name = "salsa-macro-rules"
-version = "0.1.0"
-source = "git+https://github.com/salsa-rs/salsa/#4d9225342ec19ebcc90f3f1f02a3765105d7f330"
+version = "0.19.0"
+source = "git+https://github.com/salsa-rs/salsa/#778b9bc7c9b2be17d48ecb7cd9b4545ab8bbe892"
 
 [[package]]
 name = "salsa-macros"
-version = "0.18.0"
-source = "git+https://github.com/salsa-rs/salsa/#4d9225342ec19ebcc90f3f1f02a3765105d7f330"
+version = "0.19.0"
+source = "git+https://github.com/salsa-rs/salsa/#778b9bc7c9b2be17d48ecb7cd9b4545ab8bbe892"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1094,19 +1101,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "784e0ac535deb450455cbfa28a6f0df145ea1bb7ae51b821cf5e7927fdcfbdd0"
 dependencies = [
  "pin-project-lite",
- "tracing-attributes",
  "tracing-core",
-]
-
-[[package]]
-name = "tracing-attributes"
-version = "0.1.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "395ae124c09f9e6918a2310af6038fba074bcf474ac352496d5910dd59a2226d"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
