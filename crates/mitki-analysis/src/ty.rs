@@ -1,4 +1,4 @@
-#[salsa::interned]
+#[salsa::interned(debug)]
 pub(crate) struct Ty<'db> {
     kind: TyKind<'db>,
 }
