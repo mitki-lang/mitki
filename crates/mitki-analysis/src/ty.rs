@@ -4,7 +4,7 @@ pub(crate) struct Ty<'db> {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, salsa::Update)]
-#[expect(dead_code)]
+#[allow(dead_code)]
 pub(crate) enum TyKind<'db> {
     Bool,
     Float,

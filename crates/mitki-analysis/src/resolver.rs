@@ -29,12 +29,12 @@ impl<'db> Resolver<'db> {
         self.scopes.iter().rev().copied()
     }
 
-    #[expect(dead_code)]
-    pub(crate) fn scopes_for_expr(&mut self, expr: NodeId) -> Guard {
+    #[allow(dead_code)]
+    pub(crate) fn scopes_for_node(&mut self, node: NodeId) -> Guard {
         let start = self.scopes.len();
 
         let innermost_scope = self.scopes().next();
-        let scope_for_expr = self.expr_scopes.scope_for(expr);
+        let scope_for_expr = self.expr_scopes.scope_for(node);
 
         if let Some(scope) = innermost_scope {
             let scopes = self.expr_scopes.chain(scope_for_expr).take_while(|&it| it != scope);
@@ -49,7 +49,7 @@ impl<'db> Resolver<'db> {
         Guard(start)
     }
 
-    #[expect(dead_code)]
+    #[allow(dead_code)]
     pub(crate) fn reset(&mut self, Guard(start): Guard) {
         self.scopes.truncate(start);
     }
@@ -84,6 +84,7 @@ impl<'db> Resolver<'db> {
 
 pub(crate) struct Guard(usize);
 
+#[derive(Debug)]
 pub enum PathResolution<'db> {
     Local(NodeId),
     Function(FunctionLocation<'db>),
