@@ -4,7 +4,7 @@ use mitki_inputs::File;
 use mitki_parse::FileParse as _;
 use mitki_span::Symbol;
 use mitki_yellow::RedNodePtr;
-use mitki_yellow::ast::{HasName as _, Node};
+use mitki_yellow::ast::{HasName as _, Node as _};
 use salsa::Database;
 
 use crate::arena::{Arena, Key};

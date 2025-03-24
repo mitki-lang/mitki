@@ -2,7 +2,7 @@ use std::collections::hash_map::Entry;
 
 use anyhow::Result;
 use mitki_inputs::File;
-use salsa::Setter;
+use salsa::Setter as _;
 use text_size::TextRange;
 
 use super::notifications::NotificationDispatcher;

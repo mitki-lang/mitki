@@ -12,6 +12,7 @@ workspace = true
 [dependencies]
 hashbrown = "0.15"
 indexmap = "2.6"
+mitki-errors.workspace = true
 mitki-inputs.workspace = true
 mitki-parse.workspace = true
 mitki-span.workspace = true

@@ -8,12 +8,11 @@ MODULE
       RIGHT_PAREN: ")"
     STMT_LIST
       LEFT_BRACE: "{"
-      EXPR_STMT
-        LOOP_EXPR
-          LOOP_KW: "loop"
-          STMT_LIST
-            LEFT_BRACE: "{"
-            RIGHT_BRACE: "}"
+      LOOP_EXPR
+        LOOP_KW: "loop"
+        STMT_LIST
+          LEFT_BRACE: "{"
+          RIGHT_BRACE: "}"
       RIGHT_BRACE: "}"
 
 Errors:

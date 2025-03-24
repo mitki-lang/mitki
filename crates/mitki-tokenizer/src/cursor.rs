@@ -1,6 +1,6 @@
 use std::str::Chars;
 
-use text_size::{TextLen, TextSize};
+use text_size::{TextLen as _, TextSize};
 
 pub(crate) const EOF_CHAR: char = '\0';
 

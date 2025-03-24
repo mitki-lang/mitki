@@ -1,6 +1,6 @@
 use hashbrown::HashTable;
 use mitki_inputs::File;
-use mitki_parse::FileParse;
+use mitki_parse::FileParse as _;
 use mitki_yellow::{RedNode, RedNodePtr, SyntaxKind};
 use salsa::Database;
 

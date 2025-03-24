@@ -8,38 +8,36 @@ MODULE
       RIGHT_PAREN: ")"
     STMT_LIST
       LEFT_BRACE: "{"
-      EXPR_STMT
-        CALL_EXPR
-          PATH_EXPR
-            NAME_REF
-              NAME: "f"
-          ARG_LIST
-            LEFT_PAREN: "("
-            RIGHT_PAREN: ")"
-      EXPR_STMT
+      CALL_EXPR
+        PATH_EXPR
+          NAME_REF
+            NAME: "f"
+        ARG_LIST
+          LEFT_PAREN: "("
+          RIGHT_PAREN: ")"
+      CALL_EXPR
         CALL_EXPR
           CALL_EXPR
-            CALL_EXPR
-              PATH_EXPR
-                NAME_REF
-                  NAME: "f"
-              ARG_LIST
-                LEFT_PAREN: "("
-                RIGHT_PAREN: ")"
+            PATH_EXPR
+              NAME_REF
+                NAME: "f"
             ARG_LIST
               LEFT_PAREN: "("
-              LITERAL
-                INT_NUMBER: "1"
               RIGHT_PAREN: ")"
           ARG_LIST
             LEFT_PAREN: "("
             LITERAL
               INT_NUMBER: "1"
-            COMMA: ","
-            LITERAL
-              INT_NUMBER: "2"
-            COMMA: ","
             RIGHT_PAREN: ")"
+        ARG_LIST
+          LEFT_PAREN: "("
+          LITERAL
+            INT_NUMBER: "1"
+          COMMA: ","
+          LITERAL
+            INT_NUMBER: "2"
+          COMMA: ","
+          RIGHT_PAREN: ")"
       RIGHT_BRACE: "}"
 
 Errors:
