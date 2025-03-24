@@ -135,7 +135,7 @@ impl<'db> Parser<'db> {
     }
 
     pub(crate) fn build_tree(self) -> GreenNode<'db> {
-        use salsa::Accumulator;
+        use salsa::Accumulator as _;
 
         let Parser { db, text, tokenizer, mut events, diagnostics, .. } = self;
         let mut builder = Builder::new(db, text);

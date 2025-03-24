@@ -5,7 +5,7 @@ use text_size::TextRange;
 use super::{delimited, name, types};
 use crate::parser::{CompletedMarker, Parser};
 
-pub(crate) fn stmt(p: &mut Parser) {
+pub(crate) fn stmt(p: &mut Parser) -> bool {
     match p.peek_kind() {
         VAL_KW => {
             let m = p.start();
@@ -29,8 +29,17 @@ pub(crate) fn stmt(p: &mut Parser) {
             p.advance();
             m.complete(p, BREAK_KW);
         }
-        _ => _ = expr(p).map(|m| m.precede(p).complete(p, EXPR_STMT)),
-    }
+        _ => {
+            let expr = expr(p);
+            let has_semi = p.eat(SEMICOLON);
+            if has_semi {
+                expr.map(|m| m.precede(p).complete(p, EXPR_STMT));
+            }
+            return has_semi;
+        }
+    };
+
+    false
 }
 
 pub(crate) fn expr(p: &mut Parser) -> Option<CompletedMarker> {

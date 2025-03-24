@@ -615,6 +615,7 @@ version = "0.1.0"
 dependencies = [
  "hashbrown 0.15.2",
  "indexmap",
+ "mitki-errors",
  "mitki-inputs",
  "mitki-parse",
  "mitki-span",

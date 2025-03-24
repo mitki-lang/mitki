@@ -8,7 +8,7 @@ mod parser;
 #[cfg(test)]
 mod tests;
 
-#[derive(Copy, salsa::Update)]
+#[derive(salsa::Update)]
 pub struct Parsed<'db, T> {
     root: GreenNode<'db>,
     phantom: PhantomData<fn() -> T>,
@@ -22,13 +22,15 @@ impl<T> std::fmt::Debug for Parsed<'_, T> {
 
 impl<T> Clone for Parsed<'_, T> {
     fn clone(&self) -> Self {
-        Self { root: self.root, phantom: self.phantom }
+        *self
     }
 }
 
+impl<'db, T> Copy for Parsed<'db, T> {}
+
 impl<T> PartialEq for Parsed<'_, T> {
     fn eq(&self, other: &Self) -> bool {
-        self.root == other.root && self.phantom == other.phantom
+        self.root == other.root
     }
 }
 

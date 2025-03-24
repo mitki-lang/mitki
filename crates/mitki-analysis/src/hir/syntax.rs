@@ -38,6 +38,7 @@ impl<'db> NodeStore<'db> {
         self.alloc_binding(text)
     }
 
+    #[track_caller]
     pub(crate) fn symbol(&self, binding: NodeId) -> Symbol<'db> {
         self.symbols[binding.get()]
     }
@@ -48,17 +49,21 @@ impl<'db> NodeStore<'db> {
         ty: NodeId,
         initializer: NodeId,
     ) -> NodeId {
-        let lhs: NodeId = self.node_ids.push_with_index(name).into();
+        let lhs = self.node_ids.push_with_index(name).into();
         let rhs = self.node_ids.push_with_index(ty).into();
         self.node_ids.push(initializer);
         self.alloc(NodeKind::LocalVar, lhs, rhs)
     }
 
-    pub(crate) fn alloc_block(&mut self, stmts: Vec<NodeId>) -> NodeId {
+    pub(crate) fn alloc_block(&mut self, stmts: Vec<NodeId>, tail: NodeId) -> NodeId {
         let start = self.node_ids.len().into();
         self.node_ids.extend(stmts);
         let end = self.node_ids.len().into();
-        self.alloc(NodeKind::Block, start, end)
+
+        let range = self.node_ids.push_with_index(start).into();
+        self.node_ids.push(end);
+
+        self.alloc(NodeKind::Block, range, tail)
     }
 
     pub(crate) fn alloc_error(&mut self) -> NodeId {
@@ -74,18 +79,29 @@ impl<'db> NodeStore<'db> {
         self.nodes.push_with_index(Node { kind, data: NodeData { lhs, rhs } }).into()
     }
 
+    #[track_caller]
     pub(crate) fn node_kind(&self, node: NodeId) -> NodeKind {
         self.nodes[node.get()].kind
     }
 
-    pub(crate) fn block_stmts(&self, block: NodeId) -> &[NodeId] {
-        let block = &self.nodes[block.get()];
-        assert_eq!(block.kind, NodeKind::Block);
-        let start = block.data.lhs.get();
-        let end = block.data.rhs.get();
-        &self.node_ids[start..end]
+    #[track_caller]
+    pub(crate) fn name(&self, node: NodeId) -> Symbol<'db> {
+        let node = &self.nodes[node.get()];
+        assert_eq!(node.kind, NodeKind::Name);
+        self.symbol(node.data.lhs)
     }
 
+    pub(crate) fn block_stmts(&self, block: NodeId) -> (&[NodeId], NodeId) {
+        let block = &self.nodes[block.get()];
+        assert_eq!(block.kind, NodeKind::Block);
+
+        let start = self.node_ids[block.data.lhs.get()].get();
+        let end = self.node_ids[block.data.lhs.get() + 1].get();
+
+        (&self.node_ids[start..end], block.data.rhs)
+    }
+
+    #[track_caller]
     pub(crate) fn local_var(&self, node: NodeId) -> LocalVar {
         let node = &self.nodes[node.get()];
         assert_eq!(node.kind, NodeKind::LocalVar);
@@ -96,10 +112,15 @@ impl<'db> NodeStore<'db> {
             initializer: self.node_ids[node.data.rhs.get() + 1],
         }
     }
+
+    pub(crate) fn alloc_type_ref(&mut self, path: Symbol<'db>) -> NodeId {
+        let lhs = self.alloc_binding(path);
+        self.alloc(NodeKind::TypePath, lhs, NodeId::ZERO)
+    }
 }
 
-pub(crate) struct LocalVar {
-    pub(crate) name: NodeId,
+pub struct LocalVar {
+    pub name: NodeId,
     pub(crate) _ty: NodeId,
     pub(crate) initializer: NodeId,
 }
@@ -117,6 +138,7 @@ impl NodeId {
         Self { raw: raw + 1 }
     }
 
+    #[track_caller]
     fn get(self) -> usize {
         self.raw as usize - 1
     }
@@ -141,7 +163,7 @@ struct NodeData {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NodeKind {
+pub enum NodeKind {
     Name,
     True,
     False,
@@ -151,6 +173,8 @@ pub(crate) enum NodeKind {
     Call,
     Block,
     Error,
+
+    TypePath,
 }
 
 trait VecExtension<T> {

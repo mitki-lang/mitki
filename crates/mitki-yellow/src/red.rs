@@ -19,7 +19,7 @@ pub struct RedNodePtr {
 
 impl RedNodePtr {
     pub fn new(db: &dyn Database, node: &RedNode) -> Self {
-        Self { kind: node.kind(db), range: node.range(db) }
+        Self { kind: node.kind(db), range: node.trimmed_range(db) }
     }
 
     pub fn try_to_node<'db>(
@@ -34,9 +34,10 @@ impl RedNodePtr {
         std::iter::successors(Some(root.clone()), |node| {
             node.child_or_token_at_range(db, self.range)?.into_node()
         })
-        .find(|node| node.range(db) == self.range && node.kind(db) == self.kind)
+        .find(|node| node.trimmed_range(db) == self.range && node.kind(db) == self.kind)
     }
 
+    #[track_caller]
     pub fn to_node<'db>(&self, db: &'db dyn Database, root: &RedNode<'db>) -> RedNode<'db> {
         self.try_to_node(db, root).unwrap()
     }

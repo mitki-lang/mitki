@@ -19,21 +19,21 @@ MODULE
                 NAME_REF
                   NAME: "x"
             RIGHT_PAREN: ")"
-      SEMICOLON: ";"
+        SEMICOLON: ";"
       EXPR_STMT
         PREFIX_EXPR
           PREFIX_OPERATOR: "*"
           PATH_EXPR
             NAME_REF
               NAME: "x"
-      SEMICOLON: ";"
+        SEMICOLON: ";"
       EXPR_STMT
         POSTFIX_EXPR
           PATH_EXPR
             NAME_REF
               NAME: "x"
           POSTFIX_OPERATOR: "*"
-      SEMICOLON: ";"
+        SEMICOLON: ";"
       EXPR_STMT
         PREFIX_EXPR
           PREFIX_OPERATOR: "+"
@@ -45,7 +45,7 @@ MODULE
                 NAME_REF
                   NAME: "x"
             RIGHT_PAREN: ")"
-      SEMICOLON: ";"
+        SEMICOLON: ";"
       EXPR_STMT
         PREFIX_OPERATOR
           BINARY_OPERATOR: "+"
@@ -54,7 +54,7 @@ MODULE
             PATH_EXPR
               NAME_REF
                 NAME: "x"
-      SEMICOLON: ";"
+        SEMICOLON: ";"
       RIGHT_BRACE: "}"
 
 Errors:

@@ -29,18 +29,16 @@ impl<'db> Resolver<'db> {
         self.scopes.iter().rev().copied()
     }
 
-    #[expect(dead_code)]
-    pub(crate) fn scopes_for_expr(&mut self, expr: NodeId) -> Guard {
+    pub(crate) fn scopes_for_node(&mut self, node: NodeId) -> Guard {
         let start = self.scopes.len();
 
         let innermost_scope = self.scopes().next();
-        let scope_for_expr = self.expr_scopes.scope_for(expr);
+        let scope_for_expr = self.expr_scopes.scope_for(node);
 
+        let scopes = self.expr_scopes.chain(scope_for_expr);
         if let Some(scope) = innermost_scope {
-            let scopes = self.expr_scopes.chain(scope_for_expr).take_while(|&it| it != scope);
-            self.scopes.extend(scopes);
+            self.scopes.extend(scopes.take_while(|&it| it != scope));
         } else {
-            let scopes = self.expr_scopes.chain(scope_for_expr);
             self.scopes.extend(scopes);
         }
 
@@ -49,12 +47,11 @@ impl<'db> Resolver<'db> {
         Guard(start)
     }
 
-    #[expect(dead_code)]
     pub(crate) fn reset(&mut self, Guard(start): Guard) {
         self.scopes.truncate(start);
     }
 
-    pub fn resolve_path(&self, path: Symbol<'db>) -> Option<PathResolution> {
+    pub fn resolve_path(&self, path: Symbol<'db>) -> Option<PathResolution<'db>> {
         for scope in self.scopes() {
             if let Some(entry) =
                 self.expr_scopes.entries(scope).iter().find(|entry| entry.name == path)
@@ -84,6 +81,7 @@ impl<'db> Resolver<'db> {
 
 pub(crate) struct Guard(usize);
 
+#[derive(Debug)]
 pub enum PathResolution<'db> {
     Local(NodeId),
     Function(FunctionLocation<'db>),
