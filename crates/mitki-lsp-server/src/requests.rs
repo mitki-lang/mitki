@@ -1,14 +1,12 @@
 use anyhow::Result;
 
-use super::{Server, from_json, result_to_response};
-
 pub(crate) struct RequestDispatcher<'me> {
     request: Option<lsp_server::Request>,
-    server: &'me mut Server,
+    server: &'me mut crate::Server,
 }
 
 impl<'me> RequestDispatcher<'me> {
-    pub(crate) fn new(request: lsp_server::Request, server: &'me mut Server) -> Self {
+    pub(crate) fn new(request: lsp_server::Request, server: &'me mut crate::Server) -> Self {
         Self { request: request.into(), server }
     }
 
@@ -17,8 +15,7 @@ impl<'me> RequestDispatcher<'me> {
         R: lsp_types::request::Request,
     {
         let request = self.request.take_if(|request| request.method == R::METHOD)?;
-        let res = from_json(R::METHOD, &request.params);
-        match res {
+        match crate::from_json(R::METHOD, &request.params) {
             Ok(params) => Some((request, params)),
             Err(error) => {
                 self.server.respond(lsp_server::Response::new_err(
@@ -31,17 +28,17 @@ impl<'me> RequestDispatcher<'me> {
         }
     }
 
-    pub(crate) fn on<R>(mut self, f: fn(&mut Server, R::Params) -> Result<R::Result>) -> Self
+    pub(crate) fn on<R>(mut self, f: fn(&mut crate::Server, R::Params) -> Result<R::Result>) -> Self
     where
         R: lsp_types::request::Request,
     {
-        let (request, params) = match self.parse::<R>() {
-            Some(it) => it,
-            None => return self,
+        let Some((request, params)) = self.parse::<R>() else {
+            return self;
         };
-        let result = f(self.server, params);
-        let result = result_to_response::<R>(request.id, result);
+
+        let result = crate::result_to_response::<R>(request.id, f(self.server, params));
         self.server.respond(result);
+
         self
     }
 
