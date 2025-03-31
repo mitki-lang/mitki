@@ -2,7 +2,7 @@ use std::ops::Index;
 
 use mitki_inputs::File;
 use mitki_parse::FileParse as _;
-use mitki_span::Symbol;
+use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::RedNodePtr;
 use mitki_yellow::ast::{HasName as _, Node as _};
 use salsa::Database;
@@ -27,7 +27,7 @@ impl HasItemTree for File {
             let item = match item {
                 mitki_yellow::ast::Item::Function(func) => {
                     let id = ast_map.find_id(db, func.syntax());
-                    let Some(name) = func.name(db).map(|name| Symbol::new(db, name.as_str(db)))
+                    let Some(name) = func.name(db).map(|name| name.as_str(db).into_symbol(db))
                     else {
                         continue;
                     };

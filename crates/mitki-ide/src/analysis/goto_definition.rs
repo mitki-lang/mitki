@@ -2,7 +2,7 @@ use mitki_analysis::Semantics;
 use mitki_analysis::hir::HasFunction as _;
 use mitki_analysis::resolver::PathResolution;
 use mitki_parse::FileParse as _;
-use mitki_span::Symbol;
+use mitki_span::IntoSymbol as _;
 use mitki_yellow::SyntaxKind;
 use mitki_yellow::ast::{self, HasName as _, Node as _};
 use text_size::TextRange;
@@ -35,8 +35,7 @@ impl super::Analysis {
             .map(|item| semantics.function(db, item.syntax()))?;
 
         let resolver = semantics.resolver(db, location, path);
-
-        let path = Symbol::new(db, original_token.green().text_trimmed(db));
+        let path = original_token.green().text_trimmed(db).into_symbol(db);
 
         match resolver.resolve_path(path)? {
             PathResolution::Local(path) => {

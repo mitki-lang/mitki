@@ -1,11 +1,10 @@
-use mitki_span::Symbol;
+use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::ast::{self, HasName as _, Node as _};
 use mitki_yellow::{RedNode, RedNodePtr};
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
 use super::syntax::{LocalVar, NodeId, NodeKind, NodeStore};
-use crate::ToSymbol as _;
 
 #[derive(Default, Debug, salsa::Update)]
 pub struct Function<'db> {
@@ -109,7 +108,7 @@ impl<'db> FunctionBuilder<'db> {
                 let name = self
                     .function
                     .node_store
-                    .alloc_name(Symbol::new(self.db, param.name(self.db).as_str(self.db)));
+                    .alloc_name(param.name(self.db).as_str(self.db).into_symbol(self.db));
 
                 self.alloc_ptr(name, param.name(self.db).syntax());
 
@@ -136,7 +135,7 @@ impl<'db> FunctionBuilder<'db> {
         let db = self.db;
         match &stmt {
             ast::Stmt::Val(val) => {
-                let name = val.to_symbol(db);
+                let name = val.name(db).map_or("", |name| name.as_str(db)).into_symbol(db);
                 let ty = self.build_ty(val.ty(db));
                 let initializer = self.build_expr(val.expr(db));
 
@@ -168,7 +167,10 @@ impl<'db> FunctionBuilder<'db> {
 
         let db = self.db;
         let node = match &expr {
-            ast::Expr::Path(path) => self.node_store.alloc_name(path.to_symbol(db)),
+            ast::Expr::Path(path) => {
+                let path = path.name(db).unwrap().as_str(db).into_symbol(self.db);
+                self.node_store.alloc_name(path)
+            }
             ast::Expr::Literal(literal) => self.node_store.alloc_literal(db, literal),
             ast::Expr::Binary(_binary) => self.node_store.alloc_error(),
             ast::Expr::Postfix(_postfix) => self.node_store.alloc_error(),
@@ -199,7 +201,7 @@ impl<'db> FunctionBuilder<'db> {
                     .unwrap()
                     .green()
                     .text_trimmed(self.db);
-                let path = Symbol::new(self.db, path);
+                let path = path.into_symbol(self.db);
                 self.function.node_store.alloc_type_ref(path)
             }
         })
