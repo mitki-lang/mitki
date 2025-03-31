@@ -1,3 +1,3 @@
 mod symbol;
 
-pub use symbol::Symbol;
+pub use symbol::{IntoSymbol, Symbol};
