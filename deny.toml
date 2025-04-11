@@ -1,0 +1,5 @@
+[licenses]
+allow = ["MIT", "Apache-2.0", "Zlib", "Unicode-3.0"]
+
+[sources]
+allow-git = ["https://github.com/salsa-rs/salsa/"]

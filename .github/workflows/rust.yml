@@ -51,6 +51,15 @@ jobs:
         uses: taiki-e/install-action@cargo-udeps
       - name: cargo udeps
         run: cargo udeps
+  cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          log-level: warn
+          command: check
+          arguments: --all-features
   benchmarks:
     if: github.event_name != 'merge_group'
     name: Benchmarks
