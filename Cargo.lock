@@ -327,15 +327,15 @@ checksum = "43da5946c66ffcc7745f48db692ffbb10a83bfe0afd96235c5c2a4fb23994929"
 
 [[package]]
 name = "dashmap"
-version = "7.0.0-rc2"
+version = "6.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4a1e35a65fe0538a60167f0ada6e195ad5d477f6ddae273943596d4a1a5730b"
+checksum = "5041cc499144891f3790297212f32a74fb938e5136a14943f338ef9e0ae276cf"
 dependencies = [
  "cfg-if",
  "crossbeam-utils",
- "equivalent",
- "hashbrown",
+ "hashbrown 0.14.5",
  "lock_api",
+ "once_cell",
  "parking_lot_core",
 ]
 
@@ -425,6 +425,12 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
+
+[[package]]
+name = "hashbrown"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf151400ff0baff5465007dd2f3e717f3fe502074ca563069ce3a6629d07b289"
@@ -440,7 +446,7 @@ version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7382cf6263419f2d8df38c55d7da83da5c18aef87fc7a7fc1fb1e344edfe14c1"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.15.2",
 ]
 
 [[package]]
@@ -462,7 +468,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cea70ddb795996207ad57735b50c5982d8844f38ba9ee5f1aedcfb708a2aa11e"
 dependencies = [
  "equivalent",
- "hashbrown",
+ "hashbrown 0.15.2",
 ]
 
 [[package]]
@@ -607,7 +613,7 @@ dependencies = [
 name = "mitki-analysis"
 version = "0.1.0"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.15.2",
  "indexmap",
  "mitki-errors",
  "mitki-inputs",
@@ -922,11 +928,12 @@ checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
 [[package]]
 name = "salsa"
 version = "0.19.0"
+source = "git+https://github.com/salsa-rs/salsa/#77fdeafe6a69592252479403fcf71eefefefe3d2"
 dependencies = [
  "boxcar",
  "crossbeam-queue",
  "dashmap",
- "hashbrown",
+ "hashbrown 0.15.2",
  "hashlink",
  "indexmap",
  "parking_lot",
@@ -943,10 +950,12 @@ dependencies = [
 [[package]]
 name = "salsa-macro-rules"
 version = "0.19.0"
+source = "git+https://github.com/salsa-rs/salsa/#77fdeafe6a69592252479403fcf71eefefefe3d2"
 
 [[package]]
 name = "salsa-macros"
 version = "0.19.0"
+source = "git+https://github.com/salsa-rs/salsa/#77fdeafe6a69592252479403fcf71eefefefe3d2"
 dependencies = [
  "heck",
  "proc-macro2",
