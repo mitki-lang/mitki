@@ -1,3 +1,6 @@
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[derive(clap::Parser)]
 enum Options {
     #[command(alias = "r")]
@@ -16,7 +19,7 @@ fn main() -> anyhow::Result<()> {
 
             use anyhow::Context as _;
 
-            let db = salsa::DatabaseImpl::default();
+            let db = mitki_db::RootDatabase::default();
             let text = std::fs::read_to_string(&path)
                 .with_context(|| format!("failed to read `{path}`"))?;
 
