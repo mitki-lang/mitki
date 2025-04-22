@@ -14,14 +14,14 @@ pub(crate) trait HasItemScope {
 
 #[salsa::tracked]
 impl HasItemScope for File {
-    #[salsa::tracked(return_ref, no_eq)]
+    #[salsa::tracked(return_ref)]
     fn item_scope(self, db: &dyn Database) -> ItemScope<'_> {
         ItemScopeBuilder { db, item_tree: self.item_tree(db), scope: ItemScope::default() }
             .build(self)
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, salsa::Update)]
+#[derive(salsa::Update, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Declaration<'db> {
     Function(FunctionLocation<'db>),
 }
@@ -53,8 +53,8 @@ impl<'db> FunctionLocation<'db> {
     }
 }
 
-#[derive(Debug, Default, PartialEq, salsa::Update)]
-pub(crate) struct ItemScope<'db> {
+#[derive(Debug, Default, PartialEq, Eq, salsa::Update)]
+pub struct ItemScope<'db> {
     values: FxIndexMap<Symbol<'db>, FunctionLocation<'db>>,
     declarations: Vec<Declaration<'db>>,
 }
@@ -64,8 +64,8 @@ impl<'db> ItemScope<'db> {
         self.values.get(name).copied()
     }
 
-    pub(crate) fn declarations(&self) -> impl ExactSizeIterator<Item = Declaration<'db>> + '_ {
-        self.declarations.iter().copied()
+    pub(crate) fn declarations(&self) -> &[Declaration<'db>] {
+        &self.declarations
     }
 }
 

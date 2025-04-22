@@ -12,11 +12,11 @@ name = "goto_definition"
 harness = false
 
 [[bench]]
-name = "tokenizer"
+name = "parser"
 harness = false
 
 [[bench]]
-name = "parser"
+name = "tokenizer"
 harness = false
 
 [dev-dependencies]

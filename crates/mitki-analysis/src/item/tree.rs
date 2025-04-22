@@ -43,7 +43,7 @@ impl HasItemTree for File {
     }
 }
 
-#[derive(Debug, Default, PartialEq, salsa::Update)]
+#[derive(Debug, Default, salsa::Update)]
 pub(crate) struct ItemTree<'db> {
     items: Vec<Item<'db>>,
     functions: Arena<FunctionData<'db>>,

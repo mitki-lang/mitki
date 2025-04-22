@@ -1,7 +1,7 @@
 use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::{RedToken, ast};
 
-#[derive(Default, Debug, salsa::Update)]
+#[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
 pub(crate) struct NodeStore<'db> {
     nodes: Vec<Node>,
     symbols: Vec<Symbol<'db>>,
@@ -149,13 +149,13 @@ impl From<usize> for NodeId {
     }
 }
 
-#[derive(Debug, salsa::Update)]
+#[derive(Debug, PartialEq, Eq, salsa::Update)]
 struct Node {
     kind: NodeKind,
     data: NodeData,
 }
 
-#[derive(Debug, salsa::Update)]
+#[derive(Debug, PartialEq, Eq, salsa::Update)]
 struct NodeData {
     lhs: NodeId,
     rhs: NodeId,
