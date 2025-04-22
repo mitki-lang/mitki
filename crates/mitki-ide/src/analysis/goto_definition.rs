@@ -39,8 +39,8 @@ impl super::Analysis {
 
         match resolver.resolve_path(path)? {
             PathResolution::Local(path) => {
-                let function = location.hir_function(db);
-                let range = function.node_syntax(&path).range;
+                let source_map = location.hir_source_map(db);
+                let range = source_map.node_syntax(&path).range;
 
                 Some((original_token.trimmed_range(db), range))
             }

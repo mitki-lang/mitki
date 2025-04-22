@@ -12,13 +12,13 @@ pub(crate) trait HasExprScopes<'db> {
 
 #[salsa::tracked]
 impl<'db> HasExprScopes<'db> for FunctionLocation<'db> {
-    #[salsa::tracked(return_ref, no_eq)]
+    #[salsa::tracked(return_ref)]
     fn expr_scopes(self, db: &'db dyn Database) -> ExprScopes<'db> {
-        ExprScopesBuilder::new(self.hir_function(db)).build()
+        ExprScopesBuilder { function: &self.hir(db), scopes: ExprScopes::default() }.build()
     }
 }
 
-#[derive(Debug, Default, PartialEq, salsa::Update)]
+#[derive(Debug, Default, PartialEq, Eq, salsa::Update)]
 pub(crate) struct ExprScopes<'db> {
     pub scopes: Arena<ScopeData<'db>>,
     pub scope_entries: Arena<ScopeEntry<'db>>,
@@ -39,7 +39,7 @@ impl<'db> ExprScopes<'db> {
     }
 }
 
-#[derive(Debug, PartialEq, salsa::Update)]
+#[derive(Debug, PartialEq, Eq, salsa::Update)]
 pub(crate) struct ScopeEntry<'db> {
     pub(crate) name: Symbol<'db>,
     pub(crate) binding: NodeId,
@@ -53,8 +53,8 @@ pub(crate) struct ScopeData<'db> {
     entries: Range<ScopeEntry<'db>>,
 }
 
-pub(crate) struct ExprScopesBuilder<'db> {
-    function: &'db Function<'db>,
+pub(crate) struct ExprScopesBuilder<'func, 'db> {
+    function: &'func Function<'db>,
     scopes: ExprScopes<'db>,
 }
 
@@ -63,11 +63,7 @@ fn empty_entries<'db>(idx: usize) -> Range<ScopeEntry<'db>> {
     Range::new(idx, idx)
 }
 
-impl<'db> ExprScopesBuilder<'db> {
-    pub(crate) fn new(body: &'db Function<'db>) -> Self {
-        Self { function: body, scopes: ExprScopes::default() }
-    }
-
+impl<'db> ExprScopesBuilder<'_, 'db> {
     fn root_scope(&mut self) -> Scope<'db> {
         self.scope(None)
     }
@@ -103,6 +99,7 @@ impl<'db> ExprScopesBuilder<'db> {
             NodeKind::Block => {
                 let scope = &mut self.scope(*scope);
                 let (stmts, tail) = self.function.block_stmts(node);
+
                 for &stmt in stmts {
                     self.build_node_scopes(stmt, scope);
                 }

@@ -22,7 +22,7 @@ impl<'db> Semantics<'db> {
         let item_scope = file.item_scope(db);
         let ast_map = file.ast_map(db);
 
-        for declaration in item_scope.declarations() {
+        for &declaration in item_scope.declarations() {
             match declaration {
                 Declaration::Function(func) => {
                     let id = item_tree[func.index(db)].id;
@@ -45,12 +45,12 @@ impl<'db> Semantics<'db> {
         location: FunctionLocation<'db>,
         current_node: &RedNode,
     ) -> Resolver<'db> {
-        let body = location.hir_function(db);
+        let source_map = location.hir_source_map(db);
         let scopes = location.expr_scopes(db);
         let scope = current_node
             .ancestors()
             .filter_map(|syntax| ast::Expr::cast(db, syntax))
-            .find_map(|expr| body.syntax_expr(db, expr.syntax()))
+            .find_map(|expr| source_map.syntax_expr(db, expr.syntax()))
             .and_then(|expr| scopes.scope_by_node.get(&expr))
             .copied();
 

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::ast::{self, HasName as _, Node as _};
 use mitki_yellow::{RedNode, RedNodePtr};
@@ -6,16 +8,30 @@ use salsa::Database;
 
 use super::syntax::{LocalVar, NodeId, NodeKind, NodeStore};
 
-#[derive(Default, Debug, salsa::Update)]
+#[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
 pub struct Function<'db> {
     node_store: NodeStore<'db>,
 
     params: Vec<NodeId>,
     body: NodeId,
     ret_type: NodeId,
+}
 
+#[derive(Default, PartialEq, Eq, salsa::Update)]
+pub struct FunctionSourceMap {
     node_map: FxHashMap<RedNodePtr, NodeId>,
     node_map_back: FxHashMap<NodeId, RedNodePtr>,
+}
+
+impl FunctionSourceMap {
+    pub(crate) fn syntax_expr(&self, db: &dyn Database, syntax: &RedNode) -> Option<NodeId> {
+        self.node_map.get(&RedNodePtr::new(db, syntax)).copied()
+    }
+
+    #[track_caller]
+    pub fn node_syntax(&self, node: &NodeId) -> RedNodePtr {
+        self.node_map_back[node]
+    }
 }
 
 impl<'db> Function<'db> {
@@ -45,15 +61,6 @@ impl<'db> Function<'db> {
         self.node_store.symbol(binding)
     }
 
-    pub(crate) fn syntax_expr(&self, db: &dyn Database, syntax: &RedNode) -> Option<NodeId> {
-        self.node_map.get(&RedNodePtr::new(db, syntax)).copied()
-    }
-
-    #[track_caller]
-    pub fn node_syntax(&self, node: &NodeId) -> RedNodePtr {
-        self.node_map_back[node]
-    }
-
     #[track_caller]
     pub fn local_var(&self, node: NodeId) -> LocalVar {
         self.node_store.local_var(node)
@@ -68,6 +75,7 @@ impl<'db> Function<'db> {
 pub(crate) struct FunctionBuilder<'db> {
     db: &'db dyn Database,
     function: Function<'db>,
+    source_map: FunctionSourceMap,
 }
 
 impl<'db> std::ops::Deref for FunctionBuilder<'db> {
@@ -86,15 +94,18 @@ impl std::ops::DerefMut for FunctionBuilder<'_> {
 
 impl<'db> FunctionBuilder<'db> {
     pub(crate) fn new(db: &'db dyn Database) -> Self {
-        Self { db, function: Function::default() }
+        Self { db, function: Function::default(), source_map: FunctionSourceMap::default() }
     }
 
-    pub(super) fn build(mut self, node: &ast::Function<'db>) -> Function<'db> {
+    pub(super) fn build(
+        mut self,
+        node: &ast::Function<'db>,
+    ) -> (Arc<Function<'db>>, FunctionSourceMap) {
         self.function.params = self.build_params(node.params(self.db));
         self.function.ret_type =
             self.build_ty(node.ret_type(self.db).and_then(|ret_type| ret_type.ty(self.db)));
         self.function.body = self.build_block(node.body(self.db));
-        self.function
+        (self.function.into(), self.source_map)
     }
 
     fn build_params(&mut self, params: Option<ast::Params<'db>>) -> Vec<NodeId> {
@@ -156,8 +167,8 @@ impl<'db> FunctionBuilder<'db> {
 
     fn alloc_ptr(&mut self, node: NodeId, syntax: &RedNode) {
         let ptr = RedNodePtr::new(self.db, syntax);
-        self.node_map.insert(ptr, node);
-        self.node_map_back.insert(node, ptr);
+        self.source_map.node_map.insert(ptr, node);
+        self.source_map.node_map_back.insert(node, ptr);
     }
 
     fn build_expr(&mut self, expr: Option<ast::Expr<'db>>) -> NodeId {
