@@ -42,7 +42,7 @@ impl SyntaxSet {
     }
 
     pub const fn new<const N: usize>(kinds: [SyntaxKind; N]) -> Self {
-        let mut set = SyntaxSet::EMPTY;
+        let mut set = Self::EMPTY;
 
         let mut i = 0;
         while i < kinds.len() {

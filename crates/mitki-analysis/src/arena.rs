@@ -34,7 +34,7 @@ impl<T> Copy for Key<T> {}
 
 impl<T> Key<T> {
     pub fn new(index: u32) -> Self {
-        Key(index, PhantomData)
+        Self(index, PhantomData)
     }
 
     pub fn index(self) -> u32 {
@@ -44,7 +44,7 @@ impl<T> Key<T> {
 
 impl<T> From<u32> for Key<T> {
     fn from(index: u32) -> Self {
-        Key::new(index)
+        Self::new(index)
     }
 }
 
@@ -79,11 +79,11 @@ impl<T> Clone for Range<T> {
 
 impl<T> Range<T> {
     pub(crate) fn new(start: Key<T>, end: Key<T>) -> Self {
-        Range { start, end }
+        Self { start, end }
     }
 
     pub(crate) fn new_inclusive(start: Key<T>, end: Key<T>) -> Self {
-        Range { start, end: Key::new(end.index() + 1) }
+        Self { start, end: Key::new(end.index() + 1) }
     }
 }
 
@@ -121,7 +121,7 @@ unsafe impl<T: salsa::Update> salsa::Update for Arena<T> {
 
 impl<T> Arena<T> {
     pub(crate) fn new() -> Self {
-        Arena { items: Vec::new() }
+        Self { items: Vec::new() }
     }
 
     pub(crate) fn alloc(&mut self, value: T) -> Key<T> {

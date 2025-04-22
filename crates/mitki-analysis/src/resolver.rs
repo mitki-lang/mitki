@@ -71,7 +71,7 @@ impl<'db> Resolver<'db> {
         item_scope: &'db ItemScope<'db>,
         expr_scopes: &'db ExprScopes<'db>,
         scope: Option<Scope<'db>>,
-    ) -> Resolver<'db> {
+    ) -> Self {
         let mut scopes: Vec<_> = expr_scopes.chain(scope).collect::<Vec<_>>().into_iter().collect();
         scopes.reverse();
 
