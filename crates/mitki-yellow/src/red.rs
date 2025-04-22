@@ -219,7 +219,7 @@ impl<'db> RedNode<'db> {
         })
     }
 
-    pub fn next_sibling(&self, db: &'db dyn Database) -> Option<RedNode<'db>> {
+    pub fn next_sibling(&self, db: &'db dyn Database) -> Option<Self> {
         let mut siblings = self.green_siblings(db).enumerate();
         siblings.nth(self.index().into());
         siblings.find_map(|(index, child)| {
@@ -240,7 +240,7 @@ impl<'db> RedNode<'db> {
         self.green().kind(db)
     }
 
-    pub fn first_child(&self, db: &'db dyn Database) -> Option<RedNode<'db>> {
+    pub fn first_child(&self, db: &'db dyn Database) -> Option<Self> {
         self.green().children(db).iter().enumerate().find_map(|(index, child)| {
             child.into_node().map(|green| {
                 RedNode::new(
@@ -359,14 +359,14 @@ impl<'db> Red<'db> {
         }
     }
 
-    pub fn next_sibling_or_token(&self, db: &'db dyn Database) -> Option<Red<'db>> {
+    pub fn next_sibling_or_token(&self, db: &'db dyn Database) -> Option<Self> {
         match self {
             NodeOrToken::Node(node) => node.next_sibling_or_token(db),
             NodeOrToken::Token(token) => token.next_sibling_or_token(db),
         }
     }
 
-    pub fn prev_sibling_or_token(&self, db: &'db dyn Database) -> Option<Red<'db>> {
+    pub fn prev_sibling_or_token(&self, db: &'db dyn Database) -> Option<Self> {
         match self {
             NodeOrToken::Node(node) => node.prev_sibling_or_token(db),
             NodeOrToken::Token(token) => token.prev_sibling_or_token(db),

@@ -34,8 +34,8 @@ impl GreenTrivia {
         Self { ptr: Some(ThinArc::from_header_and_slice(total_len, pieces)) }
     }
 
-    pub fn whitespace(len: u32) -> GreenTrivia {
-        GreenTrivia::new(&[TriviaPiece::new(TriviaPieceKind::Whitespace, len.into())])
+    pub fn whitespace(len: u32) -> Self {
+        Self::new(&[TriviaPiece::new(TriviaPieceKind::Whitespace, len.into())])
     }
 
     pub const fn empty() -> Self {

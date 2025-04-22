@@ -145,7 +145,7 @@ impl NodeId {
 
 impl From<usize> for NodeId {
     fn from(value: usize) -> Self {
-        NodeId::new(value)
+        Self::new(value)
     }
 }
 

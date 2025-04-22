@@ -204,7 +204,7 @@ enum Event {
 }
 
 impl Event {
-    const TOMBSTONE: Self = Event::Start { kind: TOMBSTONE, forward_parent: None };
+    const TOMBSTONE: Self = Self::Start { kind: TOMBSTONE, forward_parent: None };
 }
 
 pub(crate) struct Marker {
@@ -213,11 +213,8 @@ pub(crate) struct Marker {
 }
 
 impl Marker {
-    fn new(pos: u32) -> Marker {
-        Marker {
-            position: pos,
-            bomb: DropBomb::new("Marker must be either completed or abandoned"),
-        }
+    fn new(pos: u32) -> Self {
+        Self { position: pos, bomb: DropBomb::new("Marker must be either completed or abandoned") }
     }
 
     pub(crate) fn complete(mut self, p: &mut Parser<'_>, kind: SyntaxKind) -> CompletedMarker {
@@ -241,7 +238,7 @@ pub(crate) struct CompletedMarker {
 
 impl CompletedMarker {
     fn new(pos: u32) -> Self {
-        CompletedMarker { pos }
+        Self { pos }
     }
 
     pub(crate) fn precede(self, p: &mut Parser<'_>) -> Marker {
