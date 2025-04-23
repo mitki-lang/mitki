@@ -1,5 +1,6 @@
 mod cursor;
 
+use ascii::AsciiChar;
 use cursor::{Cursor, EOF_CHAR};
 pub use mitki_yellow::SyntaxKind;
 use mitki_yellow::SyntaxKind::*;
@@ -110,7 +111,7 @@ impl<'db> Tokenizer<'db> {
         loop {
             let kind = match self.cursor.peek() {
                 '/' if self.cursor.second() == '/' => {
-                    self.cursor.advance_while(|c| c != '\n');
+                    self.cursor.advance_until(AsciiChar::LineFeed);
                     TriviaPieceKind::SingleLineComment
                 }
                 '\n' | '\r' if mode == TriviaMode::Normal => {
