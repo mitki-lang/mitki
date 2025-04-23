@@ -59,9 +59,10 @@ impl<'text> Cursor<'text> {
         self.previous
     }
 
-    pub(crate) fn advance_until(&mut self, byte: ascii::AsciiChar) {
-        if let Some(index) = memchr::memchr(byte as u8, self.as_str().as_bytes()) {
-            let (prefix, suffix) = self.chars.as_str().split_at(index);
+    pub(crate) fn advance_until(&mut self, ch: ascii::AsciiChar) {
+        if let Some(index) = memchr::memchr(ch as u8, self.as_str().as_bytes()) {
+            let (prefix, suffix) =
+                unsafe { self.chars.as_str().split_at_checked(index).unwrap_unchecked() };
             self.previous = prefix.chars().last().unwrap_or(EOF_CHAR);
             self.chars = suffix.chars();
         } else {
