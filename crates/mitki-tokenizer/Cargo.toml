@@ -8,5 +8,10 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
+ascii = "1.1.0"
+memchr = "2.7.4"
 mitki-yellow.workspace = true
 text-size.workspace = true
+
+[dev-dependencies]
+quickcheck = "1.0"
