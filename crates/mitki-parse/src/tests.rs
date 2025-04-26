@@ -8,7 +8,7 @@ use mitki_inputs::File;
 use mitki_yellow::{GreenChild, GreenNode};
 use salsa::{Database, DatabaseImpl};
 
-use crate::FileParse;
+use crate::FileParse as _;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 struct TestCase {
@@ -65,7 +65,7 @@ fn fmt_rec(
                 let kind = token.kind(db);
                 let text = token.text_trimmed(db);
 
-                writeln!(f, "{}  {:?}: {:?}", indent, kind, text)?
+                writeln!(f, "{indent}  {kind:?}: {text:?}")?
             }
         }
     }
@@ -94,7 +94,7 @@ fn parse() {
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            format!("{}\nErrors:\n{}", tree, diagnostics)
+            format!("{tree}\nErrors:\n{diagnostics}")
         });
         expect_file![&case.expected].assert_eq(&actual);
     }

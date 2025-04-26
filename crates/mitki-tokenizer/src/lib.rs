@@ -314,12 +314,8 @@ mod tests {
         for (input, expected_kind) in inputs {
             let mut tokenizer = Tokenizer::new(input);
             let kind = tokenizer.next_token().kind;
-            assert_eq!(kind, expected_kind, "Input: '{}'", input);
-            assert!(
-                tokenizer.cursor.is_eof(),
-                "Tokenizer did not consume all input for '{}'",
-                input
-            );
+            assert_eq!(kind, expected_kind, "Input: '{input}'");
+            assert!(tokenizer.cursor.is_eof(), "Tokenizer did not consume all input for '{input}'");
         }
     }
 
@@ -336,12 +332,8 @@ mod tests {
         for (input, expected_kind) in inputs {
             let mut tokenizer = Tokenizer::new(input);
             let kind = tokenizer.next_token().kind;
-            assert_eq!(kind, expected_kind, "Input: '{}'", input);
-            assert!(
-                tokenizer.cursor.is_eof(),
-                "Tokenizer did not consume all input for '{}'",
-                input
-            );
+            assert_eq!(kind, expected_kind, "Input: '{input}'");
+            assert!(tokenizer.cursor.is_eof(), "Tokenizer did not consume all input for '{input}'");
         }
     }
 

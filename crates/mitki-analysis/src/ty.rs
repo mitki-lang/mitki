@@ -31,9 +31,9 @@ impl<'db> Display for Tuple<'db> {
         write!(f, "(")?;
         let mut iter = self.0.iter();
         if let Some(first) = iter.next() {
-            write!(f, "{}", first)?;
+            write!(f, "{first}")?;
             for item in iter {
-                write!(f, ", {}", item)?;
+                write!(f, ", {item}")?;
             }
         }
         if self.0.len() == 1 {
