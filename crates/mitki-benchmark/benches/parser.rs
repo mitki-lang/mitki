@@ -4,7 +4,7 @@ use codspeed_criterion_compat::{
     BenchmarkId, Criterion, Throughput, criterion_group, criterion_main,
 };
 use mitki_inputs::File;
-use mitki_parse::FileParse;
+use mitki_parse::FileParse as _;
 
 fn benchmark_parser(c: &mut Criterion) {
     let db = salsa::DatabaseImpl::new();

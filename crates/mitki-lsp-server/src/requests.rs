@@ -44,7 +44,7 @@ impl<'me> RequestDispatcher<'me> {
 
     pub(crate) fn finish(self) {
         if let Some(request) = self.request {
-            eprintln!("unknown request: {:?}", request);
+            eprintln!("unknown request: {request:?}");
             self.server.respond(lsp_server::Response::new_err(
                 request.id,
                 lsp_server::ErrorCode::MethodNotFound as i32,

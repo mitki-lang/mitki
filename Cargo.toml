@@ -49,5 +49,5 @@ mitki-parse = { path = "crates/mitki-parse" }
 mitki-span = { path = "crates/mitki-span" }
 mitki-tokenizer = { path = "crates/mitki-tokenizer" }
 mitki-yellow = { path = "crates/mitki-yellow" }
-salsa = { git = "https://github.com/salsa-rs/salsa/" }
+salsa = "0.20"
 text-size = "1.1"

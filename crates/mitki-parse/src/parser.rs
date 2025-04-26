@@ -87,7 +87,7 @@ impl<'db> Parser<'db> {
         if self.at(kind) {
             self.advance();
         } else {
-            self.error(&format!("expected {}", kind));
+            self.error(&format!("expected {kind}"));
         }
 
         is_present
