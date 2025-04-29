@@ -20,7 +20,7 @@ pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) {
     for declaration in file.item_scope(db).declarations() {
         match declaration {
             Declaration::Function(func) => {
-                let source_map = func.hir_source_map(db);
+                let source_map = func.hir_function(db).source_map(db);
 
                 for diagnostic in func.infer(db).diagnostics() {
                     let (message, range) = salsa::plumbing::attach(db, || match diagnostic {

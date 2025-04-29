@@ -14,7 +14,11 @@ pub(crate) trait HasExprScopes<'db> {
 impl<'db> HasExprScopes<'db> for FunctionLocation<'db> {
     #[salsa::tracked(return_ref)]
     fn expr_scopes(self, db: &'db dyn Database) -> ExprScopes<'db> {
-        ExprScopesBuilder { function: &self.hir(db), scopes: ExprScopes::default() }.build()
+        ExprScopesBuilder {
+            function: self.hir_function(db).function(db),
+            scopes: ExprScopes::default(),
+        }
+        .build()
     }
 }
 

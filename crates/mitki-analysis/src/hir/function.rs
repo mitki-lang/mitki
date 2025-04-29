@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
 use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::ast::{self, HasName as _, Node as _};
 use mitki_yellow::{RedNode, RedNodePtr};
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
+use super::FunctionWithSourceMap;
 use super::syntax::{LocalVar, NodeId, NodeKind, NodeStore};
 
 #[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
@@ -97,15 +96,12 @@ impl<'db> FunctionBuilder<'db> {
         Self { db, function: Function::default(), source_map: FunctionSourceMap::default() }
     }
 
-    pub(super) fn build(
-        mut self,
-        node: &ast::Function<'db>,
-    ) -> (Arc<Function<'db>>, FunctionSourceMap) {
+    pub(super) fn build(mut self, node: &ast::Function<'db>) -> FunctionWithSourceMap<'db> {
         self.function.params = self.build_params(node.params(self.db));
         self.function.ret_type =
             self.build_ty(node.ret_type(self.db).and_then(|ret_type| ret_type.ty(self.db)));
         self.function.body = self.build_block(node.body(self.db));
-        (self.function.into(), self.source_map)
+        FunctionWithSourceMap::new(self.db, self.function, self.source_map)
     }
 
     fn build_params(&mut self, params: Option<ast::Params<'db>>) -> Vec<NodeId> {

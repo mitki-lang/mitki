@@ -45,7 +45,7 @@ impl<'db> Semantics<'db> {
         location: FunctionLocation<'db>,
         current_node: &RedNode,
     ) -> Resolver<'db> {
-        let source_map = location.hir_source_map(db);
+        let source_map = location.hir_function(db).source_map(db);
         let scopes = location.expr_scopes(db);
         let scope = current_node
             .ancestors()
