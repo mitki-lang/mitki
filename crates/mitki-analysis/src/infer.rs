@@ -19,7 +19,7 @@ impl<'db> Inferable<'db> for FunctionLocation<'db> {
             db,
             resolver: Resolver::new(db, self),
             inference: Inference::default(),
-            function: &self.hir(db),
+            function: self.hir_function(db).function(db),
             unit: Ty::new(db, TyKind::Tuple(Vec::new())),
             unknown: Ty::new(db, TyKind::Unknown),
         }
