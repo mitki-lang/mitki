@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
             let mut stderr = std::io::stderr().lock();
             let renderer = mitki_errors::Renderer::styled();
 
-            for diagnostic in mitki_db::check_file::accumulated::<mitki_db::Diagnostic>(&db, file) {
+            for diagnostic in mitki_db::check_file(&db, file) {
                 writeln!(stderr, "{}", diagnostic.render(&renderer, path, text))?;
             }
 
