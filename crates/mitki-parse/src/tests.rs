@@ -3,7 +3,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use expect_test::expect_file;
-use mitki_errors::Diagnostic;
 use mitki_inputs::File;
 use mitki_yellow::{GreenChild, GreenNode};
 use salsa::{Database, DatabaseImpl};
@@ -86,10 +85,11 @@ fn parse() {
         let actual = salsa::plumbing::attach(&db, || {
             let text = File::new(&db, "".into(), case.text.clone());
 
-            let tree = parse_module(&db, text);
-            let diagnostics = parse_module::accumulated::<Diagnostic>(&db, text);
-            let diagnostics = diagnostics
-                .into_iter()
+            let parsed = text.parse(&db);
+            let tree = format!("{:?}", Printer(parsed.root));
+            let diagnostics = parsed
+                .diagnostics
+                .iter()
                 .map(|d| format!("  {}", d.message()))
                 .collect::<Vec<_>>()
                 .join("\n");

@@ -48,8 +48,8 @@ fn handle_document_diagnostic(
     let file = server.file(&params.text_document.uri);
     let line_index = file.line_index(server.analysis.db());
 
-    let diagnostics = mitki_db::check_file::accumulated(server.analysis.db(), file)
-        .into_iter()
+    let diagnostics = mitki_db::check_file(server.analysis.db(), file)
+        .iter()
         .map(|diagnostic: &mitki_db::Diagnostic| {
             lsp_types::Diagnostic::new(
                 to_lsp_range(line_index, diagnostic.range()),

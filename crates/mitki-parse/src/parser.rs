@@ -134,10 +134,8 @@ impl<'db> Parser<'db> {
         self.error_with_range(message, range);
     }
 
-    pub(crate) fn build_tree(self) -> GreenNode<'db> {
-        use salsa::Accumulator as _;
-
-        let Parser { db, text, tokenizer, mut events, diagnostics, .. } = self;
+    pub(crate) fn build_tree(self) -> (GreenNode<'db>, Vec<Diagnostic>) {
+        let Parser { db, text, tokenizer, mut events, mut diagnostics, .. } = self;
         let mut builder = Builder::new(db, text);
         let mut forward_parents = Vec::new();
 
@@ -176,20 +174,15 @@ impl<'db> Parser<'db> {
             }
         }
 
-        for diagnostic in diagnostics {
-            diagnostic.accumulate(db);
-        }
-
-        for diagnostic in tokenizer.diagnostics() {
-            match diagnostic {
+        diagnostics.extend(tokenizer.diagnostics().into_iter().map(
+            |diagnostic| match diagnostic {
                 mitki_tokenizer::Diagnostic::InconsistentWhitespaceAroundEqual(range) => {
                     Diagnostic::error("Consistent whitespace required around '='", range)
-                        .accumulate(db);
                 }
-            }
-        }
+            },
+        ));
 
-        builder.finish()
+        (builder.finish(), diagnostics)
     }
 
     pub(crate) fn previous_range(&self) -> TextRange {

@@ -8,14 +8,17 @@ pub mod semantics;
 pub mod ty;
 
 use item::scope::Declaration;
+use mitki_errors::Diagnostic;
+use mitki_parse::FileParse as _;
 pub use semantics::Semantics;
 
-#[salsa::tracked]
-pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) {
+#[salsa::tracked(return_ref, no_eq)]
+pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) -> Vec<Diagnostic> {
     use hir::HasFunction as _;
     use infer::Inferable as _;
     use item::scope::HasItemScope as _;
-    use salsa::Accumulator as _;
+
+    let mut diagnostics = file.parse(db).diagnostics().to_owned();
 
     for declaration in file.item_scope(db).declarations() {
         match declaration {
@@ -34,9 +37,11 @@ pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) {
                         ),
                     });
 
-                    mitki_errors::Diagnostic::error(message, range).accumulate(db);
+                    diagnostics.push(Diagnostic::error(message, range))
                 }
             }
         }
     }
+
+    diagnostics
 }

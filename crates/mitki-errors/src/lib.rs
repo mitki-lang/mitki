@@ -4,7 +4,7 @@ use annotate_snippets::Snippet;
 pub use annotate_snippets::{Level, Renderer};
 pub use text_size::TextRange;
 
-#[salsa::accumulator]
+#[derive(salsa::Update, PartialEq, Clone)]
 pub struct Diagnostic {
     level: Level,
     message: String,
