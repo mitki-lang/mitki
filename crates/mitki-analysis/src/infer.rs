@@ -59,14 +59,10 @@ impl<'db> InferenceBuilder<'_, 'db> {
     fn infer_node(&mut self, node: NodeId, expected: Expectation<'db>) -> Ty<'db> {
         let actual_ty = self.infer_node_inner(node, expected);
 
-        if let ExpectHasType(expected_ty) = expected {
-            if actual_ty != expected_ty {
-                self.inference.diagnostics.push(Diagnostic::TypeMismatch(
-                    node,
-                    actual_ty,
-                    expected_ty,
-                ));
-            }
+        if let ExpectHasType(expected_ty) = expected
+            && actual_ty != expected_ty
+        {
+            self.inference.diagnostics.push(Diagnostic::TypeMismatch(node, actual_ty, expected_ty));
         }
 
         actual_ty

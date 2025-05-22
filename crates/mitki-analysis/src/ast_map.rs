@@ -24,23 +24,13 @@ pub(crate) struct AstMap {
     map: HashTable<Key<RedNodePtr>>,
 }
 
-unsafe impl salsa::Update for AstMap {
-    unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {
-        let old = unsafe { &mut *old_pointer };
-
-        if old.arena.len() != new_value.arena.len() {
-            old.arena.clear();
-            old.map.clear();
-
-            old.arena.extend(new_value.arena);
-            build_hash_table(&old.arena, &mut old.map);
-
-            return true;
-        }
-
-        unsafe { salsa::Update::maybe_update(&mut old.arena, new_value.arena) }
+impl PartialEq for AstMap {
+    fn eq(&self, other: &Self) -> bool {
+        self.arena == other.arena
     }
 }
+
+impl Eq for AstMap {}
 
 impl AstMap {
     pub(crate) fn from_root(db: &dyn Database, root: &RedNode<'_>) -> Self {
@@ -52,7 +42,11 @@ impl AstMap {
                 arena.alloc(RedNodePtr::new(db, &node));
             }
         });
-        build_hash_table(&arena, &mut map);
+
+        for (key, value) in arena.iter_enumerated() {
+            let hash = hash_one(&value);
+            map.insert_unique(hash, key, |&key| hash_one(&arena[key]));
+        }
 
         Self { arena, map }
     }
@@ -64,13 +58,6 @@ impl AstMap {
 
     pub(crate) fn find_node(&self, index: Key<RedNodePtr>) -> &RedNodePtr {
         &self.arena[index]
-    }
-}
-
-fn build_hash_table(arena: &Arena<RedNodePtr>, map: &mut HashTable<Key<RedNodePtr>>) {
-    for (key, value) in arena.iter_enumerated() {
-        let hash = hash_one(&value);
-        map.insert_unique(hash, key, |&key| hash_one(&arena[key]));
     }
 }
 
