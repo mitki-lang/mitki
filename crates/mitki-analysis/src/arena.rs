@@ -137,10 +137,6 @@ impl<T> Arena<T> {
     pub(crate) fn len(&self) -> usize {
         self.items.len()
     }
-
-    pub(crate) fn clear(&mut self) {
-        self.items.clear();
-    }
 }
 
 impl<T> Index<Key<T>> for Arena<T> {
