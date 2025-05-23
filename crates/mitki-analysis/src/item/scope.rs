@@ -14,7 +14,7 @@ pub(crate) trait HasItemScope {
 
 #[salsa::tracked]
 impl HasItemScope for File {
-    #[salsa::tracked(return_ref)]
+    #[salsa::tracked(returns(ref))]
     fn item_scope(self, db: &dyn Database) -> ItemScope<'_> {
         ItemScopeBuilder { db, item_tree: self.item_tree(db), scope: ItemScope::default() }
             .build(self)

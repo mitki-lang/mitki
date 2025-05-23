@@ -50,7 +50,7 @@ pub trait FileParse {
 
 #[salsa::tracked]
 impl FileParse for File {
-    #[salsa::tracked(return_ref)]
+    #[salsa::tracked(returns(ref))]
     fn parse(self, db: &dyn salsa::Database) -> Parsed<'_, ast::Module<'_>> {
         let mut parser = parser::Parser::new(db, self.text(db));
         grammar::items::module(&mut parser);

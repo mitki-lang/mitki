@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 #[salsa::interned(debug)]
 pub(crate) struct Ty<'db> {
-    #[return_ref]
+    #[returns(ref)]
     kind: TyKind<'db>,
 }
 

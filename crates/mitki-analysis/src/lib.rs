@@ -12,7 +12,7 @@ use mitki_errors::Diagnostic;
 use mitki_parse::FileParse as _;
 pub use semantics::Semantics;
 
-#[salsa::tracked(return_ref, no_eq)]
+#[salsa::tracked(returns(ref), no_eq)]
 pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) -> Vec<Diagnostic> {
     use hir::HasFunction as _;
     use infer::Inferable as _;

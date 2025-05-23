@@ -13,7 +13,7 @@ pub(crate) trait Inferable<'db> {
 
 #[salsa::tracked]
 impl<'db> Inferable<'db> for FunctionLocation<'db> {
-    #[salsa::tracked(return_ref)]
+    #[salsa::tracked(returns(ref))]
     fn infer(self, db: &'db dyn Database) -> Inference<'db> {
         InferenceBuilder {
             db,

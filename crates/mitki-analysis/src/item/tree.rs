@@ -18,7 +18,7 @@ pub(crate) trait HasItemTree {
 
 #[salsa::tracked]
 impl HasItemTree for File {
-    #[salsa::tracked(return_ref, no_eq)]
+    #[salsa::tracked(returns(ref), no_eq)]
     fn item_tree(self, db: &dyn Database) -> ItemTree<'_> {
         let mut item_tree = ItemTree::default();
         let ast_map = self.ast_map(db);

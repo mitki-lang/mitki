@@ -12,7 +12,7 @@ pub(crate) trait HasAstMap {
 
 #[salsa::tracked]
 impl HasAstMap for File {
-    #[salsa::tracked(return_ref, no_eq)]
+    #[salsa::tracked(returns(ref), no_eq)]
     fn ast_map(self, db: &dyn Database) -> AstMap {
         AstMap::from_root(db, &self.parse(db).syntax_node())
     }
