@@ -7,11 +7,11 @@ pub(crate) use syntax::{NodeId, NodeKind};
 #[salsa::tracked]
 pub struct FunctionWithSourceMap<'db> {
     #[tracked]
-    #[return_ref]
+    #[returns(ref)]
     pub function: Function<'db>,
     #[tracked]
     #[no_eq]
-    #[return_ref]
+    #[returns(ref)]
     pub source_map: FunctionSourceMap,
 }
 
