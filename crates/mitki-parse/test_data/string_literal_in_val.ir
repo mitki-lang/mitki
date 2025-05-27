@@ -1,7 +1,16 @@
-MODULE@0..15
-  VAL_STMT@0..15
-    VAL_KW@0..3 "val"
-    NAME@4..5 "s"
-    EQ@6..7 "="
-    LITERAL@8..14 "\"test\""
-    SEMICOLON@14..15 ";"
+MODULE@0..46
+  FN@0..46
+    FUN_KW@0..3 "fun"
+    IDENT@4..20 "test_wrapper_fun"
+    PARAM_LIST@20..22
+      LEFT_PAREN@20..21 "("
+      RIGHT_PAREN@21..22 ")"
+    STMT_LIST@24..46
+      LEFT_BRACE@24..25 "{"
+      VAL_STMT@30..45
+        VAL_KW@30..33 "val"
+        IDENT@34..35 "s"
+        EQ@36..37 "="
+        STRING_LITERAL@38..44 "\"test\""
+        SEMICOLON@44..45 ";"
+      RIGHT_BRACE@45..46 "}"

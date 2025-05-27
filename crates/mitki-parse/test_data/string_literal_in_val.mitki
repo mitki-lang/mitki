@@ -1,1 +1,3 @@
-val s = "test";
+fun test_wrapper_fun() {
+    val s = "test";
+}

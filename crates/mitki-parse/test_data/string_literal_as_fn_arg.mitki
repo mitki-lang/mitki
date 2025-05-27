@@ -1,1 +1,4 @@
-my_function("arg_string");
+fun actual_callee(param) {}
+fun test_wrapper_fun() {
+    actual_callee("arg_string");
+}

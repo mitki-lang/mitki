@@ -1,10 +1,30 @@
-MODULE@0..25
-  EXPR_STMT@0..25
-    CALL_EXPR@0..24
-      PATH_EXPR@0..11
-        NAME_REF@0..11 "my_function"
-      ARG_LIST@11..24
-        LEFT_PAREN@11..12 "("
-        LITERAL@12..23 "\"arg_string\""
-        RIGHT_PAREN@23..24 ")"
-    SEMICOLON@24..25 ";"
+MODULE@0..88
+  FN@0..28
+    FUN_KW@0..3 "fun"
+    IDENT@4..17 "actual_callee"
+    PARAM_LIST@17..24
+      LEFT_PAREN@17..18 "("
+      PARAM@18..23
+        IDENT@18..23 "param"
+      RIGHT_PAREN@23..24 ")"
+    STMT_LIST@25..28
+      LEFT_BRACE@25..26 "{"
+      RIGHT_BRACE@27..28 "}"
+  FN@29..88
+    FUN_KW@29..32 "fun"
+    IDENT@33..49 "test_wrapper_fun"
+    PARAM_LIST@49..51
+      LEFT_PAREN@49..50 "("
+      RIGHT_PAREN@50..51 ")"
+    STMT_LIST@52..88
+      LEFT_BRACE@52..53 "{"
+      EXPR_STMT@58..86
+        CALL_EXPR@58..85
+          PATH_EXPR@58..71
+            NAME_REF@58..71 "actual_callee"
+          ARG_LIST@71..85
+            LEFT_PAREN@71..72 "("
+            STRING_LITERAL@72..84 "\"arg_string\""
+            RIGHT_PAREN@84..85 ")"
+        SEMICOLON@85..86 ";"
+      RIGHT_BRACE@87..88 "}"

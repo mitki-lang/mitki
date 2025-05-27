@@ -176,10 +176,15 @@ fn postfix_expr(p: &mut Parser) -> Option<CompletedMarker> {
 
 fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
     match p.peek_kind() {
-        INT_NUMBER | FLOAT_NUMBER | TRUE_KW | FALSE_KW | STRING_LITERAL => {
+        INT_NUMBER | FLOAT_NUMBER | TRUE_KW | FALSE_KW => {
             let m = p.start();
             p.advance();
             m.complete(p, LITERAL).into()
+        }
+        STRING_LITERAL => {
+            let m = p.start();
+            p.advance();
+            m.complete(p, STRING_LITERAL).into()
         }
         LEFT_PAREN => {
             let m = p.start();
