@@ -1,0 +1,4 @@
+MODULE@0..14
+  EXPR_STMT@0..14
+    LITERAL@0..13 "\"hello world\""
+    SEMICOLON@13..14 ";"

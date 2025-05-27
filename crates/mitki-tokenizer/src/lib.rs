@@ -146,6 +146,7 @@ impl<'db> Tokenizer<'db> {
             ':' => COLON,
             ',' => COMMA,
             ';' => SEMICOLON,
+            '"' => self.string_literal(),
             first_char @ '0'..='9' => self.number(first_char),
             'A'..='Z' | 'a'..='z' | '_' => self.identifier_or_keyword(),
             EOF_CHAR => EOF,
@@ -254,6 +255,45 @@ impl<'db> Tokenizer<'db> {
         }
 
         INT_NUMBER
+    }
+
+    fn string_literal(&mut self) -> SyntaxKind {
+        // The opening quote is consumed by `syntax_kind`
+        loop {
+            match self.cursor.peek() {
+                '"' => {
+                    self.cursor.advance(); // Consume closing quote
+                    break;
+                }
+                '\\' => { // Backslash
+                    self.cursor.advance(); // Consume backslash
+                    match self.cursor.peek() {
+                        '"' | '\\' | 'n' => { // Valid escape sequences
+                            self.cursor.advance(); // Consume the character being escaped
+                        }
+                        // Optional: Handle invalid escape sequences, or let them pass through
+                        // For now, we consume the backslash and whatever follows if it's not a known escape.
+                        // A more robust lexer might flag unknown escape sequences as errors.
+                        // According to the new guidance, do nothing for unknown escape sequences,
+                        // effectively treating the backslash as a literal character in such cases,
+                        // or letting a later stage handle it.
+                        _ => {
+                            // Only consume the character being escaped if it's a known one.
+                            // If not, the backslash itself is consumed, and the next character
+                            // will be processed in the next iteration of the loop.
+                        }
+                    }
+                }
+                EOF_CHAR => {
+                    // Unterminated string
+                    break;
+                }
+                _ => { // Any other character
+                    self.cursor.advance();
+                }
+            }
+        }
+        SyntaxKind::STRING_LITERAL
     }
 
     fn digits(&mut self, allow_hex: bool) {
@@ -738,5 +778,30 @@ mod tests {
 
         let eof_token = tokenizer.next_token();
         assert_eq!(eof_token.kind, EOF);
+    }
+
+    #[test]
+    fn test_string_literals() {
+        let inputs = vec![
+            ("\"hello\"", STRING_LITERAL),
+            ("\"\"", STRING_LITERAL),
+            ("\"a \\\"quote\\\"\"", STRING_LITERAL),
+            ("\"a \\\\ backslash\"", STRING_LITERAL),
+            ("\"line1\\nline2\"", STRING_LITERAL),
+            ("\"\\\\ \\\" \\n\"", STRING_LITERAL),
+            ("\"abc", STRING_LITERAL), // Unterminated
+            ("\"hello \\x world\"", STRING_LITERAL), // Invalid escape, passed through
+        ];
+
+        for (input_str, expected_kind) in inputs {
+            let mut tokenizer = Tokenizer::new(input_str);
+            let token = tokenizer.next_token();
+            assert_eq!(token.kind, expected_kind, "Input: '{}'", input_str);
+
+            let expected_range = TextRange::new(TextSize::from(0), TextSize::of(input_str));
+            assert_eq!(token.kind_range, expected_range, "Input: '{}', Range expected {:?}, got {:?}", input_str, expected_range, token.kind_range);
+
+            assert_eq!(tokenizer.next_token().kind, EOF, "Tokenizer did not consume all input for '{}'", input_str);
+        }
     }
 }

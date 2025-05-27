@@ -259,6 +259,7 @@ impl<'db> Node<'db> for ExprStmt<'db> {
 pub enum Expr<'db> {
     Path(Path<'db>),
     Literal(Literal<'db>),
+    StringLiteral(StringLiteralNode<'db>),
     Binary(Binary<'db>),
     Postfix(Postfix<'db>),
     Prefix(Prefix<'db>),
@@ -272,6 +273,7 @@ impl<'db> Node<'db> for Expr<'db> {
         match syntax.kind(db) {
             PATH_EXPR => Expr::Path(Path(syntax)).into(),
             LITERAL => Expr::Literal(Literal(syntax)).into(),
+            STRING_LITERAL => Expr::StringLiteral(StringLiteralNode(syntax)).into(),
             BINARY_EXPR => Expr::Binary(Binary(syntax)).into(),
             POSTFIX_EXPR => Expr::Postfix(Postfix(syntax)).into(),
             PREFIX_EXPR => Expr::Prefix(Prefix(syntax)).into(),
@@ -286,6 +288,7 @@ impl<'db> Node<'db> for Expr<'db> {
         match self {
             Expr::Path(path) => path.syntax(),
             Expr::Literal(literal) => &literal.0,
+            Expr::StringLiteral(string_literal) => string_literal.syntax(),
             Expr::Binary(binary) => &binary.0,
             Expr::Postfix(postfix) => &postfix.0,
             Expr::Prefix(prefix) => &prefix.0,
@@ -500,6 +503,69 @@ impl<'db> Node<'db> for Type<'db> {
         match self {
             Type::Path(path_type) => &path_type.0,
         }
+    }
+}
+
+// StringLiteralNode definition and implementations
+pub struct StringLiteralNode<'db>(RedNode<'db>);
+
+impl<'db> Node<'db> for StringLiteralNode<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        if syntax.kind(db) == STRING_LITERAL {
+            Some(Self(syntax))
+        } else {
+            None
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
+    }
+}
+
+impl<'db> StringLiteralNode<'db> {
+    pub fn value(&self, db: &'db dyn Database) -> Option<String> {
+        let token_text = self.0.children_with_tokens(db)
+            .find_map(Red::into_token)?
+            .green()
+            .text(db);
+
+        if token_text.len() < 2 || !token_text.starts_with('"') || !token_text.ends_with('"') {
+            // This case should ideally not be reached if the lexer produces valid string literals.
+            // However, as a safeguard:
+            return None; 
+        }
+
+        let content = &token_text[1..token_text.len()-1];
+        let mut processed = String::with_capacity(content.len());
+        let mut chars = content.chars();
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                match chars.next() {
+                    Some('"') => processed.push('"'),
+                    Some('\\') => processed.push('\\'),
+                    Some('n') => processed.push('\n'),
+                    Some(other) => {
+                        // For other escape sequences, the lexer should have handled them.
+                        // If an unknown escape like \x reaches here, it means the lexer
+                        // passed it through. The AST node should reflect the literal characters.
+                        // For example, if the source was "\\x", the token text is "\\x",
+                        // and the value should be "\x".
+                        processed.push('\\');
+                        processed.push(other);
+                    }
+                    None => {
+                        // This implies a trailing backslash, e.g., "text\\"
+                        // The lexer might treat this as a literal backslash or an error.
+                        // Here, we'll represent it as a literal backslash.
+                        processed.push('\\');
+                    }
+                }
+            } else {
+                processed.push(c);
+            }
+        }
+        Some(processed)
     }
 }
 

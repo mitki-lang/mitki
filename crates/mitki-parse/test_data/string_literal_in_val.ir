@@ -1,0 +1,7 @@
+MODULE@0..15
+  VAL_STMT@0..15
+    VAL_KW@0..3 "val"
+    NAME@4..5 "s"
+    EQ@6..7 "="
+    LITERAL@8..14 "\"test\""
+    SEMICOLON@14..15 ";"

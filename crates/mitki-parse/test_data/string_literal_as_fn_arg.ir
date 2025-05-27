@@ -1,0 +1,10 @@
+MODULE@0..25
+  EXPR_STMT@0..25
+    CALL_EXPR@0..24
+      PATH_EXPR@0..11
+        NAME_REF@0..11 "my_function"
+      ARG_LIST@11..24
+        LEFT_PAREN@11..12 "("
+        LITERAL@12..23 "\"arg_string\""
+        RIGHT_PAREN@23..24 ")"
+    SEMICOLON@24..25 ";"
