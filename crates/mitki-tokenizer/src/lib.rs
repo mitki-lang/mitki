@@ -293,7 +293,7 @@ impl<'db> Tokenizer<'db> {
                 }
             }
         }
-        SyntaxKind::STRING_LITERAL
+        STRING_LITERAL
     }
 
     fn digits(&mut self, allow_hex: bool) {
