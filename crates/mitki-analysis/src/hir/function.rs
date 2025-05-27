@@ -189,7 +189,7 @@ impl<'db> FunctionBuilder<'db> {
                 let args = vec![];
                 self.node_store.alloc_call(callee, args)
             }
-            &mitki_yellow::ast::Expr::StringLiteral(_) => todo!(),
+            &ast::Expr::StringLiteral(_) => todo!(),
         };
 
         self.alloc_ptr(node, expr.syntax());
