@@ -323,6 +323,7 @@ impl<'db> Literal<'db> {
             INT_NUMBER => LiteralKind::Int(token),
             FLOAT_NUMBER => LiteralKind::Float(token),
             STRING => LiteralKind::String(token),
+            CHAR => LiteralKind::Char(token),
             kind @ (TRUE_KW | FALSE_KW) => LiteralKind::Bool(kind == TRUE_KW),
             _ => unreachable!(),
         }
@@ -458,6 +459,7 @@ pub enum LiteralKind<'db> {
     Int(RedToken<'db>),
     Float(RedToken<'db>),
     String(RedToken<'db>),
+    Char(RedToken<'db>),
 }
 
 pub struct Name<'db>(RedNode<'db>);
