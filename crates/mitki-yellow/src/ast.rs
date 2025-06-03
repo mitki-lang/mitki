@@ -322,6 +322,7 @@ impl<'db> Literal<'db> {
         match token.kind(db) {
             INT_NUMBER => LiteralKind::Int(token),
             FLOAT_NUMBER => LiteralKind::Float(token),
+            STRING => LiteralKind::String(token),
             kind @ (TRUE_KW | FALSE_KW) => LiteralKind::Bool(kind == TRUE_KW),
             _ => unreachable!(),
         }
@@ -456,6 +457,7 @@ pub enum LiteralKind<'db> {
     Bool(bool),
     Int(RedToken<'db>),
     Float(RedToken<'db>),
+    String(RedToken<'db>),
 }
 
 pub struct Name<'db>(RedNode<'db>);
