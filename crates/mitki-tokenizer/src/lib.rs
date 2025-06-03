@@ -147,6 +147,7 @@ impl<'db> Tokenizer<'db> {
             ',' => COMMA,
             ';' => SEMICOLON,
             '"' => self.string(),
+            '\'' => self.char_literal(),
             first_char @ '0'..='9' => self.number(first_char),
             'A'..='Z' | 'a'..='z' | '_' => self.identifier_or_keyword(),
             EOF_CHAR => EOF,
@@ -290,6 +291,25 @@ impl<'db> Tokenizer<'db> {
         STRING
     }
 
+    fn char_literal(&mut self) -> SyntaxKind {
+        while !self.cursor.is_eof() {
+            match self.cursor.peek() {
+                '\'' => {
+                    self.cursor.advance();
+                    break;
+                }
+                '\\' => {
+                    self.cursor.advance();
+                    self.cursor.advance();
+                }
+                _ => {
+                    self.cursor.advance();
+                }
+            }
+        }
+        CHAR
+    }
+
     fn float_exponent(&mut self) {
         if self.cursor.matches('e') || self.cursor.matches('E') {
             self.cursor.advance();
@@ -360,6 +380,18 @@ mod tests {
     #[test]
     fn test_string_literals() {
         let inputs = vec![("\"hello\"", STRING), ("\"\"", STRING), ("\"foo\\\"bar\"", STRING)];
+
+        for (input, expected_kind) in inputs {
+            let mut tokenizer = Tokenizer::new(input);
+            let kind = tokenizer.next_token().kind;
+            assert_eq!(kind, expected_kind, "Input: '{input}'");
+            assert!(tokenizer.cursor.is_eof(), "Tokenizer did not consume all input for '{input}'");
+        }
+    }
+
+    #[test]
+    fn test_char_literals() {
+        let inputs = vec![("'a'", CHAR), ("'\\n'", CHAR), ("'\\''", CHAR)];
 
         for (input, expected_kind) in inputs {
             let mut tokenizer = Tokenizer::new(input);

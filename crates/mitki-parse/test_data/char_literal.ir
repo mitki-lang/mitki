@@ -1,0 +1,15 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      LITERAL
+        CHAR: "'a'"
+      RIGHT_BRACE: "}"
+
+Errors:
