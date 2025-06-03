@@ -28,6 +28,7 @@ impl<'db> NodeStore<'db> {
             ast::LiteralKind::Bool(false) => (NodeKind::False, NodeId::ZERO),
             ast::LiteralKind::Int(token) => (NodeKind::Int, self.alloc_token(db, &token)),
             ast::LiteralKind::Float(token) => (NodeKind::Float, self.alloc_token(db, &token)),
+            ast::LiteralKind::String(token) => (NodeKind::String, self.alloc_token(db, &token)),
         };
 
         self.alloc(kind, lhs, NodeId::ZERO)
@@ -169,6 +170,7 @@ pub enum NodeKind {
     LocalVar,
     Float,
     Int,
+    String,
     Call,
     Block,
     Error,

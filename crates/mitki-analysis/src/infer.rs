@@ -72,6 +72,7 @@ impl<'db> InferenceBuilder<'_, 'db> {
         let ty = match self.function.node_kind(node) {
             NodeKind::Int => Ty::new(self.db, TyKind::Int),
             NodeKind::Float => Ty::new(self.db, TyKind::Float),
+            NodeKind::String => Ty::new(self.db, TyKind::String),
             NodeKind::True | NodeKind::False => Ty::new(self.db, TyKind::Bool),
             NodeKind::LocalVar => {
                 let var = self.function.local_var(node);
