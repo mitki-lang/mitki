@@ -249,7 +249,6 @@ fun main() {
         );
     }
 
-
     #[test]
     fn param_shadow() {
         check(
