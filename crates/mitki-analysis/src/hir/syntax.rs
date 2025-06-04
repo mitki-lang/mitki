@@ -76,6 +76,44 @@ impl<'db> NodeStore<'db> {
         self.alloc(NodeKind::Call, lhs, NodeId::ZERO)
     }
 
+    pub(crate) fn alloc_binary(&mut self, lhs: NodeId, op: NodeId, rhs: NodeId) -> NodeId {
+        let lhs_idx = self.node_ids.push_with_index(lhs).into();
+        let rhs_idx = self.node_ids.push_with_index(op).into();
+        self.node_ids.push(rhs);
+        self.alloc(NodeKind::Binary, lhs_idx, rhs_idx)
+    }
+
+    pub(crate) fn alloc_postfix(&mut self, expr: NodeId, op: NodeId) -> NodeId {
+        self.alloc(NodeKind::Postfix, expr, op)
+    }
+
+    pub(crate) fn alloc_prefix(&mut self, op: NodeId, expr: NodeId) -> NodeId {
+        self.alloc(NodeKind::Prefix, op, expr)
+    }
+
+    pub(crate) fn alloc_if(
+        &mut self,
+        cond: NodeId,
+        then_branch: NodeId,
+        else_branch: NodeId,
+    ) -> NodeId {
+        let lhs_idx = self.node_ids.push_with_index(cond).into();
+        let rhs_idx = self.node_ids.push_with_index(then_branch).into();
+        self.node_ids.push(else_branch);
+        self.alloc(NodeKind::If, lhs_idx, rhs_idx)
+    }
+
+    pub(crate) fn alloc_closure(&mut self, params: Vec<NodeId>, body: NodeId) -> NodeId {
+        let start = self.node_ids.len().into();
+        self.node_ids.extend(params);
+        let end = self.node_ids.len().into();
+
+        let range = self.node_ids.push_with_index(start).into();
+        self.node_ids.push(end);
+
+        self.alloc(NodeKind::Closure, range, body)
+    }
+
     fn alloc(&mut self, kind: NodeKind, lhs: NodeId, rhs: NodeId) -> NodeId {
         self.nodes.push_with_index(Node { kind, data: NodeData { lhs, rhs } }).into()
     }
@@ -102,6 +140,52 @@ impl<'db> NodeStore<'db> {
         (&self.node_ids[start..end], block.data.rhs)
     }
 
+    pub(crate) fn binary(&self, node: NodeId) -> BinaryExpr {
+        let node = &self.nodes[node.get()];
+        assert_eq!(node.kind, NodeKind::Binary);
+
+        BinaryExpr {
+            lhs: self.node_ids[node.data.lhs.get()],
+            op: self.node_ids[node.data.rhs.get()],
+            rhs: self.node_ids[node.data.rhs.get() + 1],
+        }
+    }
+
+    pub(crate) fn postfix(&self, node: NodeId) -> PostfixExpr {
+        let node = &self.nodes[node.get()];
+        assert_eq!(node.kind, NodeKind::Postfix);
+
+        PostfixExpr { expr: node.data.lhs, op: node.data.rhs }
+    }
+
+    pub(crate) fn prefix(&self, node: NodeId) -> PrefixExpr {
+        let node = &self.nodes[node.get()];
+        assert_eq!(node.kind, NodeKind::Prefix);
+
+        PrefixExpr { op: node.data.lhs, expr: node.data.rhs }
+    }
+
+    pub(crate) fn if_expr(&self, node: NodeId) -> IfExpr {
+        let node = &self.nodes[node.get()];
+        assert_eq!(node.kind, NodeKind::If);
+
+        IfExpr {
+            cond: self.node_ids[node.data.lhs.get()],
+            then_branch: self.node_ids[node.data.rhs.get()],
+            else_branch: self.node_ids[node.data.rhs.get() + 1],
+        }
+    }
+
+    pub(crate) fn closure_parts(&self, node: NodeId) -> (&[NodeId], NodeId) {
+        let node = &self.nodes[node.get()];
+        assert_eq!(node.kind, NodeKind::Closure);
+
+        let start = self.node_ids[node.data.lhs.get()].get();
+        let end = self.node_ids[node.data.lhs.get() + 1].get();
+
+        (&self.node_ids[start..end], node.data.rhs)
+    }
+
     #[track_caller]
     pub(crate) fn local_var(&self, node: NodeId) -> LocalVar {
         let node = &self.nodes[node.get()];
@@ -124,6 +208,28 @@ pub struct LocalVar {
     pub name: NodeId,
     pub(crate) _ty: NodeId,
     pub(crate) initializer: NodeId,
+}
+
+pub struct BinaryExpr {
+    pub lhs: NodeId,
+    pub op: NodeId,
+    pub rhs: NodeId,
+}
+
+pub struct PostfixExpr {
+    pub expr: NodeId,
+    pub op: NodeId,
+}
+
+pub struct PrefixExpr {
+    pub op: NodeId,
+    pub expr: NodeId,
+}
+
+pub struct IfExpr {
+    pub cond: NodeId,
+    pub then_branch: NodeId,
+    pub else_branch: NodeId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, salsa::Update)]
@@ -173,7 +279,12 @@ pub enum NodeKind {
     Int,
     String,
     Char,
+    Binary,
+    Postfix,
+    Prefix,
     Call,
+    If,
+    Closure,
     Block,
     Error,
 

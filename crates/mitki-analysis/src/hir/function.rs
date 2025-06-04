@@ -5,7 +5,9 @@ use rustc_hash::FxHashMap;
 use salsa::Database;
 
 use super::FunctionWithSourceMap;
-use super::syntax::{LocalVar, NodeId, NodeKind, NodeStore};
+use super::syntax::{
+    BinaryExpr, IfExpr, LocalVar, NodeId, NodeKind, NodeStore, PostfixExpr, PrefixExpr,
+};
 
 #[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
 pub struct Function<'db> {
@@ -63,6 +65,31 @@ impl<'db> Function<'db> {
     #[track_caller]
     pub fn local_var(&self, node: NodeId) -> LocalVar {
         self.node_store.local_var(node)
+    }
+
+    #[track_caller]
+    pub fn binary(&self, node: NodeId) -> BinaryExpr {
+        self.node_store.binary(node)
+    }
+
+    #[track_caller]
+    pub fn postfix(&self, node: NodeId) -> PostfixExpr {
+        self.node_store.postfix(node)
+    }
+
+    #[track_caller]
+    pub fn prefix(&self, node: NodeId) -> PrefixExpr {
+        self.node_store.prefix(node)
+    }
+
+    #[track_caller]
+    pub fn if_expr(&self, node: NodeId) -> IfExpr {
+        self.node_store.if_expr(node)
+    }
+
+    #[track_caller]
+    pub fn closure_parts(&self, node: NodeId) -> (&[NodeId], NodeId) {
+        self.node_store.closure_parts(node)
     }
 
     #[track_caller]
@@ -179,11 +206,39 @@ impl<'db> FunctionBuilder<'db> {
                 self.node_store.alloc_name(path)
             }
             ast::Expr::Literal(literal) => self.node_store.alloc_literal(db, literal),
-            ast::Expr::Binary(_binary) => self.node_store.alloc_error(),
-            ast::Expr::Postfix(_postfix) => self.node_store.alloc_error(),
-            ast::Expr::Prefix(_prefix) => self.node_store.alloc_error(),
-            ast::Expr::If(_if_expr) => self.node_store.alloc_error(),
-            ast::Expr::Closure(_closure) => self.node_store.alloc_error(),
+            ast::Expr::Binary(binary) => {
+                let lhs = self.build_expr(binary.lhs(db));
+                let op_sym = binary.op(db).map(|op| op.into_symbol(self.db));
+                let op =
+                    op_sym.map(|sym| self.node_store.alloc_binding(sym)).unwrap_or(NodeId::ZERO);
+                let rhs = self.build_expr(binary.rhs(db));
+                self.node_store.alloc_binary(lhs, op, rhs)
+            }
+            ast::Expr::Postfix(postfix) => {
+                let expr = self.build_expr(postfix.expr(db));
+                let op_sym = postfix.op(db).map(|op| op.into_symbol(self.db));
+                let op =
+                    op_sym.map(|sym| self.node_store.alloc_binding(sym)).unwrap_or(NodeId::ZERO);
+                self.node_store.alloc_postfix(expr, op)
+            }
+            ast::Expr::Prefix(prefix) => {
+                let op_sym = prefix.op(db).map(|op| op.into_symbol(self.db));
+                let op =
+                    op_sym.map(|sym| self.node_store.alloc_binding(sym)).unwrap_or(NodeId::ZERO);
+                let expr = self.build_expr(prefix.expr(db));
+                self.node_store.alloc_prefix(op, expr)
+            }
+            ast::Expr::If(if_expr) => {
+                let cond = self.build_expr(if_expr.condition(db));
+                let then_branch = self.build_block(if_expr.then_branch(db));
+                let else_branch = self.build_block(if_expr.else_branch(db));
+                self.node_store.alloc_if(cond, then_branch, else_branch)
+            }
+            ast::Expr::Closure(closure) => {
+                let params = self.build_params(closure.params(db));
+                let body = self.build_block(Some(closure.body(db)));
+                self.node_store.alloc_closure(params, body)
+            }
             ast::Expr::Call(call_expr) => {
                 let callee = self.build_expr(call_expr.callee(db));
                 let args = vec![];
