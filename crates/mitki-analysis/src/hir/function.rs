@@ -209,22 +209,19 @@ impl<'db> FunctionBuilder<'db> {
             ast::Expr::Binary(binary) => {
                 let lhs = self.build_expr(binary.lhs(db));
                 let op_sym = binary.op(db).map(|op| op.into_symbol(self.db));
-                let op =
-                    op_sym.map(|sym| self.node_store.alloc_binding(sym)).unwrap_or(NodeId::ZERO);
+                let op = op_sym.map_or(NodeId::ZERO, |sym| self.node_store.alloc_binding(sym));
                 let rhs = self.build_expr(binary.rhs(db));
                 self.node_store.alloc_binary(lhs, op, rhs)
             }
             ast::Expr::Postfix(postfix) => {
                 let expr = self.build_expr(postfix.expr(db));
                 let op_sym = postfix.op(db).map(|op| op.into_symbol(self.db));
-                let op =
-                    op_sym.map(|sym| self.node_store.alloc_binding(sym)).unwrap_or(NodeId::ZERO);
+                let op = op_sym.map_or(NodeId::ZERO, |sym| self.node_store.alloc_binding(sym));
                 self.node_store.alloc_postfix(expr, op)
             }
             ast::Expr::Prefix(prefix) => {
                 let op_sym = prefix.op(db).map(|op| op.into_symbol(self.db));
-                let op =
-                    op_sym.map(|sym| self.node_store.alloc_binding(sym)).unwrap_or(NodeId::ZERO);
+                let op = op_sym.map_or(NodeId::ZERO, |sym| self.node_store.alloc_binding(sym));
                 let expr = self.build_expr(prefix.expr(db));
                 self.node_store.alloc_prefix(op, expr)
             }
