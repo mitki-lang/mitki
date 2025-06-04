@@ -162,4 +162,119 @@ fun main() {
 "#,
         );
     }
+
+    #[test]
+    fn parameter() {
+        check(
+            r#"
+fun foo(x: i32) {
+      //^
+    $0x
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn if_block() {
+        check(
+            r#"
+fun main() {
+    val x = 42
+      //^
+    if true {
+        $0x
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn function_forward() {
+        check(
+            r#"
+fun main() {
+    add$0();
+}
+
+fun add() {}
+  //^^^
+"#,
+        );
+    }
+
+    #[test]
+    fn closure_param() {
+        check(
+            r#"
+fun main() {
+    val f = { x in
+            //^
+        $0x
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn closure_capture() {
+        check(
+            r#"
+fun main() {
+    val x = 0
+      //^
+    val f = {
+        $0x
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn shadow_inner() {
+        check(
+            r#"
+fun main() {
+    val x = 0
+    {
+        val x = 1
+          //^
+        $0x
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn param_shadow() {
+        check(
+            r#"
+fun foo(x: i32) {
+    val x = 42
+      //^
+    $0x
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn nested_closure_capture() {
+        check(
+            r#"
+fun main() {
+    val f = { x in
+            //^
+        val g = {
+            $0x
+        }
+    }
+}
+"#,
+        );
+    }
 }
