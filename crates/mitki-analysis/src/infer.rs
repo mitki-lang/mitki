@@ -113,6 +113,43 @@ impl<'db> InferenceBuilder<'_, 'db> {
                     self.unit
                 }
             }
+            NodeKind::Binary => {
+                let binary = self.function.binary(node);
+                self.infer_node(binary.lhs, NoExpectation);
+                self.infer_node(binary.rhs, NoExpectation);
+                Ty::new(self.db, TyKind::Unknown)
+            }
+            NodeKind::Postfix => {
+                let postfix = self.function.postfix(node);
+                self.infer_node(postfix.expr, NoExpectation);
+                Ty::new(self.db, TyKind::Unknown)
+            }
+            NodeKind::Prefix => {
+                let prefix = self.function.prefix(node);
+                self.infer_node(prefix.expr, NoExpectation);
+                Ty::new(self.db, TyKind::Unknown)
+            }
+            NodeKind::If => {
+                let if_expr = self.function.if_expr(node);
+                self.infer_node(if_expr.cond, NoExpectation);
+                if if_expr.then_branch != NodeId::ZERO {
+                    self.infer_node(if_expr.then_branch, NoExpectation);
+                }
+                if if_expr.else_branch != NodeId::ZERO {
+                    self.infer_node(if_expr.else_branch, NoExpectation);
+                }
+                Ty::new(self.db, TyKind::Unknown)
+            }
+            NodeKind::Closure => {
+                let (params, body) = self.function.closure_parts(node);
+                for &param in params {
+                    self.inference.type_of_node.insert(param, self.unknown);
+                }
+                if body != NodeId::ZERO {
+                    self.infer_node(body, NoExpectation);
+                }
+                Ty::new(self.db, TyKind::Function)
+            }
             _ => Ty::new(self.db, TyKind::Unknown),
         };
         self.inference.type_of_node.insert(node, ty);
