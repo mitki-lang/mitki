@@ -100,6 +100,37 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
                 self.add_binding(var.name, *scope);
             }
             NodeKind::Call => {}
+            NodeKind::Binary => {
+                let binary = self.function.binary(node);
+                self.build_node_scopes(binary.lhs, scope);
+                self.build_node_scopes(binary.rhs, scope);
+            }
+            NodeKind::Postfix => {
+                let postfix = self.function.postfix(node);
+                self.build_node_scopes(postfix.expr, scope);
+            }
+            NodeKind::Prefix => {
+                let prefix = self.function.prefix(node);
+                self.build_node_scopes(prefix.expr, scope);
+            }
+            NodeKind::If => {
+                let if_expr = self.function.if_expr(node);
+                self.build_node_scopes(if_expr.cond, scope);
+                if if_expr.then_branch != NodeId::ZERO {
+                    self.build_node_scopes(if_expr.then_branch, scope);
+                }
+                if if_expr.else_branch != NodeId::ZERO {
+                    self.build_node_scopes(if_expr.else_branch, scope);
+                }
+            }
+            NodeKind::Closure => {
+                let (params, body) = self.function.closure_parts(node);
+                let mut closure_scope = self.scope(*scope);
+                self.add_bindings(params, closure_scope);
+                if body != NodeId::ZERO {
+                    self.build_node_scopes(body, &mut closure_scope);
+                }
+            }
             NodeKind::Block => {
                 let scope = &mut self.scope(*scope);
                 let (stmts, tail) = self.function.block_stmts(node);
