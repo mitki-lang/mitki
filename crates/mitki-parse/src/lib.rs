@@ -45,7 +45,7 @@ impl<'db, T: ast::Node<'db>> Parsed<'db, T> {
 }
 
 pub trait FileParse {
-    fn parse(self, db: &dyn salsa::Database) -> &Parsed<ast::Module<'_>>;
+    fn parse<'db>(self, db: &'db dyn salsa::Database) -> &'db Parsed<'db, ast::Module<'db>>;
 }
 
 #[salsa::tracked]
