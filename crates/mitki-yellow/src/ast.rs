@@ -63,7 +63,7 @@ impl<'db> Function<'db> {
         child(db, &self.0)
     }
 
-    pub fn ret_type(&self, db: &'db dyn Database) -> Option<RetType> {
+    pub fn ret_type(&self, db: &'db dyn Database) -> Option<RetType<'db>> {
         child(db, self.syntax())
     }
 
@@ -235,7 +235,7 @@ impl<'db> ExprStmt<'db> {
         child(db, self.syntax())
     }
 
-    pub fn semi(&self, db: &'db dyn Database) -> Option<RedToken> {
+    pub fn semi(&self, db: &'db dyn Database) -> Option<RedToken<'_>> {
         self.syntax()
             .children_with_tokens(db)
             .filter_map(Red::into_token)
