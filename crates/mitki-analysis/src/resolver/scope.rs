@@ -24,12 +24,16 @@ impl<'db> HasExprScopes<'db> for FunctionLocation<'db> {
 
 #[derive(Debug, Default, PartialEq, Eq, salsa::Update)]
 pub(crate) struct ExprScopes<'db> {
-    pub scopes: Arena<ScopeData<'db>>,
-    pub scope_entries: Arena<ScopeEntry<'db>>,
-    pub scope_by_node: FxHashMap<NodeId, Scope<'db>>,
+    scopes: Arena<ScopeData<'db>>,
+    scope_entries: Arena<ScopeEntry<'db>>,
+    scope_by_node: FxHashMap<NodeId, Scope<'db>>,
 }
 
 impl<'db> ExprScopes<'db> {
+    pub(crate) fn scope_by_node(&self, node: NodeId) -> Option<Scope<'db>> {
+        self.scope_by_node.get(&node).copied()
+    }
+
     pub(crate) fn chain(&self, scope: Option<Scope<'db>>) -> impl Iterator<Item = Scope<'db>> + '_ {
         std::iter::successors(scope, move |&scope| self.scopes[scope].parent)
     }
