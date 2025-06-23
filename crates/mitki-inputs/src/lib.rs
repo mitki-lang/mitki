@@ -4,7 +4,7 @@ pub use line_index::LineIndex;
 pub struct File {
     #[returns(ref)]
     pub path: camino::Utf8PathBuf,
-    #[returns(ref)]
+    #[returns(deref)]
     pub text: String,
 }
 

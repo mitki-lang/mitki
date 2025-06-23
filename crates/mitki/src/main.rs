@@ -25,7 +25,7 @@ fn main() -> anyhow::Result<()> {
 
             let file = mitki_inputs::File::new(&db, path, text);
             let path = file.path(&db).as_str();
-            let text = file.text(&db).as_str();
+            let text = file.text(&db);
 
             let mut stderr = std::io::stderr().lock();
             let renderer = mitki_errors::Renderer::styled();

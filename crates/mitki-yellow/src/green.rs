@@ -110,7 +110,7 @@ impl<'db> GreenChild<'db> {
 pub struct GreenToken<'db> {
     pub leading: GreenTrivia,
     pub kind: SyntaxKind,
-    #[returns(ref)]
+    #[returns(deref)]
     pub text: Box<str>,
     pub trailing: GreenTrivia,
 }
@@ -218,7 +218,7 @@ mod tests {
             GreenTrivia::whitespace(3),
         );
 
-        assert_eq!("\n\t val \t\t", token.text(&db).as_ref());
+        assert_eq!("\n\t val \t\t", token.text(&db));
         assert_eq!("val", token.text_trimmed(&db));
     }
 }
