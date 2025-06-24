@@ -75,6 +75,15 @@ impl<'db> InferenceBuilder<'_, 'db> {
             NodeKind::String => Ty::new(self.db, TyKind::String),
             NodeKind::Char => Ty::new(self.db, TyKind::Char),
             NodeKind::True | NodeKind::False => Ty::new(self.db, TyKind::Bool),
+            NodeKind::Tuple => {
+                let tys = self
+                    .function
+                    .tuple(node)
+                    .iter()
+                    .map(|&item| self.infer_node(item, NoExpectation))
+                    .collect();
+                Ty::new(self.db, TyKind::Tuple(tys))
+            }
             NodeKind::LocalVar => {
                 let var = self.function.local_var(node);
 
@@ -169,11 +178,12 @@ impl<'db> InferenceBuilder<'_, 'db> {
             if self.function.ret_type() == NodeId::ZERO { self.unit } else { self.unknown };
 
         self.infer_node(self.function.body(), ExpectHasType(ret_ty));
+
         self.inference
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Expectation<'db> {
     ExpectHasType(Ty<'db>),
     NoExpectation,

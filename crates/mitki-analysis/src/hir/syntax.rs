@@ -44,6 +44,27 @@ impl<'db> NodeStore<'db> {
         self.symbols[binding.get()]
     }
 
+    pub(crate) fn alloc_tuple(&mut self, items: Vec<NodeId>) -> NodeId {
+        let start = self.node_ids.len().into();
+        self.node_ids.extend(items);
+        let end = self.node_ids.len().into();
+
+        let range = self.node_ids.push_with_index(start).into();
+        self.node_ids.push(end);
+
+        self.alloc(NodeKind::Tuple, range, NodeId::ZERO)
+    }
+
+    pub(crate) fn tuple(&self, node: NodeId) -> &[NodeId] {
+        let node = &self.nodes[node.get()];
+        assert_eq!(node.kind, NodeKind::Tuple);
+
+        let start = self.node_ids[node.data.lhs.get()].get();
+        let end = self.node_ids[node.data.lhs.get() + 1].get();
+
+        &self.node_ids[start..end]
+    }
+
     pub(crate) fn alloc_local_var(
         &mut self,
         name: NodeId,
@@ -279,6 +300,7 @@ pub enum NodeKind {
     Int,
     String,
     Char,
+    Tuple,
     Binary,
     Postfix,
     Prefix,

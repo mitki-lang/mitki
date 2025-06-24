@@ -82,6 +82,10 @@ impl<'db> Function<'db> {
         self.node_store.prefix(node)
     }
 
+    pub fn tuple(&self, node: NodeId) -> &[NodeId] {
+        self.node_store.tuple(node)
+    }
+
     #[track_caller]
     pub fn if_expr(&self, node: NodeId) -> IfExpr {
         self.node_store.if_expr(node)
@@ -240,6 +244,10 @@ impl<'db> FunctionBuilder<'db> {
                 let callee = self.build_expr(call_expr.callee(db));
                 let args = vec![];
                 self.node_store.alloc_call(callee, args)
+            }
+            ast::Expr::Tuple(tuple_expr) => {
+                let exprs = tuple_expr.exprs(db).map(|expr| self.build_expr(expr.into())).collect();
+                self.node_store.alloc_tuple(exprs)
             }
         };
 
