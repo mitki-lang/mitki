@@ -1,47 +1,12 @@
-use std::fmt::Display;
-
 #[salsa::interned(debug)]
 pub(crate) struct Ty<'db> {
     #[returns(ref)]
     kind: TyKind<'db>,
 }
 
-impl<'db> Display for Ty<'db> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        salsa::plumbing::with_attached_database(|db| {
-            let str = match self.kind(db) {
-                TyKind::Bool => "bool",
-                TyKind::Float => "float",
-                TyKind::Int => "int",
-                TyKind::String => "string",
-                TyKind::Char => "char",
-                TyKind::Tuple(items) => return Tuple(items).fmt(f),
-                TyKind::Unknown => "{unknown}",
-                TyKind::Function => "{function}",
-            };
-
-            f.write_str(str)
-        })
-        .unwrap()
-    }
-}
-
-struct Tuple<'db>(&'db [Ty<'db>]);
-
-impl<'db> Display for Tuple<'db> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "(")?;
-        let mut iter = self.0.iter();
-        if let Some(first) = iter.next() {
-            write!(f, "{first}")?;
-            for item in iter {
-                write!(f, ", {item}")?;
-            }
-        }
-        if self.0.len() == 1 {
-            write!(f, ",")?;
-        }
-        write!(f, ")")
+impl<'db> Ty<'db> {
+    pub(crate) fn display(self, db: &'db dyn salsa::Database) -> TyDisplay<'db> {
+        TyDisplay { db, ty_kind: self.kind(db) }
     }
 }
 
@@ -55,4 +20,48 @@ pub(crate) enum TyKind<'db> {
     Tuple(Vec<Ty<'db>>),
     Unknown,
     Function,
+}
+
+pub(crate) struct TyDisplay<'db> {
+    ty_kind: &'db TyKind<'db>,
+    db: &'db dyn salsa::Database,
+}
+
+impl<'db> std::fmt::Display for TyDisplay<'db> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.ty_kind {
+            TyKind::Bool => write!(f, "bool"),
+            TyKind::Float => write!(f, "float"),
+            TyKind::Int => write!(f, "int"),
+            TyKind::String => write!(f, "str"),
+            TyKind::Char => write!(f, "char"),
+            TyKind::Tuple(items) => {
+                write!(f, "(")?;
+                write_joined(f, self.db, items.iter(), ", ")?;
+                if items.len() == 1 {
+                    write!(f, ",")?;
+                }
+                write!(f, ")")
+            }
+            TyKind::Unknown => write!(f, "{{unknown}}"),
+            TyKind::Function => write!(f, "fn()"),
+        }
+    }
+}
+
+fn write_joined<'db>(
+    f: &mut std::fmt::Formatter<'_>,
+    db: &'db dyn salsa::Database,
+    iter: impl ExactSizeIterator<Item = &'db Ty<'db>>,
+    sep: &str,
+) -> std::fmt::Result {
+    let mut first = true;
+    for e in iter {
+        if !first {
+            write!(f, "{sep}")?;
+        }
+        first = false;
+        write!(f, "{}", e.display(db))?;
+    }
+    Ok(())
 }

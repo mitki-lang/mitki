@@ -259,6 +259,7 @@ impl<'db> Node<'db> for ExprStmt<'db> {
 pub enum Expr<'db> {
     Path(Path<'db>),
     Literal(Literal<'db>),
+    Tuple(TupleExpr<'db>),
     Binary(Binary<'db>),
     Postfix(Postfix<'db>),
     Prefix(Prefix<'db>),
@@ -278,6 +279,7 @@ impl<'db> Node<'db> for Expr<'db> {
             IF_EXPR => Expr::If(IfExpr(syntax)).into(),
             CLOSURE_EXPR => Expr::Closure(Closure(syntax)).into(),
             CALL_EXPR => Expr::Call(CallExpr(syntax)).into(),
+            TUPLE_EXPR => Expr::Tuple(TupleExpr(syntax)).into(),
             _ => None,
         }
     }
@@ -292,6 +294,7 @@ impl<'db> Node<'db> for Expr<'db> {
             Expr::If(if_) => if_.syntax(),
             Expr::Closure(closure) => closure.syntax(),
             Expr::Call(call) => call.syntax(),
+            Expr::Tuple(tuple_expr) => tuple_expr.syntax(),
         }
     }
 }
@@ -327,6 +330,27 @@ impl<'db> Literal<'db> {
             kind @ (TRUE_KW | FALSE_KW) => LiteralKind::Bool(kind == TRUE_KW),
             _ => unreachable!(),
         }
+    }
+}
+
+pub struct TupleExpr<'db>(RedNode<'db>);
+
+impl<'db> TupleExpr<'db> {
+    pub fn exprs(&self, db: &'db dyn Database) -> impl Iterator<Item = Expr<'db>> + '_ {
+        self.0.children(db).filter_map(move |syntax| Expr::cast(db, syntax))
+    }
+}
+
+impl<'db> Node<'db> for TupleExpr<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            TUPLE_EXPR => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.0
     }
 }
 

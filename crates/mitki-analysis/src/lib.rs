@@ -32,7 +32,11 @@ pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) -> Vec<Dia
                             source_map.node_syntax(node_id).range,
                         ),
                         infer::Diagnostic::TypeMismatch(node_id, actual, expected) => (
-                            format!("expected `{expected}`, found `{actual}`"),
+                            format!(
+                                "expected `{expected}`, found `{actual}`",
+                                expected = expected.display(db),
+                                actual = actual.display(db)
+                            ),
                             source_map.node_syntax(node_id).range,
                         ),
                     });
