@@ -2,7 +2,7 @@ pub use line_index::LineIndex;
 
 #[salsa::input(debug)]
 pub struct File {
-    #[returns(ref)]
+    #[returns(deref)]
     pub path: camino::Utf8PathBuf,
     #[returns(deref)]
     pub text: String,
