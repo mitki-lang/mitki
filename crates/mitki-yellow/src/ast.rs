@@ -139,6 +139,10 @@ impl<'db> Param<'db> {
     pub fn name(&self, db: &'db dyn Database) -> Name<'db> {
         child(db, self.syntax()).unwrap()
     }
+
+    pub fn ty(&self, db: &'db dyn Database) -> Option<Type<'db>> {
+        child(db, self.syntax())
+    }
 }
 
 impl<'db> Node<'db> for Param<'db> {
@@ -450,6 +454,10 @@ impl<'db> CallExpr<'db> {
     pub fn callee(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         child(db, self.syntax())
     }
+
+    pub fn arg_list(&self, db: &'db dyn Database) -> Option<ArgList<'db>> {
+        child(db, self.syntax())
+    }
 }
 
 impl<'db> Node<'db> for CallExpr<'db> {
@@ -462,6 +470,29 @@ impl<'db> Node<'db> for CallExpr<'db> {
 
     fn syntax(&self) -> &RedNode<'db> {
         &self.0
+    }
+}
+
+pub struct ArgList<'db> {
+    syntax: RedNode<'db>,
+}
+
+impl<'db> Node<'db> for ArgList<'db> {
+    fn cast(db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+        match syntax.kind(db) {
+            ARG_LIST => Some(Self { syntax }),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &RedNode<'db> {
+        &self.syntax
+    }
+}
+
+impl<'db> ArgList<'db> {
+    pub fn args(&self, db: &'db dyn Database) -> impl Iterator<Item = Expr<'db>> + '_ {
+        self.syntax.children(db).filter_map(move |syntax| Expr::cast(db, syntax))
     }
 }
 

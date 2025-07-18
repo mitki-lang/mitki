@@ -39,6 +39,10 @@ pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) -> Vec<Dia
                             ),
                             source_map.node_syntax(node_id).range,
                         ),
+                        infer::Diagnostic::ExpectedValueFoundType(node_id, ty) => (
+                            format!("expected value, found type `{}`", ty.display(db)),
+                            source_map.node_syntax(node_id).range,
+                        ),
                     });
 
                     diagnostics.push(Diagnostic::error(message, range))

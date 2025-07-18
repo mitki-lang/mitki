@@ -53,7 +53,7 @@ impl<'db> Semantics<'db> {
             .find_map(|expr| source_map.syntax_expr(db, expr.syntax()))
             .and_then(|expr| scopes.scope_by_node(expr));
 
-        Resolver::for_scope(location.file(db).item_scope(db), scopes, scope)
+        Resolver::for_scope(db, location.file(db).item_scope(db), scopes, scope)
     }
 }
 

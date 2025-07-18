@@ -100,6 +100,11 @@ impl<'db> Function<'db> {
     pub(crate) fn name(&self, node: NodeId) -> Symbol<'db> {
         self.node_store.name(node)
     }
+
+    #[track_caller]
+    pub(crate) fn call(&self, node: NodeId) -> (NodeId, &[NodeId]) {
+        self.node_store.call(node)
+    }
 }
 
 pub(crate) struct FunctionBuilder<'db> {
@@ -242,7 +247,10 @@ impl<'db> FunctionBuilder<'db> {
             }
             ast::Expr::Call(call_expr) => {
                 let callee = self.build_expr(call_expr.callee(db));
-                let args = vec![];
+                let arg_list = call_expr.arg_list(db).unwrap();
+                let args =
+                    arg_list.args(db).map(|arg| self.build_expr(arg.into())).collect::<Vec<_>>();
+
                 self.node_store.alloc_call(callee, args)
             }
             ast::Expr::Tuple(tuple_expr) => {

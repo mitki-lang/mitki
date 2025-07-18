@@ -2,7 +2,7 @@ use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::{RedToken, ast};
 
 #[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
-pub(crate) struct NodeStore<'db> {
+pub struct NodeStore<'db> {
     nodes: Vec<Node>,
     symbols: Vec<Symbol<'db>>,
     node_ids: Vec<NodeId>,
@@ -92,9 +92,22 @@ impl<'db> NodeStore<'db> {
         self.alloc(NodeKind::Error, NodeId::ZERO, NodeId::ZERO)
     }
 
-    pub(crate) fn alloc_call(&mut self, callee: NodeId, _args: Vec<NodeId>) -> NodeId {
-        let lhs = self.node_ids.push_with_index(callee).into();
-        self.alloc(NodeKind::Call, lhs, NodeId::ZERO)
+    pub(crate) fn alloc_call(&mut self, callee: NodeId, args: Vec<NodeId>) -> NodeId {
+        let start = self.node_ids.len().into();
+        self.node_ids.push_with_index(callee);
+        self.node_ids.extend(args);
+        let end = self.node_ids.len().into();
+        self.alloc(NodeKind::Call, start, end)
+    }
+
+    pub(crate) fn call(&self, node: NodeId) -> (NodeId, &[NodeId]) {
+        assert_eq!(self.node_kind(node), NodeKind::Call);
+
+        let call = &self.nodes[node.get()];
+        let ids = &self.node_ids[call.data.lhs.get()..call.data.rhs.get()];
+
+        let (callee, args) = ids.split_first().expect("Call node must have at least one element");
+        (*callee, args)
     }
 
     pub(crate) fn alloc_binary(&mut self, lhs: NodeId, op: NodeId, rhs: NodeId) -> NodeId {
@@ -219,9 +232,31 @@ impl<'db> NodeStore<'db> {
         }
     }
 
+    pub(crate) fn alloc_param(&mut self, name: Symbol<'db>, ty: NodeId) -> NodeId {
+        let name_id = self.alloc_name(name);
+        let ty_id = self.node_ids.push_with_index(ty).into();
+        self.alloc(NodeKind::Param, name_id, ty_id)
+    }
+
+    pub(crate) fn param(&self, node: NodeId) -> (Symbol<'db>, NodeId) {
+        let node = &self.nodes[node.get()];
+        assert_eq!(node.kind, NodeKind::Param);
+
+        let name = self.symbol(node.data.lhs);
+        let ty = self.node_ids[node.data.rhs.get()];
+
+        (name, ty)
+    }
+
     pub(crate) fn alloc_type_ref(&mut self, path: Symbol<'db>) -> NodeId {
         let lhs = self.alloc_binding(path);
         self.alloc(NodeKind::TypePath, lhs, NodeId::ZERO)
+    }
+
+    pub(crate) fn type_ref(&self, node: NodeId) -> Symbol<'db> {
+        let node = &self.nodes[node.get()];
+        assert_eq!(node.kind, NodeKind::TypePath);
+        self.symbol(node.data.lhs)
     }
 }
 
@@ -310,6 +345,7 @@ pub enum NodeKind {
     Block,
     Error,
 
+    Param,
     TypePath,
 }
 
