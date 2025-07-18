@@ -2,7 +2,7 @@ mod function;
 mod syntax;
 
 pub(crate) use function::{Function, FunctionSourceMap};
-pub(crate) use syntax::{NodeId, NodeKind};
+pub(crate) use syntax::{NodeId, NodeKind, NodeStore};
 
 #[salsa::tracked]
 pub struct FunctionWithSourceMap<'db> {

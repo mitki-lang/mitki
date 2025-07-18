@@ -1,6 +1,6 @@
 use mitki_analysis::Semantics;
 use mitki_analysis::hir::HasFunction as _;
-use mitki_analysis::resolver::PathResolution;
+use mitki_analysis::resolver::Resolution;
 use mitki_parse::FileParse as _;
 use mitki_span::IntoSymbol as _;
 use mitki_yellow::SyntaxKind;
@@ -38,18 +38,19 @@ impl super::Analysis {
         let path = original_token.green().text_trimmed(db).into_symbol(db);
 
         match resolver.resolve_path(path)? {
-            PathResolution::Local(path) => {
+            Resolution::Local(path) => {
                 let source_map = location.hir_function(db).source_map(db);
                 let range = source_map.node_syntax(&path).range;
 
                 Some((original_token.trimmed_range(db), range))
             }
-            PathResolution::Function(function_location) => {
+            Resolution::Function(function_location) => {
                 let function = function_location.source(db);
                 let function_name_range = function.name(db).unwrap().syntax().trimmed_range(db);
 
                 Some((original_token.trimmed_range(db), function_name_range))
             }
+            Resolution::Type(_ty) => None,
         }
     }
 }

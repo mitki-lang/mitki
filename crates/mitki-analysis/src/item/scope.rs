@@ -1,8 +1,10 @@
 use mitki_inputs::File;
-use mitki_span::Symbol;
+use mitki_span::{IntoSymbol as _, Symbol};
+use mitki_yellow::ast::{self, Node as _};
 use salsa::Database;
 
 use super::tree::{Item, ItemTree};
+use crate::hir::{NodeId, NodeStore};
 use crate::item::tree::{Function, HasItemTree as _};
 
 type FxIndexMap<K, V> =
@@ -32,8 +34,59 @@ pub struct FunctionLocation<'db> {
     pub index: Function<'db>,
 }
 
+#[salsa::tracked]
 impl<'db> FunctionLocation<'db> {
-    pub fn source(&self, db: &'db dyn Database) -> mitki_yellow::ast::Function<'db> {
+    #[salsa::tracked(returns(ref))]
+    pub fn signature(self, db: &'db dyn Database) -> Signature<'db> {
+        let mut node_store = NodeStore::default();
+        let func = self.source(db);
+
+        // Lower parameters
+        let params = func.params(db).map_or_else(Vec::new, |param_list| {
+            param_list
+                .iter(db)
+                .map(|param| {
+                    let name = param.name(db).as_str(db).into_symbol(db);
+                    let type_id = param
+                        .ty(db)
+                        .and_then(|ty| lower_type_ref(db, &mut node_store, ty))
+                        .unwrap_or(NodeId::ZERO);
+                    node_store.alloc_param(name, type_id)
+                })
+                .collect()
+        });
+
+        // Lower return type
+        let ret_type = func
+            .ret_type(db)
+            .and_then(|r| r.ty(db))
+            .and_then(|ty| lower_type_ref(db, &mut node_store, ty))
+            .unwrap_or(NodeId::ZERO);
+
+        Signature::new(db, params, ret_type, node_store)
+    }
+}
+
+fn lower_type_ref<'db>(
+    db: &'db dyn Database,
+    node_store: &mut NodeStore<'db>,
+    ty: ast::Type,
+) -> Option<NodeId> {
+    match ty {
+        ast::Type::Path(path) => {
+            let token = path
+                .syntax()
+                .children_with_tokens(db)
+                .find_map(|t| t.into_token())
+                .expect("path should have at least one token");
+            let sym = token.green().text_trimmed(db).into_symbol(db);
+            Some(node_store.alloc_type_ref(sym))
+        }
+    }
+}
+
+impl<'db> FunctionLocation<'db> {
+    pub fn source(self, db: &'db dyn Database) -> ast::Function<'db> {
         use mitki_parse::FileParse as _;
         use mitki_yellow::ast::{self, Node as _};
 
@@ -51,6 +104,18 @@ impl<'db> FunctionLocation<'db> {
         let syntax = ptr.to_node(db, &file.parse(db).syntax_node());
         ast::Function::cast(db, syntax).unwrap()
     }
+}
+
+#[salsa::tracked]
+pub struct Signature<'db> {
+    #[tracked]
+    #[returns(deref)]
+    pub params: Vec<NodeId>,
+    #[tracked]
+    pub ret_type: NodeId,
+    #[tracked]
+    #[returns(ref)]
+    pub nodes: NodeStore<'db>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, salsa::Update)]

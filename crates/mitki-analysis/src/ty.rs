@@ -1,7 +1,7 @@
 #[salsa::interned(debug)]
-pub(crate) struct Ty<'db> {
+pub struct Ty<'db> {
     #[returns(ref)]
-    kind: TyKind<'db>,
+    pub kind: TyKind<'db>,
 }
 
 impl<'db> Ty<'db> {
@@ -11,7 +11,7 @@ impl<'db> Ty<'db> {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, salsa::Update)]
-pub(crate) enum TyKind<'db> {
+pub enum TyKind<'db> {
     Bool,
     Float,
     Int,
@@ -19,7 +19,7 @@ pub(crate) enum TyKind<'db> {
     Char,
     Tuple(Vec<Ty<'db>>),
     Unknown,
-    Function,
+    Function { inputs: Vec<Ty<'db>>, output: Ty<'db> },
 }
 
 pub(crate) struct TyDisplay<'db> {
@@ -43,8 +43,12 @@ impl<'db> std::fmt::Display for TyDisplay<'db> {
                 }
                 write!(f, ")")
             }
+            TyKind::Function { inputs, output } => {
+                write!(f, "fun(")?;
+                write_joined(f, self.db, inputs.iter(), ", ")?;
+                write!(f, ") -> {}", output.display(self.db))
+            }
             TyKind::Unknown => write!(f, "{{unknown}}"),
-            TyKind::Function => write!(f, "fn()"),
         }
     }
 }

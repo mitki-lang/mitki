@@ -4,7 +4,7 @@ use salsa::Database;
 
 use crate::hir::{Function, HasFunction as _, NodeId, NodeKind};
 use crate::item::scope::FunctionLocation;
-use crate::resolver::{PathResolution, Resolver};
+use crate::resolver::{Resolution, Resolver};
 use crate::ty::{Ty, TyKind};
 
 pub(crate) trait Inferable<'db> {
@@ -43,6 +43,7 @@ impl<'db> Inference<'db> {
 pub(crate) enum Diagnostic<'db> {
     UnresolvedIdent(NodeId),
     TypeMismatch(NodeId, Ty<'db>, Ty<'db>),
+    ExpectedValueFoundType(NodeId, Ty<'db>),
 }
 
 pub(crate) struct InferenceBuilder<'func, 'db> {
@@ -99,14 +100,48 @@ impl<'db> InferenceBuilder<'_, 'db> {
                 let resolution = self.resolver.resolve_path(path);
                 self.resolver.reset(guard);
 
-                let Some(binding) = resolution else {
+                let Some(resolution) = resolution else {
                     self.inference.diagnostics.push(Diagnostic::UnresolvedIdent(node));
                     return Ty::new(self.db, TyKind::Unknown);
                 };
 
-                match binding {
-                    PathResolution::Local(binding) => self.inference.type_of_node[&binding],
-                    PathResolution::Function(_) => Ty::new(self.db, TyKind::Function),
+                match resolution {
+                    Resolution::Local(binding) => self.inference.type_of_node[&binding],
+                    Resolution::Function(function) => {
+                        let resolver = Resolver::new(self.db, function);
+                        let signature = function.signature(self.db);
+
+                        let nodes = signature.nodes(self.db);
+                        let params = signature.params(self.db);
+                        let ret_type = signature.ret_type(self.db);
+
+                        let inputs = params
+                            .iter()
+                            .map(|&param| {
+                                let (_, ty) = nodes.param(param);
+                                let name = nodes.type_ref(ty);
+
+                                match resolver.resolve_path(name) {
+                                    Some(Resolution::Type(ty)) => ty,
+                                    _ => self.unknown,
+                                }
+                            })
+                            .collect();
+
+                        let name = nodes.type_ref(ret_type);
+                        let output = match resolver.resolve_path(name) {
+                            Some(Resolution::Type(ty)) => ty,
+                            _ => self.unknown,
+                        };
+
+                        Ty::new(self.db, TyKind::Function { inputs, output })
+                    }
+                    Resolution::Type(ty) => {
+                        self.inference
+                            .diagnostics
+                            .push(Diagnostic::ExpectedValueFoundType(node, ty));
+                        self.unknown
+                    }
                 }
             }
             NodeKind::Block => {
@@ -157,7 +192,46 @@ impl<'db> InferenceBuilder<'_, 'db> {
                 if body != NodeId::ZERO {
                     self.infer_node(body, NoExpectation);
                 }
-                Ty::new(self.db, TyKind::Function)
+                Ty::new(self.db, TyKind::Function { inputs: vec![], output: self.unknown })
+            }
+            NodeKind::Call => {
+                let (callee, args) = self.function.call(node);
+                let callee_ty = self.infer_node(callee, NoExpectation);
+
+                if let TyKind::Function { inputs, output } = callee_ty.kind(self.db) {
+                    if inputs.len() != args.len() {
+                        let arg_tys = args
+                            .iter()
+                            .map(|&arg| self.infer_node(arg, NoExpectation))
+                            .collect::<Vec<_>>();
+
+                        let actual_ty = Ty::new(
+                            self.db,
+                            TyKind::Function { inputs: arg_tys.clone(), output: *output },
+                        );
+
+                        self.inference
+                            .diagnostics
+                            .push(Diagnostic::TypeMismatch(node, actual_ty, callee_ty));
+                    }
+                    for (&arg_node, &expected_ty) in args.iter().zip(inputs.iter()) {
+                        self.infer_node(arg_node, ExpectHasType(expected_ty));
+                    }
+
+                    *output
+                } else {
+                    let expected_fn = Ty::new(
+                        self.db,
+                        TyKind::Function { inputs: Vec::new(), output: self.unknown },
+                    );
+
+                    self.inference.diagnostics.push(Diagnostic::TypeMismatch(
+                        node,
+                        callee_ty,
+                        expected_fn,
+                    ));
+                    self.unknown
+                }
             }
             _ => Ty::new(self.db, TyKind::Unknown),
         };
