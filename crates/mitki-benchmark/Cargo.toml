@@ -20,7 +20,7 @@ name = "tokenizer"
 harness = false
 
 [dev-dependencies]
-codspeed-criterion-compat = { version = "2.7", default-features = false }
+codspeed-criterion-compat = { version = "3.0", default-features = false }
 mitki-ide.workspace = true
 mitki-inputs.workspace = true
 mitki-parse.workspace = true
