@@ -1,3 +1,5 @@
+//! Token storage and trivia attachment helpers.
+
 use std::marker::PhantomData;
 
 use text_size::{TextRange, TextSize};
@@ -6,8 +8,9 @@ use super::node::Node;
 use super::tree::TreeInner;
 use crate::SyntaxKind;
 
+/// Raw token stored in the tree arena.
 #[derive(Clone, Copy)]
-#[repr(align(4))] // Required for the bit tagging of `Node`.
+#[repr(align(4))]
 pub(crate) struct Token {
     pub(crate) kind: SyntaxKind,
     pub(crate) attached_trivia: AttachedTrivia,
@@ -18,14 +21,16 @@ pub(crate) struct Token {
 unsafe impl Send for Token {}
 unsafe impl Sync for Token {}
 
+/// Compact encoding for trivia attachment metadata.
 #[derive(Clone, Copy)]
 pub(crate) struct AttachedTrivia {
-    // Encoding: the LSB is 1 when there is leading trivia, and 0 if not. The second LSB is the
-    // same for trailing trivia. Other bits encode:
-    //
-    // - If this is a non-trivia token, the number of leading trivia tokens.
-    // - If this is the first trailing trivia token of some token (whose LSB is 1), the number of
-    //   trailing trivia tokens of that token.
+    /// Encodes leading/trailing presence and trivia length in a single `u16`.
+    ///
+    /// Layout:
+    /// - bit 0: has leading trivia
+    /// - bit 1: has trailing trivia
+    /// - bits 2..: trivia length (leading for real tokens, trailing for first
+    ///   trailing token)
     raw: u16,
 }
 
@@ -62,7 +67,7 @@ impl AttachedTrivia {
     }
 }
 
-// Not a real reference, for Stacked Borrows.
+/// Raw token handle; not a real reference to satisfy Stacked Borrows.
 #[derive(Clone, Copy)]
 pub(crate) struct TokenRef<'a> {
     pub(super) ptr: *const Token,
@@ -80,7 +85,7 @@ impl<'a> TokenRef<'a> {
         self.ptr
     }
 
-    // Doesn't return a `TokenRef`, because its invariant is that it's not fake.
+    /// Returns the previous token even if it is the fake sentinel.
     #[inline]
     fn prev_maybe_fake_token(self) -> &'a Token {
         unsafe { &*self.ptr.sub(1) }
@@ -156,6 +161,7 @@ impl<'a> TokenRef<'a> {
     }
 }
 
+/// Iterator over trivia tokens attached to a token.
 #[derive(Clone)]
 pub(crate) struct TokenRefIter<'a> {
     start: *const Token,

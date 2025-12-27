@@ -1,3 +1,8 @@
+//! Node storage and tagged child pointers.
+//!
+//! Child pointers encode their kind in the low bits, so the pointed-to types
+//! are aligned to 4 bytes to keep those bits available.
+
 use std::marker::PhantomData;
 
 use text_size::{TextRange, TextSize};
@@ -7,6 +12,10 @@ use crate::nodes::TreeInner;
 use crate::nodes::token::{Token, TokenRef};
 use crate::{NodeOrToken, SyntaxKind, TokenAtOffset};
 
+/// Owning storage for all nodes, lists, and child arrays.
+///
+/// Raw pointers stored in nodes and tokens are only valid while this storage
+/// lives.
 #[expect(unused, reason = "the fields are referenced by raw pointers")]
 pub(crate) struct Nodes {
     pub(crate) nodes: MaybeDangling<Box<[Node]>>,
@@ -16,6 +25,7 @@ pub(crate) struct Nodes {
 }
 
 impl Nodes {
+    /// Returns the root node (always index 0).
     #[inline]
     pub(crate) fn root(&self) -> &Node {
         &self.nodes[0]
@@ -25,7 +35,8 @@ impl Nodes {
 unsafe impl Send for Nodes {}
 unsafe impl Sync for Nodes {}
 
-#[repr(align(4))] // Needed for the bit tagging.
+/// Raw node stored in the tree arena.
+#[repr(align(4))]
 pub(crate) struct Node {
     pub(crate) parent: *const Self,
     pub(crate) children: *const NodeOrListOrToken,
@@ -36,17 +47,20 @@ pub(crate) struct Node {
 }
 
 impl Node {
+    /// Returns the text range covered by this node.
     #[inline]
     pub(crate) fn text_range(&self, tree: &TreeInner) -> TextRange {
         TextRange::new(self.first_token(tree).start(), self.last_token(tree).end())
     }
 
+    /// Returns the node text slice from the backing source.
     #[inline]
     pub(crate) fn text<'a>(&'a self, tree: &'a TreeInner) -> &'a str {
         let range = self.text_range(tree);
         unsafe { tree.text.get_unchecked(usize::from(range.start())..usize::from(range.end())) }
     }
 
+    /// Returns the first token spanned by this node.
     #[inline]
     pub(crate) fn first_token(&self, tree: &TreeInner) -> TokenRef<'_> {
         TokenRef {
@@ -55,6 +69,7 @@ impl Node {
         }
     }
 
+    /// Returns the last token spanned by this node.
     #[inline]
     pub(crate) fn last_token(&self, tree: &TreeInner) -> TokenRef<'_> {
         TokenRef {
@@ -63,11 +78,13 @@ impl Node {
         }
     }
 
+    /// Returns the parent node if present.
     #[inline]
     pub(crate) fn parent(&self) -> Option<&Self> {
         unsafe { self.parent.as_ref() }
     }
 
+    /// Returns the child slice (nodes, lists, and tokens).
     #[inline]
     pub(crate) fn children(&self) -> &[NodeOrListOrToken] {
         unsafe { std::slice::from_raw_parts(self.children, self.children_len as usize) }
@@ -80,6 +97,7 @@ impl Node {
         unsafe { std::slice::from_raw_parts(start, len as usize) }
     }
 
+    /// Finds the token at the given offset within this node.
     #[inline]
     pub(crate) fn token_at_offset<'a>(
         &self,
@@ -105,6 +123,7 @@ impl Node {
         }
     }
 
+    /// Returns the smallest element that fully covers `range`.
     #[inline]
     pub(crate) fn covering_element<'a>(
         &'a self,
@@ -126,12 +145,14 @@ impl Node {
     }
 }
 
+/// The typed view of a tagged child pointer.
 pub(crate) enum ChildKind<'a> {
     Token(TokenRef<'a>),
     Node(&'a Node),
     List(&'a List),
 }
 
+/// Tagged pointer to either a node, list, or token.
 #[derive(Clone, Copy)]
 pub(crate) struct NodeOrListOrToken(*const ());
 
@@ -206,12 +227,14 @@ impl NodeOrListOrToken {
     }
 }
 
-#[repr(align(4))] // Needed for the bit tagging.
+/// List node containing child nodes only.
+#[repr(align(4))]
 pub(crate) struct List {
     pub(crate) children: *const [*const Node],
 }
 
 impl List {
+    /// Returns the list children as references.
     #[inline]
     pub(crate) fn children(&self) -> &[&Node] {
         // SAFETY: Layout is equivalent.

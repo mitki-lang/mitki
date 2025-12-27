@@ -1,3 +1,5 @@
+//! Incremental builder for the immutable syntax tree.
+
 use std::marker::PhantomData;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ptr::null;
@@ -37,6 +39,7 @@ struct Token {
     parent: usize,
 }
 
+/// Builds a `SyntaxTree` from parser events.
 pub struct Builder<'db> {
     nodes: Vec<Node>,
     node_children: Vec<ChildKind>,
@@ -72,9 +75,12 @@ const DEFAULT_TREE_SIZE: usize = 1024;
 const DEFAULT_CHILDREN_LEN: usize = 10;
 
 impl<'db> Builder<'db> {
+    /// Creates a new builder for `text`.
+    ///
+    /// The internal token buffer is seeded with a fake token at index 0 to make
+    /// token ranges uniform.
     pub fn new(_db: &'db dyn salsa::Database, text: &str) -> Self {
         let mut tokens = Vec::with_capacity(DEFAULT_TREE_SIZE);
-        // Fake token.
         tokens.push(Token {
             kind: SyntaxKind::TOMBSTONE,
             attached_trivia: AttachedTrivia::new(false, false, 0),
@@ -126,6 +132,7 @@ impl<'db> Builder<'db> {
         }
     }
 
+    /// Starts a new node of the given kind.
     pub fn start_node(&mut self, kind: SyntaxKind) {
         let parent = self.last_parent();
         let new_node = self.nodes.len();
@@ -161,6 +168,7 @@ impl<'db> Builder<'db> {
         self.opened.last().copied()
     }
 
+    /// Finishes the most recently started node.
     pub fn finish_node(&mut self) {
         let node = self.expect_last_opened_node();
         self.opened.pop();
@@ -175,6 +183,7 @@ impl<'db> Builder<'db> {
         self.recycle_node_children_vec(children);
     }
 
+    /// Starts a list under the current node.
     pub fn start_list(&mut self) {
         let parent = self.expect_last_opened_node();
         let new_list = self.lists.len();
@@ -188,6 +197,7 @@ impl<'db> Builder<'db> {
         self.opened.push(Opened::List(new_list));
     }
 
+    /// Finishes the most recently started list.
     pub fn finish_list(&mut self) {
         let Opened::List(list) = self.last_opened() else {
             panic!("expected an opened list, found an opened node");
@@ -201,6 +211,7 @@ impl<'db> Builder<'db> {
         self.recycle_list_children_vec(children);
     }
 
+    /// Adds a token with its leading and trailing trivia.
     pub fn token(
         &mut self,
         leading_trivia: impl ExactSizeIterator<Item = TriviaPiece>,
@@ -264,6 +275,7 @@ impl<'db> Builder<'db> {
         }
     }
 
+    /// Finishes building and returns the immutable `SyntaxTree`.
     pub fn finish(self) -> SyntaxTree<'db> {
         assert!(self.opened.is_empty());
         assert!(!self.nodes.is_empty());

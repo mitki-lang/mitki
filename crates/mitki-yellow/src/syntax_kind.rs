@@ -1,5 +1,8 @@
+//! Syntax and token kinds for the parser and tree.
+
 use std::fmt::Display;
 
+/// All token and node kinds produced by the parser.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SyntaxKind {
@@ -112,6 +115,7 @@ impl Display for SyntaxKind {
 }
 
 impl SyntaxKind {
+    /// Returns `true` if this kind represents trivia (whitespace or comments).
     #[inline]
     pub fn is_trivia(self) -> bool {
         matches!(self, Self::WHITESPACE | Self::NEWLINE | Self::LINE_COMMENT)

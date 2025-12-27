@@ -1,27 +1,37 @@
+//! Typed AST wrappers over the raw syntax tree.
+
 use salsa::Database;
 
 use crate::SyntaxKind::*;
 use crate::{Red, RedNode, RedToken};
 
+/// Typed wrapper around a syntax node.
 pub trait Node<'db>: Sized {
+    /// Attempts to cast a raw syntax node into this typed wrapper.
     fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self>;
 
+    /// Returns the underlying syntax node.
     fn syntax(&self) -> &RedNode<'db>;
 }
 
+/// Nodes that expose a name child.
 pub trait HasName<'db>: Node<'db> {
+    /// Returns the name child, if present.
     fn name(&self, db: &'db dyn Database) -> Option<Name<'db>> {
         child(db, self.syntax())
     }
 }
 
+/// Root module node.
 pub struct Module<'db>(pub RedNode<'db>);
 
 impl<'db> Module<'db> {
+    /// Wraps a root syntax node as a module.
     pub fn new(root: RedNode<'db>) -> Self {
         Self(root)
     }
 
+    /// Iterates items contained in the module.
     pub fn items(&self, db: &'db dyn Database) -> impl Iterator<Item = Item<'db>> + '_ {
         self.0.children().filter_map(move |syntax| Item::cast(db, syntax))
     }
@@ -37,6 +47,7 @@ impl<'db> Node<'db> for Module<'db> {
     }
 }
 
+/// Top-level items.
 pub enum Item<'db> {
     Function(Function<'db>),
 }
@@ -56,17 +67,21 @@ impl<'db> Node<'db> for Item<'db> {
     }
 }
 
+/// Function definition node.
 pub struct Function<'db>(RedNode<'db>);
 
 impl<'db> Function<'db> {
+    /// Returns the parameter list.
     pub fn params(&self, db: &'db dyn Database) -> Option<Params<'db>> {
         child(db, &self.0)
     }
 
+    /// Returns the return type, if any.
     pub fn ret_type(&self, db: &'db dyn Database) -> Option<RetType<'db>> {
         child(db, self.syntax())
     }
 
+    /// Returns the function body.
     pub fn body(&self, db: &'db dyn Database) -> Option<Block<'db>> {
         child(db, &self.0)
     }
@@ -85,11 +100,13 @@ impl<'db> Node<'db> for Function<'db> {
     }
 }
 
+/// Return type node.
 pub struct RetType<'db> {
     pub(crate) syntax: RedNode<'db>,
 }
 
 impl<'db> RetType<'db> {
+    /// Returns the type node.
     #[inline]
     pub fn ty(&self, db: &'db dyn Database) -> Option<Type<'db>> {
         child(db, &self.syntax)
@@ -111,9 +128,11 @@ impl<'db> Node<'db> for RetType<'db> {
 
 impl<'db> HasName<'db> for Function<'db> {}
 
+/// Parameter list node.
 pub struct Params<'db>(RedNode<'db>);
 
 impl<'db> Params<'db> {
+    /// Iterates parameters in the list.
     pub fn iter(&self, db: &'db dyn Database) -> impl Iterator<Item = Param<'db>> + '_ {
         self.0.children().filter_map(move |syntax| Param::cast(db, syntax))
     }
@@ -132,13 +151,16 @@ impl<'db> Node<'db> for Params<'db> {
     }
 }
 
+/// Function parameter node.
 pub struct Param<'db>(RedNode<'db>);
 
 impl<'db> Param<'db> {
+    /// Returns the parameter name.
     pub fn name(&self, db: &'db dyn Database) -> Name<'db> {
         child(db, self.syntax()).unwrap()
     }
 
+    /// Returns the parameter type, if any.
     pub fn ty(&self, db: &'db dyn Database) -> Option<Type<'db>> {
         child(db, self.syntax())
     }
@@ -157,13 +179,16 @@ impl<'db> Node<'db> for Param<'db> {
     }
 }
 
+/// Block node containing statements and an optional tail expression.
 pub struct Block<'db>(RedNode<'db>);
 
 impl<'db> Block<'db> {
+    /// Iterates statements in the block.
     pub fn stmts(&self, db: &'db dyn Database) -> impl Iterator<Item = Stmt<'db>> + '_ {
         self.0.children().filter_map(move |syntax| Stmt::cast(db, syntax))
     }
 
+    /// Returns the tail expression, if any.
     pub fn tail_expr(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         child(db, self.syntax())
     }
@@ -182,6 +207,7 @@ impl<'db> Node<'db> for Block<'db> {
     }
 }
 
+/// Statement node.
 pub enum Stmt<'db> {
     Val(Val<'db>),
     Expr(ExprStmt<'db>),
@@ -204,13 +230,16 @@ impl<'db> Node<'db> for Stmt<'db> {
     }
 }
 
+/// Value statement node.
 pub struct Val<'db>(RedNode<'db>);
 
 impl<'db> Val<'db> {
+    /// Returns the optional type annotation.
     pub fn ty(&self, db: &'db dyn Database) -> Option<Type<'db>> {
         child(db, self.syntax())
     }
 
+    /// Returns the initializer expression.
     pub fn expr(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         child(db, self.syntax())
     }
@@ -231,13 +260,16 @@ impl<'db> Node<'db> for Val<'db> {
 
 impl<'db> HasName<'db> for Val<'db> {}
 
+/// Expression statement node.
 pub struct ExprStmt<'db>(RedNode<'db>);
 
 impl<'db> ExprStmt<'db> {
+    /// Returns the inner expression.
     pub fn expr(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         child(db, self.syntax())
     }
 
+    /// Returns the trailing semicolon token, if any.
     pub fn semi(&self, _db: &'db dyn Database) -> Option<RedToken<'_>> {
         self.syntax()
             .children_with_tokens()
@@ -259,6 +291,7 @@ impl<'db> Node<'db> for ExprStmt<'db> {
     }
 }
 
+/// Expression node.
 pub enum Expr<'db> {
     Path(Path<'db>),
     Literal(Literal<'db>),
@@ -302,6 +335,7 @@ impl<'db> Node<'db> for Expr<'db> {
     }
 }
 
+/// Path expression node.
 pub struct Path<'db>(RedNode<'db>);
 
 impl<'db> Node<'db> for Path<'db> {
@@ -319,9 +353,11 @@ impl<'db> Node<'db> for Path<'db> {
 
 impl<'db> HasName<'db> for Path<'db> {}
 
+/// Literal expression node.
 pub struct Literal<'db>(RedNode<'db>);
 
 impl<'db> Literal<'db> {
+    /// Returns the literal kind derived from the first token.
     pub fn kind(&self, _db: &'db dyn Database) -> LiteralKind<'db> {
         let token = first_non_trivia_token(&self.0).unwrap();
 
@@ -336,9 +372,11 @@ impl<'db> Literal<'db> {
     }
 }
 
+/// Tuple expression node.
 pub struct TupleExpr<'db>(RedNode<'db>);
 
 impl<'db> TupleExpr<'db> {
+    /// Iterates tuple items.
     pub fn exprs(&self, db: &'db dyn Database) -> impl Iterator<Item = Expr<'db>> + '_ {
         self.0.children().filter_map(move |syntax| Expr::cast(db, syntax))
     }
@@ -357,69 +395,86 @@ impl<'db> Node<'db> for TupleExpr<'db> {
     }
 }
 
+/// Binary expression node.
 pub struct Binary<'db>(RedNode<'db>);
 
 impl<'db> Binary<'db> {
+    /// Returns the left-hand side.
     pub fn lhs(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         self.0.children().next().and_then(|syntax| Expr::cast(db, syntax))
     }
 
+    /// Returns the operator text, if any.
     pub fn op(&self, _db: &'db dyn Database) -> Option<&'db str> {
         first_non_trivia_token(&self.0).map(|syntax| syntax.text_trimmed())
     }
 
+    /// Returns the right-hand side.
     pub fn rhs(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         self.0.children().nth(1).and_then(|syntax| Expr::cast(db, syntax))
     }
 }
 
+/// Postfix expression node.
 pub struct Postfix<'db>(RedNode<'db>);
 
 impl<'db> Postfix<'db> {
+    /// Returns the inner expression.
     pub fn expr(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         self.0.children().next().and_then(|syntax| Expr::cast(db, syntax))
     }
 
+    /// Returns the operator text, if any.
     pub fn op(&self, _db: &'db dyn Database) -> Option<&'db str> {
         first_non_trivia_token(&self.0).map(|syntax| syntax.text_trimmed())
     }
 }
 
+/// Prefix expression node.
 pub struct Prefix<'db>(RedNode<'db>);
 
 impl<'db> Prefix<'db> {
+    /// Returns the operator text, if any.
     pub fn op(&self, _db: &'db dyn Database) -> Option<&'db str> {
         first_non_trivia_token(&self.0).map(|syntax| syntax.text_trimmed())
     }
 
+    /// Returns the inner expression.
     pub fn expr(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         self.0.children().next().and_then(|syntax| Expr::cast(db, syntax))
     }
 }
 
+/// If expression node.
 pub struct IfExpr<'db>(RedNode<'db>);
 
 impl<'db> IfExpr<'db> {
+    /// Returns the condition expression.
     pub fn condition(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         child(db, self.syntax())
     }
 
+    /// Returns the then branch block.
     pub fn then_branch(&self, db: &'db dyn Database) -> Option<Block<'db>> {
         self.syntax().children().nth(1).and_then(|syntax| Block::cast(db, syntax))
     }
 
+    /// Returns the else branch block, if any.
     pub fn else_branch(&self, db: &'db dyn Database) -> Option<Block<'db>> {
         self.syntax().children().nth(2).and_then(|syntax| Block::cast(db, syntax))
     }
 }
 
+/// Closure expression node.
 pub struct Closure<'db>(RedNode<'db>);
 
 impl<'db> Closure<'db> {
+    /// Returns the parameter list.
     pub fn params(&self, db: &'db dyn Database) -> Option<Params<'db>> {
         child(db, &self.0)
     }
 
+    /// Returns the closure body.
     pub fn body(&self, db: &'db dyn Database) -> Block<'db> {
         child(db, self.syntax()).unwrap()
     }
@@ -438,13 +493,16 @@ impl<'db> Node<'db> for Closure<'db> {
     }
 }
 
+/// Call expression node.
 pub struct CallExpr<'db>(RedNode<'db>);
 
 impl<'db> CallExpr<'db> {
+    /// Returns the callee expression.
     pub fn callee(&self, db: &'db dyn Database) -> Option<Expr<'db>> {
         child(db, self.syntax())
     }
 
+    /// Returns the argument list, if any.
     pub fn arg_list(&self, db: &'db dyn Database) -> Option<ArgList<'db>> {
         child(db, self.syntax())
     }
@@ -463,6 +521,7 @@ impl<'db> Node<'db> for CallExpr<'db> {
     }
 }
 
+/// Argument list node.
 pub struct ArgList<'db> {
     syntax: RedNode<'db>,
 }
@@ -481,6 +540,7 @@ impl<'db> Node<'db> for ArgList<'db> {
 }
 
 impl<'db> ArgList<'db> {
+    /// Iterates argument expressions.
     pub fn args(&self, db: &'db dyn Database) -> impl Iterator<Item = Expr<'db>> + '_ {
         self.syntax.children().filter_map(move |syntax| Expr::cast(db, syntax))
     }
@@ -499,6 +559,7 @@ impl<'db> Node<'db> for IfExpr<'db> {
     }
 }
 
+/// Concrete literal variants.
 pub enum LiteralKind<'db> {
     Bool(bool),
     Int(RedToken<'db>),
@@ -507,9 +568,11 @@ pub enum LiteralKind<'db> {
     Char(RedToken<'db>),
 }
 
+/// Identifier node.
 pub struct Name<'db>(RedNode<'db>);
 
 impl<'db> Name<'db> {
+    /// Returns the identifier text.
     pub fn as_str(&self, _db: &'db dyn Database) -> &'db str {
         first_non_trivia_token(self.syntax()).unwrap().text_trimmed()
     }
@@ -528,6 +591,7 @@ impl<'db> Node<'db> for Name<'db> {
     }
 }
 
+/// Type node.
 pub enum Type<'db> {
     Path(PathType<'db>),
 }
@@ -547,6 +611,7 @@ impl<'db> Node<'db> for Type<'db> {
     }
 }
 
+/// Path type node.
 pub struct PathType<'db>(RedNode<'db>);
 
 impl<'db> Node<'db> for PathType<'db> {

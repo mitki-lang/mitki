@@ -1,3 +1,5 @@
+//! Public syntax tree API built on immutable, parent-linked nodes.
+
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -6,17 +8,20 @@ use text_size::{TextRange, TextSize};
 use crate::SyntaxKind;
 use crate::nodes::{ChildKind, List, Node, NodeOrListOrToken, TokenRef, TokenRefIter, TreeInner};
 
+/// Owned syntax tree for a single source text.
 pub struct SyntaxTree<'db> {
     pub(crate) tree: TreeInner,
     pub(crate) _marker: PhantomData<&'db ()>,
 }
 
 impl<'db> SyntaxTree<'db> {
+    /// Returns the root syntax node.
     #[inline]
     pub fn root(&'db self) -> SyntaxNode<'db> {
         SyntaxNode { tree: &self.tree, node: self.tree.nodes.root() }
     }
 
+    /// Returns the full source text for this tree.
     #[inline]
     pub fn text(&self) -> &str {
         &self.tree.text
@@ -41,6 +46,7 @@ unsafe impl salsa::Update for SyntaxTree<'_> {
     }
 }
 
+/// Token handle tied to the lifetime of the tree.
 #[derive(Clone, Copy)]
 pub struct SyntaxToken<'a> {
     tree: &'a TreeInner,
@@ -48,61 +54,73 @@ pub struct SyntaxToken<'a> {
 }
 
 impl<'a> SyntaxToken<'a> {
+    /// Returns this token's kind.
     #[inline]
     pub fn kind(self) -> SyntaxKind {
         self.token.get().kind
     }
 
+    /// Returns `true` if this token is trivia.
     #[inline]
     pub fn is_trivia(self) -> bool {
         self.kind().is_trivia()
     }
 
+    /// Returns the token text range (excluding attached trivia).
     #[inline]
     pub fn text_range(self) -> TextRange {
         self.token.text_range()
     }
 
+    /// Returns the range including attached trivia.
     #[inline]
     pub fn range(self) -> TextRange {
         self.text_range_including_trivia()
     }
 
+    /// Returns the trimmed range (same as `text_range` for tokens).
     #[inline]
     pub fn trimmed_range(self) -> TextRange {
         self.text_range()
     }
 
+    /// Returns the token text (excluding trivia).
     #[inline]
     pub fn text(self) -> &'a str {
         self.token.text(self.tree)
     }
 
+    /// Returns the token text (same as `text` for tokens).
     #[inline]
     pub fn text_trimmed(self) -> &'a str {
         self.text()
     }
 
+    /// Returns the previous token if any.
     #[inline]
     pub fn prev_token(self) -> Option<Self> {
         Some(Self { tree: self.tree, token: self.token.prev_token(self.tree)? })
     }
 
+    /// Returns the next token if any.
     #[inline]
     pub fn next_token(self) -> Option<Self> {
         Some(Self { tree: self.tree, token: self.token.next_token(self.tree)? })
     }
 
+    /// Iterates over leading trivia tokens.
     #[inline]
     pub fn leading_trivia(self) -> TriviaIter<'a> {
         TriviaIter { tree: self.tree, tokens: self.token.leading_trivia() }
     }
 
+    /// Iterates over trailing trivia tokens.
     #[inline]
     pub fn trailing_trivia(self) -> TriviaIter<'a> {
         TriviaIter { tree: self.tree, tokens: self.token.trailing_trivia() }
     }
 
+    /// Returns the range including leading and trailing trivia.
     #[inline]
     pub fn text_range_including_trivia(self) -> TextRange {
         let first_token = self.leading_trivia().next().unwrap_or(self);
@@ -110,22 +128,26 @@ impl<'a> SyntaxToken<'a> {
         TextRange::new(first_token.token.start(), last_token.token.end())
     }
 
+    /// Returns the text including leading and trailing trivia.
     #[inline]
     pub fn text_including_trivia(self) -> &'a str {
         &self.tree.text[self.text_range_including_trivia()]
     }
 
+    /// Returns the parent node.
     #[inline]
     pub fn parent(self) -> SyntaxNode<'a> {
         SyntaxNode { tree: self.tree, node: self.token.parent() }
     }
 
+    /// Returns an iterator of parent nodes, starting from the immediate parent.
     #[inline]
     pub fn parent_ancestors(self) -> impl Iterator<Item = SyntaxNode<'a>> + Clone {
         self.parent().ancestors()
     }
 }
 
+/// Iterator over trivia tokens.
 #[derive(Clone)]
 pub struct TriviaIter<'a> {
     tree: &'a TreeInner,
@@ -169,6 +191,7 @@ impl ExactSizeIterator for TriviaIter<'_> {
     }
 }
 
+/// Node handle tied to the lifetime of the tree.
 #[derive(Clone, Copy)]
 pub struct SyntaxNode<'a> {
     tree: &'a TreeInner,
@@ -176,31 +199,37 @@ pub struct SyntaxNode<'a> {
 }
 
 impl<'a> SyntaxNode<'a> {
+    /// Returns this node's kind.
     #[inline]
     pub fn kind(self) -> SyntaxKind {
         self.node.kind
     }
 
+    /// Returns the first token spanned by this node.
     #[inline]
     pub fn first_token(self) -> SyntaxToken<'a> {
         SyntaxToken { tree: self.tree, token: self.node.first_token(self.tree) }
     }
 
+    /// Returns the last token spanned by this node.
     #[inline]
     pub fn last_token(self) -> SyntaxToken<'a> {
         SyntaxToken { tree: self.tree, token: self.node.last_token(self.tree) }
     }
 
+    /// Returns the text range covered by this node.
     #[inline]
     pub fn text_range(self) -> TextRange {
         self.node.text_range(self.tree)
     }
 
+    /// Returns the range covered by this node.
     #[inline]
     pub fn range(self) -> TextRange {
         self.text_range()
     }
 
+    /// Returns the range with leading/trailing trivia trimmed away.
     #[inline]
     pub fn trimmed_range(self) -> TextRange {
         let first = self.first_non_trivia_token();
@@ -213,31 +242,37 @@ impl<'a> SyntaxNode<'a> {
         }
     }
 
+    /// Returns the text slice covered by this node.
     #[inline]
     pub fn text(self) -> &'a str {
         self.node.text(self.tree)
     }
 
+    /// Returns the parent node if any.
     #[inline]
     pub fn parent(self) -> Option<Self> {
         Some(Self { tree: self.tree, node: self.node.parent()? })
     }
 
+    /// Returns an iterator of ancestors starting from this node.
     #[inline]
     pub fn ancestors(self) -> impl Iterator<Item = SyntaxNode<'a>> + Clone {
         std::iter::successors(Some(self), |it| it.parent())
     }
 
+    /// Iterates children including tokens and list nodes.
     #[inline]
     pub fn children_with_tokens_and_lists(self) -> ChildrenWithTokensAndLists<'a> {
         ChildrenWithTokensAndLists { tree: self.tree, children: self.node.children().iter() }
     }
 
+    /// Iterates children including list nodes, skipping tokens.
     #[inline]
     pub fn children_with_lists(self) -> ChildrenWithLists<'a> {
         ChildrenWithLists { inner: self.children_with_tokens_and_lists() }
     }
 
+    /// Iterates children including tokens, flattening lists.
     #[inline]
     pub fn children_with_tokens(self) -> ChildrenWithTokens<'a> {
         ChildrenWithTokens {
@@ -247,10 +282,12 @@ impl<'a> SyntaxNode<'a> {
     }
 
     #[inline]
+    /// Iterates child nodes, skipping tokens.
     pub fn children(self) -> Children<'a> {
         Children { inner: self.children_with_tokens() }
     }
 
+    /// Returns the token at the given offset, if any.
     #[inline]
     pub fn token_at_offset(self, offset: TextSize) -> TokenAtOffset<SyntaxToken<'a>> {
         self.node
@@ -258,6 +295,7 @@ impl<'a> SyntaxNode<'a> {
             .map(|token| SyntaxToken { tree: self.tree, token })
     }
 
+    /// Returns the smallest element that fully covers `range`.
     #[inline]
     pub fn covering_element(self, range: TextRange) -> SyntaxElement<'a> {
         match self.node.covering_element(self.tree, range) {
@@ -297,8 +335,10 @@ impl<'a> SyntaxNode<'a> {
     }
 }
 
+/// Node or token element inside the tree.
 pub type SyntaxElement<'a> = NodeOrToken<SyntaxNode<'a>, SyntaxToken<'a>>;
 
+/// List node wrapper that provides indexed access to child nodes.
 #[derive(Clone, Copy)]
 pub struct SyntaxList<'a> {
     list: &'a List,
@@ -306,33 +346,39 @@ pub struct SyntaxList<'a> {
 }
 
 impl<'a> SyntaxList<'a> {
+    /// Returns the number of children in the list.
     #[inline]
     pub fn len(self) -> usize {
         self.list.children().len()
     }
 
+    /// Returns `true` when the list is empty.
     #[inline]
     pub fn is_empty(self) -> bool {
         self.len() == 0
     }
 
+    /// Returns the child at `idx`, if present.
     #[inline]
     pub fn get(self, idx: usize) -> Option<SyntaxNode<'a>> {
         Some(SyntaxNode { tree: self.tree, node: self.list.children().get(idx)? })
     }
 
+    /// Returns the child at `idx`, panicking if out of bounds.
     #[inline]
     #[track_caller]
     pub fn at(self, idx: usize) -> SyntaxNode<'a> {
         SyntaxNode { tree: self.tree, node: self.list.children()[idx] }
     }
 
+    /// Returns an iterator over list children.
     #[inline]
     pub fn iter(self) -> SyntaxListIter<'a> {
         SyntaxListIter { tree: self.tree, iter: self.list.children().iter() }
     }
 }
 
+/// Iterator over `SyntaxList` children.
 pub struct SyntaxListIter<'a> {
     tree: &'a TreeInner,
     iter: std::slice::Iter<'a, &'a Node>,
@@ -381,6 +427,7 @@ impl ExactSizeIterator for SyntaxListIter<'_> {
     }
 }
 
+/// Child element that may be a node, token, or list.
 #[derive(Clone, Copy)]
 pub enum NodeOrTokenOrList<'a> {
     Node(SyntaxNode<'a>),
@@ -388,6 +435,7 @@ pub enum NodeOrTokenOrList<'a> {
     List(SyntaxList<'a>),
 }
 
+/// Iterator over children including tokens and lists.
 pub struct ChildrenWithTokensAndLists<'a> {
     tree: &'a TreeInner,
     children: std::slice::Iter<'a, NodeOrListOrToken>,
@@ -450,11 +498,13 @@ impl ExactSizeIterator for ChildrenWithTokensAndLists<'_> {
     }
 }
 
+/// Child element that is either a node or list.
 pub enum NodeOrList<'a> {
     Node(SyntaxNode<'a>),
     List(SyntaxList<'a>),
 }
 
+/// Iterator over children including lists but skipping tokens.
 pub struct ChildrenWithLists<'a> {
     inner: ChildrenWithTokensAndLists<'a>,
 }
@@ -537,6 +587,7 @@ impl<'a> DoubleEndedIterator for ChildrenWithLists<'a> {
     }
 }
 
+/// Iterator over children including tokens, flattening list nodes.
 pub struct ChildrenWithTokens<'a> {
     active_list_iter: Option<SyntaxListIter<'a>>,
     children: ChildrenWithTokensAndLists<'a>,
@@ -600,6 +651,7 @@ impl<'a> Iterator for ChildrenWithTokens<'a> {
     }
 }
 
+/// Iterator over child nodes only.
 pub struct Children<'a> {
     inner: ChildrenWithTokens<'a>,
 }
@@ -649,6 +701,7 @@ impl<'a> Iterator for Children<'a> {
     }
 }
 
+/// Preorder traversal over nodes.
 #[derive(Clone)]
 pub struct Preorder<'a> {
     inner: PreorderWithTokens<'a>,
@@ -660,6 +713,7 @@ impl<'a> Preorder<'a> {
         Preorder { inner: PreorderWithTokens::new(start) }
     }
 
+    /// Skips the current subtree during traversal.
     #[inline]
     pub fn skip_subtree(&mut self) {
         self.inner.skip_subtree();
@@ -679,12 +733,14 @@ impl<'a> Iterator for Preorder<'a> {
     }
 }
 
+/// Preorder walk event for nodes.
 #[derive(Clone, Copy)]
 pub enum WalkEvent<'a> {
     Enter(SyntaxNode<'a>),
     Leave(SyntaxNode<'a>),
 }
 
+/// Preorder traversal over nodes and tokens.
 #[derive(Clone)]
 pub struct PreorderWithTokens<'a> {
     stack: Vec<(SyntaxNode<'a>, ChildrenWithTokens<'a>)>,
@@ -697,6 +753,7 @@ impl<'a> PreorderWithTokens<'a> {
         PreorderWithTokens { stack: Vec::with_capacity(128), root: Some(start) }
     }
 
+    /// Skips the current subtree during traversal.
     #[inline]
     pub fn skip_subtree(&mut self) {
         assert!(self.stack.pop().is_some(), "must have a subtree to skip");
@@ -727,6 +784,7 @@ impl<'a> Iterator for PreorderWithTokens<'a> {
     }
 }
 
+/// Preorder walk event including tokens.
 #[derive(Clone, Copy)]
 pub enum WalkEventWithTokens<'a> {
     EnterNode(SyntaxNode<'a>),
@@ -734,21 +792,29 @@ pub enum WalkEventWithTokens<'a> {
     Token(SyntaxToken<'a>),
 }
 
+/// Legacy alias for `SyntaxNode`.
 pub type RedNode<'db> = SyntaxNode<'db>;
+/// Legacy alias for `SyntaxToken`.
 pub type RedToken<'db> = SyntaxToken<'db>;
+/// Legacy alias for `NodeOrToken`.
 pub type Red<'db> = NodeOrToken<RedNode<'db>, RedToken<'db>>;
 
+/// Stable identifier for a node by kind and trimmed range.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, salsa::Update)]
 pub struct RedNodePtr {
+    /// Node kind used for lookup.
     pub kind: SyntaxKind,
+    /// Trimmed range used for lookup.
     pub range: TextRange,
 }
 
 impl RedNodePtr {
+    /// Builds a pointer from a concrete node.
     pub fn new(node: &RedNode<'_>) -> Self {
         Self { kind: node.kind(), range: node.trimmed_range() }
     }
 
+    /// Attempts to resolve this pointer within `root`.
     pub fn try_to_node<'a>(&self, root: &RedNode<'a>) -> Option<RedNode<'a>> {
         if root.parent().is_some() {
             return None;
@@ -771,17 +837,20 @@ impl RedNodePtr {
 }
 
 impl<'a> SyntaxNode<'a> {
+    /// Returns a preorder iterator over nodes.
     #[inline]
     pub fn preorder(self) -> Preorder<'a> {
         Preorder::new(self)
     }
 
+    /// Returns a preorder iterator over nodes and tokens.
     #[inline]
     pub fn preorder_with_tokens(self) -> PreorderWithTokens<'a> {
         PreorderWithTokens::new(self)
     }
 }
 
+/// Node-or-token wrapper used throughout the API.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NodeOrToken<N, T> {
     Node(N),
@@ -789,6 +858,7 @@ pub enum NodeOrToken<N, T> {
 }
 
 impl<N, T> NodeOrToken<N, T> {
+    /// Converts into the node variant, if any.
     pub fn into_node(self) -> Option<N> {
         match self {
             NodeOrToken::Node(node) => Some(node),
@@ -796,6 +866,7 @@ impl<N, T> NodeOrToken<N, T> {
         }
     }
 
+    /// Converts into the token variant, if any.
     pub fn into_token(self) -> Option<T> {
         match self {
             NodeOrToken::Node(_) => None,
@@ -803,6 +874,7 @@ impl<N, T> NodeOrToken<N, T> {
         }
     }
 
+    /// Returns a shared reference to the node, if any.
     pub fn as_node(&self) -> Option<&N> {
         match self {
             NodeOrToken::Node(node) => Some(node),
@@ -810,6 +882,7 @@ impl<N, T> NodeOrToken<N, T> {
         }
     }
 
+    /// Returns a shared reference to the token, if any.
     pub fn as_token(&self) -> Option<&T> {
         match self {
             NodeOrToken::Node(_) => None,
@@ -839,6 +912,7 @@ pub enum TokenAtOffset<T> {
 }
 
 impl<T> TokenAtOffset<T> {
+    /// Maps tokens to a different type.
     pub fn map<F: Fn(T) -> U, U>(self, f: F) -> TokenAtOffset<U> {
         match self {
             TokenAtOffset::None => TokenAtOffset::None,

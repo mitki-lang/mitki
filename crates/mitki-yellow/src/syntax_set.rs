@@ -1,13 +1,17 @@
+//! Compact bitset for `SyntaxKind` values.
+
 use crate::SyntaxKind;
 
 const SIZE: usize = 2;
 
+/// Fixed-size set for grouping `SyntaxKind` values.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SyntaxSet {
     bits: [u64; SIZE],
 }
 
 impl SyntaxSet {
+    /// An empty set.
     pub const EMPTY: Self = Self { bits: [0; SIZE] };
     const BITS_PER_SLOT: u16 = u64::BITS as u16;
 
@@ -30,6 +34,7 @@ impl SyntaxSet {
         Self { bits }
     }
 
+    /// Returns the union of two sets.
     pub const fn union(mut self, other: &Self) -> Self {
         let mut i = 0;
 
@@ -41,6 +46,7 @@ impl SyntaxSet {
         self
     }
 
+    /// Creates a set from a list of kinds.
     pub const fn new<const N: usize>(kinds: [SyntaxKind; N]) -> Self {
         let mut set = Self::EMPTY;
 
@@ -53,6 +59,7 @@ impl SyntaxSet {
         set
     }
 
+    /// Returns `true` if the set contains `kind`.
     pub const fn contains(&self, kind: SyntaxKind) -> bool {
         let kind = kind as u16;
         let slot_index = (kind / Self::BITS_PER_SLOT) as usize;

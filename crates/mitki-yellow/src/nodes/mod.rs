@@ -1,3 +1,5 @@
+//! Low-level tree storage with tagged pointers and raw slices.
+
 mod node;
 mod token;
 mod tree;
