@@ -1,5 +1,5 @@
 use mitki_span::{IntoSymbol as _, Symbol};
-use mitki_yellow::{RedToken, ast};
+use mitki_yellow::{SyntaxToken, ast};
 
 #[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
 pub struct NodeStore<'db> {
@@ -35,7 +35,7 @@ impl<'db> NodeStore<'db> {
         self.alloc(kind, lhs, NodeId::ZERO)
     }
 
-    fn alloc_token(&mut self, db: &'db dyn salsa::Database, token: &RedToken<'db>) -> NodeId {
+    fn alloc_token(&mut self, db: &'db dyn salsa::Database, token: &SyntaxToken<'db>) -> NodeId {
         self.alloc_binding(token.text_trimmed().into_symbol(db))
     }
 

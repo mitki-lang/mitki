@@ -90,6 +90,7 @@ impl Node {
         unsafe { std::slice::from_raw_parts(self.children, self.children_len as usize) }
     }
 
+    /// Returns the contiguous token slice covered by this node.
     #[inline]
     fn tokens_range<'a>(&self, tree: &'a TreeInner) -> &'a [Token] {
         let start = self.first_token(tree).ptr;
@@ -163,26 +164,31 @@ impl NodeOrListOrToken {
     const NODE_TAG: usize = 0b01;
     const LIST_TAG: usize = 0b10;
 
+    /// Builds a tagged pointer from a token pointer.
     #[inline]
     pub(crate) fn new_token(ptr: *const Token) -> Self {
         Self(ptr.map_addr(|addr| addr | Self::TOKEN_TAG).cast())
     }
 
+    /// Builds a tagged pointer from a node pointer.
     #[inline]
     pub(crate) fn new_node(ptr: *const Node) -> Self {
         Self(ptr.map_addr(|addr| addr | Self::NODE_TAG).cast())
     }
 
+    /// Builds a tagged pointer from a list pointer.
     #[inline]
     pub(crate) fn new_list(ptr: *const List) -> Self {
         Self(ptr.map_addr(|addr| addr | Self::LIST_TAG).cast())
     }
 
+    /// Returns the raw pointer with the tag bits cleared.
     #[inline]
     pub(super) fn untagged_ptr(self) -> *const () {
         self.0.map_addr(|addr| addr & Self::PTR_MASK)
     }
 
+    /// Returns the token if this child is a token.
     #[inline]
     #[allow(dead_code)]
     pub(crate) fn as_token(&self) -> Option<TokenRef<'_>> {
@@ -193,6 +199,7 @@ impl NodeOrListOrToken {
         }
     }
 
+    /// Returns the node if this child is a node.
     #[inline]
     #[allow(dead_code)]
     pub(crate) fn as_node(&self) -> Option<&Node> {
@@ -203,6 +210,7 @@ impl NodeOrListOrToken {
         }
     }
 
+    /// Returns the list if this child is a list.
     #[inline]
     #[allow(dead_code)]
     pub(crate) fn as_list(&self) -> Option<&List> {
@@ -213,6 +221,7 @@ impl NodeOrListOrToken {
         }
     }
 
+    /// Returns the typed child variant for this pointer.
     #[inline]
     pub(crate) fn kind(&self) -> ChildKind<'_> {
         let ptr = self.untagged_ptr();

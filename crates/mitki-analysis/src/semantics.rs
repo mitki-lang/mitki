@@ -1,6 +1,6 @@
 use mitki_inputs::File;
 use mitki_yellow::ast::Node as _;
-use mitki_yellow::{RedNode, RedNodePtr, ast};
+use mitki_yellow::{SyntaxNode, SyntaxNodePtr, ast};
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
@@ -35,15 +35,15 @@ impl<'db> Semantics<'db> {
         Self { source_map }
     }
 
-    pub fn function(&self, _db: &'db dyn Database, function: &RedNode) -> FunctionLocation<'db> {
-        self.source_map.functions[&RedNodePtr::new(function)]
+    pub fn function(&self, _db: &'db dyn Database, function: &SyntaxNode) -> FunctionLocation<'db> {
+        self.source_map.functions[&SyntaxNodePtr::new(function)]
     }
 
     pub fn resolver(
         &self,
         db: &'db dyn Database,
         location: FunctionLocation<'db>,
-        current_node: &RedNode,
+        current_node: &SyntaxNode,
     ) -> Resolver<'db> {
         let source_map = location.hir_function(db).source_map(db);
         let scopes = location.expr_scopes(db);
@@ -58,5 +58,5 @@ impl<'db> Semantics<'db> {
 }
 
 struct SourceMap<'db> {
-    functions: FxHashMap<RedNodePtr, FunctionLocation<'db>>,
+    functions: FxHashMap<SyntaxNodePtr, FunctionLocation<'db>>,
 }

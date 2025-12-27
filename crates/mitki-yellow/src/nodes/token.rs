@@ -37,6 +37,7 @@ pub(crate) struct AttachedTrivia {
 impl AttachedTrivia {
     const MAX_TRIVIA_LEN: usize = (1 << u16::BITS) - 1;
 
+    /// Packs trivia metadata into the compact encoding.
     #[inline]
     pub(crate) fn new(
         has_leading_trivia: bool,
@@ -51,16 +52,19 @@ impl AttachedTrivia {
         }
     }
 
+    /// Returns `true` when leading trivia is attached.
     #[inline]
     pub(crate) fn has_leading_trivia(self) -> bool {
         (self.raw & 0b01) != 0
     }
 
+    /// Returns `true` when trailing trivia is attached.
     #[inline]
     pub(crate) fn has_trailing_trivia(self) -> bool {
         (self.raw & 0b10) != 0
     }
 
+    /// Returns the number of attached trivia tokens.
     #[inline]
     pub(crate) fn trivia_len(self) -> usize {
         (self.raw >> 2) as usize
@@ -75,11 +79,13 @@ pub(crate) struct TokenRef<'a> {
 }
 
 impl<'a> TokenRef<'a> {
+    /// Returns the underlying token reference.
     #[inline]
     pub(crate) fn get(self) -> &'a Token {
         unsafe { &*self.ptr }
     }
 
+    /// Returns the raw token pointer for identity comparisons.
     #[inline]
     pub(crate) fn ptr(self) -> *const Token {
         self.ptr
@@ -91,28 +97,33 @@ impl<'a> TokenRef<'a> {
         unsafe { &*self.ptr.sub(1) }
     }
 
+    /// Returns the token start offset.
     #[inline]
     pub(crate) fn start(self) -> TextSize {
         self.prev_maybe_fake_token().end
     }
 
+    /// Returns the token end offset.
     #[inline]
     pub(crate) fn end(self) -> TextSize {
         self.get().end
     }
 
+    /// Returns the full text range for the token.
     #[inline]
     pub(crate) fn text_range(self) -> TextRange {
         let start = self.prev_maybe_fake_token().end;
         TextRange::new(start, self.get().end)
     }
 
+    /// Returns the token text slice from the tree.
     #[inline]
     pub(crate) fn text(self, tree: &'a TreeInner) -> &'a str {
         let range = self.text_range();
         unsafe { tree.text.get_unchecked(usize::from(range.start())..usize::from(range.end())) }
     }
 
+    /// Returns the previous token if it exists within the tree.
     #[inline]
     pub(crate) fn prev_token(self, tree: &TreeInner) -> Option<Self> {
         let prev_token = unsafe { self.ptr.sub(1) };
@@ -123,6 +134,7 @@ impl<'a> TokenRef<'a> {
         }
     }
 
+    /// Returns the next token if it exists within the tree.
     #[inline]
     pub(crate) fn next_token(self, tree: &TreeInner) -> Option<Self> {
         let prev_token = unsafe { self.ptr.add(1) };
@@ -133,6 +145,7 @@ impl<'a> TokenRef<'a> {
         }
     }
 
+    /// Returns an iterator over leading trivia tokens.
     #[inline]
     pub(crate) fn leading_trivia(self) -> TokenRefIter<'a> {
         if !self.get().attached_trivia.has_leading_trivia() {
@@ -144,6 +157,7 @@ impl<'a> TokenRef<'a> {
         unsafe { TokenRefIter::new(trivia_start, trivia_len) }
     }
 
+    /// Returns an iterator over trailing trivia tokens.
     #[inline]
     pub(crate) fn trailing_trivia(self) -> TokenRefIter<'a> {
         if !self.get().attached_trivia.has_trailing_trivia() {
@@ -155,6 +169,7 @@ impl<'a> TokenRef<'a> {
         unsafe { TokenRefIter::new(trivia_start, trivia_len) }
     }
 
+    /// Returns the parent node for this token.
     #[inline]
     pub(crate) fn parent(self) -> &'a Node {
         unsafe { &*self.get().parent }
@@ -170,16 +185,22 @@ pub(crate) struct TokenRefIter<'a> {
 }
 
 impl<'a> TokenRefIter<'a> {
+    /// Creates an iterator over `len` contiguous tokens starting at `start`.
+    ///
+    /// # Safety
+    /// `start` must point to `len` valid tokens.
     #[inline]
     unsafe fn new(start: *const Token, len: usize) -> Self {
         Self { start, end: unsafe { start.add(len) }, _marker: PhantomData }
     }
 
+    /// Returns the number of tokens remaining in the iterator.
     #[inline]
     pub(crate) fn len(&self) -> usize {
         unsafe { self.end.offset_from(self.start) as usize }
     }
 
+    /// Returns `true` when the iterator is empty.
     #[inline]
     fn is_empty(&self) -> bool {
         self.start == self.end
