@@ -357,13 +357,16 @@ impl<'db> Builder<'db> {
 #[inline]
 #[expect(unsafe_code)]
 fn ptr<T>(out: &mut MaybeDangling<Box<[MaybeUninit<T>]>>, index: usize) -> *const T {
-    let out_slice = unsafe { &*out.as_mut_ptr() };
-    if out_slice.is_empty() {
+    // Read the boxed slice pointer directly to avoid creating references into
+    // uninitialized memory (which Miri flags under Stacked Borrows).
+    let slice_ptr = unsafe { *out.as_mut_ptr().cast::<*mut [MaybeUninit<T>]>() };
+    if slice_ptr.len() == 0 {
         debug_assert_eq!(index, 0);
         return std::ptr::dangling();
     }
-    debug_assert!(index < out_slice.len());
-    unsafe { (&raw const (**out.as_mut_ptr())[index]).cast::<T>() }
+    debug_assert!(index < slice_ptr.len());
+    let data_ptr = slice_ptr.cast::<MaybeUninit<T>>();
+    unsafe { data_ptr.add(index).cast::<T>() }
 }
 
 /// Allocates an uninitialized boxed slice with the same length as `input`.
