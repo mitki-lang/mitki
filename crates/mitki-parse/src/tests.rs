@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use expect_test::expect_file;
 use mitki_inputs::File;
-use mitki_yellow::RedNode;
+use mitki_yellow::SyntaxNode;
 use salsa::{Database, DatabaseImpl};
 
 use crate::FileParse as _;
@@ -41,7 +41,7 @@ impl TestCase {
     }
 }
 
-struct Printer<'db>(RedNode<'db>);
+struct Printer<'db>(SyntaxNode<'db>);
 
 impl<'db> Debug for Printer<'db> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -49,7 +49,7 @@ impl<'db> Debug for Printer<'db> {
     }
 }
 
-fn fmt_rec(f: &mut std::fmt::Formatter<'_>, level: usize, node: RedNode) -> std::fmt::Result {
+fn fmt_rec(f: &mut std::fmt::Formatter<'_>, level: usize, node: SyntaxNode) -> std::fmt::Result {
     let indent = "  ".repeat(level);
     writeln!(f, "{}{:?}", indent, node.kind())?;
     for child in node.children_with_tokens() {
@@ -96,4 +96,38 @@ fn parse() {
         });
         expect_file![&case.expected].assert_eq(&actual);
     }
+}
+
+#[test]
+fn trivia_tokens_are_materialized() {
+    let db = DatabaseImpl::new();
+    let text = r#"
+fun main() {
+    val x = 1 // comment
+}
+"#;
+    let file = File::new(&db, "".into(), text.into());
+    let root = file.parse(&db).syntax_node();
+
+    let mut token = root.first_token();
+    let last = root.last_token();
+    let mut saw_trivia = false;
+    let mut saw_non_trivia = false;
+
+    loop {
+        if token.is_trivia() {
+            saw_trivia = true;
+        } else {
+            saw_non_trivia = true;
+        }
+
+        if token.trimmed_range().end() == last.trimmed_range().end() {
+            break;
+        }
+
+        token = token.next_token().expect("expected next token");
+    }
+
+    assert!(saw_trivia, "expected trivia tokens in the tree");
+    assert!(saw_non_trivia, "expected non-trivia tokens in the tree");
 }

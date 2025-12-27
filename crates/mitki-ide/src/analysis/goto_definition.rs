@@ -46,7 +46,7 @@ impl super::Analysis {
             }
             Resolution::Function(function_location) => {
                 let function = function_location.source(db);
-                let function_name_range = function.name(db).unwrap().syntax().trimmed_range();
+                let function_name_range = function.name(db).unwrap().text_range();
 
                 Some((original_token.trimmed_range(), function_name_range))
             }

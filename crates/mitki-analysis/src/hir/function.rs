@@ -1,6 +1,6 @@
 use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::ast::{self, HasName as _, Node as _};
-use mitki_yellow::{RedNode, RedNodePtr};
+use mitki_yellow::{SyntaxNode, SyntaxNodePtr};
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
@@ -20,17 +20,17 @@ pub struct Function<'db> {
 
 #[derive(Default, PartialEq, Eq, salsa::Update)]
 pub struct FunctionSourceMap {
-    node_map: FxHashMap<RedNodePtr, NodeId>,
-    node_map_back: FxHashMap<NodeId, RedNodePtr>,
+    node_map: FxHashMap<SyntaxNodePtr, NodeId>,
+    node_map_back: FxHashMap<NodeId, SyntaxNodePtr>,
 }
 
 impl FunctionSourceMap {
-    pub(crate) fn syntax_expr(&self, syntax: &RedNode) -> Option<NodeId> {
-        self.node_map.get(&RedNodePtr::new(syntax)).copied()
+    pub(crate) fn syntax_expr(&self, syntax: &SyntaxNode) -> Option<NodeId> {
+        self.node_map.get(&SyntaxNodePtr::new(syntax)).copied()
     }
 
     #[track_caller]
-    pub fn node_syntax(&self, node: &NodeId) -> RedNodePtr {
+    pub fn node_syntax(&self, node: &NodeId) -> SyntaxNodePtr {
         self.node_map_back[node]
     }
 }
@@ -197,8 +197,8 @@ impl<'db> FunctionBuilder<'db> {
         }
     }
 
-    fn alloc_ptr(&mut self, node: NodeId, syntax: &RedNode) {
-        let ptr = RedNodePtr::new(syntax);
+    fn alloc_ptr(&mut self, node: NodeId, syntax: &SyntaxNode) {
+        let ptr = SyntaxNodePtr::new(syntax);
         self.source_map.node_map.insert(ptr, node);
         self.source_map.node_map_back.insert(node, ptr);
     }

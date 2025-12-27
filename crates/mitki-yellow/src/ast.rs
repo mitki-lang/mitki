@@ -1,17 +1,18 @@
 //! Typed AST wrappers over the raw syntax tree.
 
 use salsa::Database;
+use text_size::TextRange;
 
 use crate::SyntaxKind::*;
-use crate::{Red, RedNode, RedToken};
+use crate::{NodeOrToken, SyntaxNode, SyntaxToken};
 
 /// Typed wrapper around a syntax node.
 pub trait Node<'db>: Sized {
     /// Attempts to cast a raw syntax node into this typed wrapper.
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self>;
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self>;
 
     /// Returns the underlying syntax node.
-    fn syntax(&self) -> &RedNode<'db>;
+    fn syntax(&self) -> &SyntaxNode<'db>;
 }
 
 /// Nodes that expose a name child.
@@ -23,11 +24,11 @@ pub trait HasName<'db>: Node<'db> {
 }
 
 /// Root module node.
-pub struct Module<'db>(pub RedNode<'db>);
+pub struct Module<'db>(pub SyntaxNode<'db>);
 
 impl<'db> Module<'db> {
     /// Wraps a root syntax node as a module.
-    pub fn new(root: RedNode<'db>) -> Self {
+    pub fn new(root: SyntaxNode<'db>) -> Self {
         Self(root)
     }
 
@@ -38,11 +39,11 @@ impl<'db> Module<'db> {
 }
 
 impl<'db> Node<'db> for Module<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         (syntax.kind() == MODULE).then_some(Self(syntax))
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
@@ -53,14 +54,14 @@ pub enum Item<'db> {
 }
 
 impl<'db> Node<'db> for Item<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             FN => Item::Function(Function(syntax)).into(),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         match self {
             Item::Function(function) => function.syntax(),
         }
@@ -68,7 +69,7 @@ impl<'db> Node<'db> for Item<'db> {
 }
 
 /// Function definition node.
-pub struct Function<'db>(RedNode<'db>);
+pub struct Function<'db>(SyntaxNode<'db>);
 
 impl<'db> Function<'db> {
     /// Returns the parameter list.
@@ -88,21 +89,21 @@ impl<'db> Function<'db> {
 }
 
 impl<'db> Node<'db> for Function<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             FN => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
 
 /// Return type node.
 pub struct RetType<'db> {
-    pub(crate) syntax: RedNode<'db>,
+    pub(crate) syntax: SyntaxNode<'db>,
 }
 
 impl<'db> RetType<'db> {
@@ -114,14 +115,14 @@ impl<'db> RetType<'db> {
 }
 
 impl<'db> Node<'db> for RetType<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             RETURN_TYPE => Some(Self { syntax }),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.syntax
     }
 }
@@ -129,7 +130,7 @@ impl<'db> Node<'db> for RetType<'db> {
 impl<'db> HasName<'db> for Function<'db> {}
 
 /// Parameter list node.
-pub struct Params<'db>(RedNode<'db>);
+pub struct Params<'db>(SyntaxNode<'db>);
 
 impl<'db> Params<'db> {
     /// Iterates parameters in the list.
@@ -139,20 +140,20 @@ impl<'db> Params<'db> {
 }
 
 impl<'db> Node<'db> for Params<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             PARAM_LIST => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
 
 /// Function parameter node.
-pub struct Param<'db>(RedNode<'db>);
+pub struct Param<'db>(SyntaxNode<'db>);
 
 impl<'db> Param<'db> {
     /// Returns the parameter name.
@@ -167,20 +168,20 @@ impl<'db> Param<'db> {
 }
 
 impl<'db> Node<'db> for Param<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             PARAM => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
 
 /// Block node containing statements and an optional tail expression.
-pub struct Block<'db>(RedNode<'db>);
+pub struct Block<'db>(SyntaxNode<'db>);
 
 impl<'db> Block<'db> {
     /// Iterates statements in the block.
@@ -195,14 +196,14 @@ impl<'db> Block<'db> {
 }
 
 impl<'db> Node<'db> for Block<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             STMT_LIST => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
@@ -214,7 +215,7 @@ pub enum Stmt<'db> {
 }
 
 impl<'db> Node<'db> for Stmt<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             VAL_STMT => Stmt::Val(Val(syntax)).into(),
             EXPR_STMT => Stmt::Expr(ExprStmt(syntax)).into(),
@@ -222,7 +223,7 @@ impl<'db> Node<'db> for Stmt<'db> {
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         match self {
             Stmt::Val(val) => val.syntax(),
             Stmt::Expr(expr) => expr.syntax(),
@@ -231,7 +232,7 @@ impl<'db> Node<'db> for Stmt<'db> {
 }
 
 /// Value statement node.
-pub struct Val<'db>(RedNode<'db>);
+pub struct Val<'db>(SyntaxNode<'db>);
 
 impl<'db> Val<'db> {
     /// Returns the optional type annotation.
@@ -246,14 +247,14 @@ impl<'db> Val<'db> {
 }
 
 impl<'db> Node<'db> for Val<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             VAL_STMT => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
@@ -261,7 +262,7 @@ impl<'db> Node<'db> for Val<'db> {
 impl<'db> HasName<'db> for Val<'db> {}
 
 /// Expression statement node.
-pub struct ExprStmt<'db>(RedNode<'db>);
+pub struct ExprStmt<'db>(SyntaxNode<'db>);
 
 impl<'db> ExprStmt<'db> {
     /// Returns the inner expression.
@@ -270,23 +271,23 @@ impl<'db> ExprStmt<'db> {
     }
 
     /// Returns the trailing semicolon token, if any.
-    pub fn semi(&self, _db: &'db dyn Database) -> Option<RedToken<'_>> {
+    pub fn semi(&self, _db: &'db dyn Database) -> Option<SyntaxToken<'_>> {
         self.syntax()
             .children_with_tokens()
-            .filter_map(Red::into_token)
+            .filter_map(NodeOrToken::into_token)
             .find(|token| token.kind() == SEMICOLON)
     }
 }
 
 impl<'db> Node<'db> for ExprStmt<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             EXPR_STMT => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
@@ -305,7 +306,7 @@ pub enum Expr<'db> {
 }
 
 impl<'db> Node<'db> for Expr<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             PATH_EXPR => Expr::Path(Path(syntax)).into(),
             LITERAL => Expr::Literal(Literal(syntax)).into(),
@@ -320,7 +321,7 @@ impl<'db> Node<'db> for Expr<'db> {
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         match self {
             Expr::Path(path) => path.syntax(),
             Expr::Literal(literal) => &literal.0,
@@ -336,17 +337,17 @@ impl<'db> Node<'db> for Expr<'db> {
 }
 
 /// Path expression node.
-pub struct Path<'db>(RedNode<'db>);
+pub struct Path<'db>(SyntaxNode<'db>);
 
 impl<'db> Node<'db> for Path<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             PATH_EXPR => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
@@ -354,7 +355,7 @@ impl<'db> Node<'db> for Path<'db> {
 impl<'db> HasName<'db> for Path<'db> {}
 
 /// Literal expression node.
-pub struct Literal<'db>(RedNode<'db>);
+pub struct Literal<'db>(SyntaxNode<'db>);
 
 impl<'db> Literal<'db> {
     /// Returns the literal kind derived from the first token.
@@ -373,7 +374,7 @@ impl<'db> Literal<'db> {
 }
 
 /// Tuple expression node.
-pub struct TupleExpr<'db>(RedNode<'db>);
+pub struct TupleExpr<'db>(SyntaxNode<'db>);
 
 impl<'db> TupleExpr<'db> {
     /// Iterates tuple items.
@@ -383,20 +384,20 @@ impl<'db> TupleExpr<'db> {
 }
 
 impl<'db> Node<'db> for TupleExpr<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             TUPLE_EXPR => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
 
 /// Binary expression node.
-pub struct Binary<'db>(RedNode<'db>);
+pub struct Binary<'db>(SyntaxNode<'db>);
 
 impl<'db> Binary<'db> {
     /// Returns the left-hand side.
@@ -416,7 +417,7 @@ impl<'db> Binary<'db> {
 }
 
 /// Postfix expression node.
-pub struct Postfix<'db>(RedNode<'db>);
+pub struct Postfix<'db>(SyntaxNode<'db>);
 
 impl<'db> Postfix<'db> {
     /// Returns the inner expression.
@@ -431,7 +432,7 @@ impl<'db> Postfix<'db> {
 }
 
 /// Prefix expression node.
-pub struct Prefix<'db>(RedNode<'db>);
+pub struct Prefix<'db>(SyntaxNode<'db>);
 
 impl<'db> Prefix<'db> {
     /// Returns the operator text, if any.
@@ -446,7 +447,7 @@ impl<'db> Prefix<'db> {
 }
 
 /// If expression node.
-pub struct IfExpr<'db>(RedNode<'db>);
+pub struct IfExpr<'db>(SyntaxNode<'db>);
 
 impl<'db> IfExpr<'db> {
     /// Returns the condition expression.
@@ -466,7 +467,7 @@ impl<'db> IfExpr<'db> {
 }
 
 /// Closure expression node.
-pub struct Closure<'db>(RedNode<'db>);
+pub struct Closure<'db>(SyntaxNode<'db>);
 
 impl<'db> Closure<'db> {
     /// Returns the parameter list.
@@ -481,20 +482,20 @@ impl<'db> Closure<'db> {
 }
 
 impl<'db> Node<'db> for Closure<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             CLOSURE_EXPR => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
 
 /// Call expression node.
-pub struct CallExpr<'db>(RedNode<'db>);
+pub struct CallExpr<'db>(SyntaxNode<'db>);
 
 impl<'db> CallExpr<'db> {
     /// Returns the callee expression.
@@ -509,32 +510,32 @@ impl<'db> CallExpr<'db> {
 }
 
 impl<'db> Node<'db> for CallExpr<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             CALL_EXPR => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
 
 /// Argument list node.
 pub struct ArgList<'db> {
-    syntax: RedNode<'db>,
+    syntax: SyntaxNode<'db>,
 }
 
 impl<'db> Node<'db> for ArgList<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             ARG_LIST => Some(Self { syntax }),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.syntax
     }
 }
@@ -547,14 +548,14 @@ impl<'db> ArgList<'db> {
 }
 
 impl<'db> Node<'db> for IfExpr<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             IF_EXPR => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
@@ -562,16 +563,21 @@ impl<'db> Node<'db> for IfExpr<'db> {
 /// Concrete literal variants.
 pub enum LiteralKind<'db> {
     Bool(bool),
-    Int(RedToken<'db>),
-    Float(RedToken<'db>),
-    String(RedToken<'db>),
-    Char(RedToken<'db>),
+    Int(SyntaxToken<'db>),
+    Float(SyntaxToken<'db>),
+    String(SyntaxToken<'db>),
+    Char(SyntaxToken<'db>),
 }
 
 /// Identifier node.
-pub struct Name<'db>(RedNode<'db>);
+pub struct Name<'db>(SyntaxNode<'db>);
 
 impl<'db> Name<'db> {
+    /// Returns the name token range.
+    pub fn text_range(&self) -> TextRange {
+        first_non_trivia_token(self.syntax()).unwrap().trimmed_range()
+    }
+
     /// Returns the identifier text.
     pub fn as_str(&self, _db: &'db dyn Database) -> &'db str {
         first_non_trivia_token(self.syntax()).unwrap().text_trimmed()
@@ -579,14 +585,14 @@ impl<'db> Name<'db> {
 }
 
 impl<'db> Node<'db> for Name<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             IDENT | NAME_REF => Self(syntax).into(),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
@@ -597,14 +603,14 @@ pub enum Type<'db> {
 }
 
 impl<'db> Node<'db> for Type<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             PATH_TYPE => Type::Path(PathType(syntax)).into(),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         match self {
             Type::Path(path_type) => &path_type.0,
         }
@@ -612,28 +618,28 @@ impl<'db> Node<'db> for Type<'db> {
 }
 
 /// Path type node.
-pub struct PathType<'db>(RedNode<'db>);
+pub struct PathType<'db>(SyntaxNode<'db>);
 
 impl<'db> Node<'db> for PathType<'db> {
-    fn cast(_db: &'db dyn Database, syntax: RedNode<'db>) -> Option<Self> {
+    fn cast(_db: &'db dyn Database, syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             PATH_TYPE => Some(Self(syntax)),
             _ => None,
         }
     }
 
-    fn syntax(&self) -> &RedNode<'db> {
+    fn syntax(&self) -> &SyntaxNode<'db> {
         &self.0
     }
 }
 
 impl<'db> HasName<'db> for PathType<'db> {}
 
-fn child<'db, N: Node<'db>>(db: &'db dyn Database, parent: &RedNode<'db>) -> Option<N> {
+fn child<'db, N: Node<'db>>(db: &'db dyn Database, parent: &SyntaxNode<'db>) -> Option<N> {
     parent.children().find_map(|syntax| N::cast(db, syntax))
 }
 
-fn first_non_trivia_token<'db>(node: &RedNode<'db>) -> Option<RedToken<'db>> {
+fn first_non_trivia_token<'db>(node: &SyntaxNode<'db>) -> Option<SyntaxToken<'db>> {
     node.children_with_tokens().find_map(|child| {
         let token = child.into_token()?;
         if token.is_trivia() { None } else { Some(token) }

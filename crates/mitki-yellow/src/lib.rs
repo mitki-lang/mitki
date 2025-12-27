@@ -17,8 +17,7 @@ mod trivia;
 pub use builder::Builder;
 /// Primary syntax tree API types and adapters.
 pub use syntax::{
-    NodeOrToken, Red, RedNode, RedNodePtr, RedToken, SyntaxElement, SyntaxNode, SyntaxToken,
-    SyntaxTree, TokenAtOffset,
+    NodeOrToken, SyntaxElement, SyntaxNode, SyntaxNodePtr, SyntaxToken, SyntaxTree, TokenAtOffset,
 };
 /// Token and node kinds used throughout the tree.
 pub use syntax_kind::SyntaxKind;

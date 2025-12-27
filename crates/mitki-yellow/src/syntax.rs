@@ -66,34 +66,36 @@ impl<'a> SyntaxToken<'a> {
         self.kind().is_trivia()
     }
 
-    /// Returns the token text range (excluding attached trivia).
+    /// Returns the token text range including attached trivia.
     #[inline]
     pub fn text_range(self) -> TextRange {
-        self.token.text_range()
+        let first_token = self.leading_trivia().next().unwrap_or(self);
+        let last_token = self.trailing_trivia().next_back().unwrap_or(self);
+        TextRange::new(first_token.token.start(), last_token.token.end())
     }
 
     /// Returns the range including attached trivia.
     #[inline]
     pub fn range(self) -> TextRange {
-        self.text_range_including_trivia()
-    }
-
-    /// Returns the trimmed range (same as `text_range` for tokens).
-    #[inline]
-    pub fn trimmed_range(self) -> TextRange {
         self.text_range()
     }
 
-    /// Returns the token text (excluding trivia).
+    /// Returns the token text range excluding trivia.
     #[inline]
-    pub fn text(self) -> &'a str {
-        self.token.text(self.tree)
+    pub fn trimmed_range(self) -> TextRange {
+        self.token.text_range()
     }
 
-    /// Returns the token text (same as `text` for tokens).
+    /// Returns the token text including trivia.
+    #[inline]
+    pub fn text(self) -> &'a str {
+        &self.tree.text[self.text_range()]
+    }
+
+    /// Returns the token text excluding trivia.
     #[inline]
     pub fn text_trimmed(self) -> &'a str {
-        self.text()
+        self.token.text(self.tree)
     }
 
     /// Returns the previous token if any.
@@ -118,20 +120,6 @@ impl<'a> SyntaxToken<'a> {
     #[inline]
     pub fn trailing_trivia(self) -> TriviaIter<'a> {
         TriviaIter { tree: self.tree, tokens: self.token.trailing_trivia() }
-    }
-
-    /// Returns the range including leading and trailing trivia.
-    #[inline]
-    pub fn text_range_including_trivia(self) -> TextRange {
-        let first_token = self.leading_trivia().next().unwrap_or(self);
-        let last_token = self.trailing_trivia().next_back().unwrap_or(self);
-        TextRange::new(first_token.token.start(), last_token.token.end())
-    }
-
-    /// Returns the text including leading and trailing trivia.
-    #[inline]
-    pub fn text_including_trivia(self) -> &'a str {
-        &self.tree.text[self.text_range_including_trivia()]
     }
 
     /// Returns the parent node.
@@ -232,20 +220,19 @@ impl<'a> SyntaxNode<'a> {
     /// Returns the range with leading/trailing trivia trimmed away.
     #[inline]
     pub fn trimmed_range(self) -> TextRange {
-        let first = self.first_non_trivia_token();
-        let last = self.last_non_trivia_token();
-        match (first, last) {
-            (Some(first), Some(last)) => {
-                TextRange::new(first.text_range().start(), last.text_range().end())
-            }
-            _ => TextRange::empty(self.text_range().start()),
-        }
+        non_trivia_range(self)
     }
 
     /// Returns the text slice covered by this node.
     #[inline]
     pub fn text(self) -> &'a str {
         self.node.text(self.tree)
+    }
+
+    /// Returns the text slice excluding leading/trailing trivia.
+    #[inline]
+    pub fn text_trimmed(self) -> &'a str {
+        &self.tree.text[self.trimmed_range()]
     }
 
     /// Returns the parent node if any.
@@ -301,36 +288,6 @@ impl<'a> SyntaxNode<'a> {
         match self.node.covering_element(self.tree, range) {
             NodeOrToken::Node(node) => NodeOrToken::Node(SyntaxNode { tree: self.tree, node }),
             NodeOrToken::Token(token) => NodeOrToken::Token(SyntaxToken { tree: self.tree, token }),
-        }
-    }
-
-    #[inline]
-    fn first_non_trivia_token(self) -> Option<SyntaxToken<'a>> {
-        let mut token = self.first_token();
-        let last_ptr = self.node.last_token(self.tree).ptr();
-        loop {
-            if !token.is_trivia() {
-                return Some(token);
-            }
-            if token.token.ptr() == last_ptr {
-                return None;
-            }
-            token = token.next_token()?;
-        }
-    }
-
-    #[inline]
-    fn last_non_trivia_token(self) -> Option<SyntaxToken<'a>> {
-        let mut token = self.last_token();
-        let first_ptr = self.node.first_token(self.tree).ptr();
-        loop {
-            if !token.is_trivia() {
-                return Some(token);
-            }
-            if token.token.ptr() == first_ptr {
-                return None;
-            }
-            token = token.prev_token()?;
         }
     }
 }
@@ -792,30 +749,23 @@ pub enum WalkEventWithTokens<'a> {
     Token(SyntaxToken<'a>),
 }
 
-/// Legacy alias for `SyntaxNode`.
-pub type RedNode<'db> = SyntaxNode<'db>;
-/// Legacy alias for `SyntaxToken`.
-pub type RedToken<'db> = SyntaxToken<'db>;
-/// Legacy alias for `NodeOrToken`.
-pub type Red<'db> = NodeOrToken<RedNode<'db>, RedToken<'db>>;
-
-/// Stable identifier for a node by kind and trimmed range.
+/// Stable identifier for a node by kind and non-trivia text range.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, salsa::Update)]
-pub struct RedNodePtr {
+pub struct SyntaxNodePtr {
     /// Node kind used for lookup.
     pub kind: SyntaxKind,
-    /// Trimmed range used for lookup.
+    /// Non-trivia text range used for lookup.
     pub range: TextRange,
 }
 
-impl RedNodePtr {
+impl SyntaxNodePtr {
     /// Builds a pointer from a concrete node.
-    pub fn new(node: &RedNode<'_>) -> Self {
-        Self { kind: node.kind(), range: node.trimmed_range() }
+    pub fn new(node: &SyntaxNode<'_>) -> Self {
+        Self { kind: node.kind(), range: non_trivia_range(*node) }
     }
 
     /// Attempts to resolve this pointer within `root`.
-    pub fn try_to_node<'a>(&self, root: &RedNode<'a>) -> Option<RedNode<'a>> {
+    pub fn try_to_node<'a>(&self, root: &SyntaxNode<'a>) -> Option<SyntaxNode<'a>> {
         if root.parent().is_some() {
             return None;
         }
@@ -827,12 +777,51 @@ impl RedNodePtr {
         };
 
         std::iter::successors(Some(start_node), |node| node.parent())
-            .find(|node| node.kind() == self.kind && node.trimmed_range() == self.range)
+            .find(|node| node.kind() == self.kind && non_trivia_range(*node) == self.range)
     }
 
     #[track_caller]
-    pub fn to_node<'a>(&self, root: &RedNode<'a>) -> RedNode<'a> {
+    pub fn to_node<'a>(&self, root: &SyntaxNode<'a>) -> SyntaxNode<'a> {
         self.try_to_node(root).unwrap()
+    }
+}
+
+fn non_trivia_range(node: SyntaxNode<'_>) -> TextRange {
+    let first = first_non_trivia_token(node);
+    let last = last_non_trivia_token(node);
+    match (first, last) {
+        (Some(first), Some(last)) => {
+            TextRange::new(first.trimmed_range().start(), last.trimmed_range().end())
+        }
+        _ => TextRange::empty(node.text_range().start()),
+    }
+}
+
+fn first_non_trivia_token(node: SyntaxNode<'_>) -> Option<SyntaxToken<'_>> {
+    let mut token = node.first_token();
+    let last_ptr = node.node.last_token(node.tree).ptr();
+    loop {
+        if !token.is_trivia() {
+            return Some(token);
+        }
+        if token.token.ptr() == last_ptr {
+            return None;
+        }
+        token = token.next_token()?;
+    }
+}
+
+fn last_non_trivia_token(node: SyntaxNode<'_>) -> Option<SyntaxToken<'_>> {
+    let mut token = node.last_token();
+    let first_ptr = node.node.first_token(node.tree).ptr();
+    loop {
+        if !token.is_trivia() {
+            return Some(token);
+        }
+        if token.token.ptr() == first_ptr {
+            return None;
+        }
+        token = token.prev_token()?;
     }
 }
 

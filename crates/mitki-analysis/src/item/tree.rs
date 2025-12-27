@@ -3,7 +3,7 @@ use std::ops::Index;
 use mitki_inputs::File;
 use mitki_parse::FileParse as _;
 use mitki_span::{IntoSymbol as _, Symbol};
-use mitki_yellow::RedNodePtr;
+use mitki_yellow::SyntaxNodePtr;
 use mitki_yellow::ast::{HasName as _, Node as _};
 use salsa::Database;
 
@@ -70,6 +70,6 @@ pub(crate) enum Item<'db> {
 
 #[derive(Debug, PartialEq, Eq, salsa::Update)]
 pub struct FunctionData<'db> {
-    pub(crate) id: Key<RedNodePtr>,
+    pub(crate) id: Key<SyntaxNodePtr>,
     pub(crate) name: Symbol<'db>,
 }

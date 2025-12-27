@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use mitki_errors::Diagnostic;
 use mitki_inputs::File;
-use mitki_yellow::{RedNode, SyntaxTree, ast};
+use mitki_yellow::{SyntaxNode, SyntaxTree, ast};
 
 mod grammar;
 mod parser;
@@ -31,7 +31,7 @@ impl<T> PartialEq for Parsed<'_, T> {
 impl<T> Eq for Parsed<'_, T> {}
 
 impl<'db, T: ast::Node<'db>> Parsed<'db, T> {
-    pub fn syntax_node(&'db self) -> RedNode<'db> {
+    pub fn syntax_node(&'db self) -> SyntaxNode<'db> {
         self.root.root()
     }
 
