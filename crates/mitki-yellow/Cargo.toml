@@ -13,4 +13,3 @@ workspace = true
 [dependencies]
 salsa.workspace = true
 text-size.workspace = true
-triomphe = "0.1"

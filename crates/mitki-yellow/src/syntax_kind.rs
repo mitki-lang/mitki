@@ -66,6 +66,9 @@ pub enum SyntaxKind {
     VAL_STMT,
     RETURN_STMT,
     TOMBSTONE,
+    WHITESPACE,
+    NEWLINE,
+    LINE_COMMENT,
 }
 
 impl Display for SyntaxKind {
@@ -100,7 +103,17 @@ impl Display for SyntaxKind {
             Self::PREFIX_OPERATOR => "prefix operator",
             Self::UNKNOWN => "unknown",
             Self::EOF => "EOF",
+            Self::WHITESPACE => "whitespace",
+            Self::NEWLINE => "newline",
+            Self::LINE_COMMENT => "line comment",
             _ => "<syntax node>",
         })
+    }
+}
+
+impl SyntaxKind {
+    #[inline]
+    pub fn is_trivia(self) -> bool {
+        matches!(self, Self::WHITESPACE | Self::NEWLINE | Self::LINE_COMMENT)
     }
 }

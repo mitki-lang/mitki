@@ -14,7 +14,7 @@ pub(crate) trait HasAstMap {
 impl HasAstMap for File {
     #[salsa::tracked(returns(ref), no_eq)]
     fn ast_map(self, db: &dyn Database) -> AstMap {
-        AstMap::from_root(db, &self.parse(db).syntax_node())
+        AstMap::from_root(&self.parse(db).syntax_node())
     }
 }
 
@@ -33,13 +33,13 @@ impl PartialEq for AstMap {
 impl Eq for AstMap {}
 
 impl AstMap {
-    pub(crate) fn from_root(db: &dyn Database, root: &RedNode<'_>) -> Self {
+    pub(crate) fn from_root(root: &RedNode<'_>) -> Self {
         let mut arena = Arena::new();
         let mut map = HashTable::default();
 
-        root.children(db).for_each(|node| {
-            if let SyntaxKind::FN = node.kind(db) {
-                arena.alloc(RedNodePtr::new(db, &node));
+        root.children().for_each(|node| {
+            if let SyntaxKind::FN = node.kind() {
+                arena.alloc(RedNodePtr::new(&node));
             }
         });
 
@@ -51,8 +51,8 @@ impl AstMap {
         Self { arena, map }
     }
 
-    pub(crate) fn find_id(&self, db: &dyn Database, node: &RedNode<'_>) -> Key<RedNodePtr> {
-        let ptr = RedNodePtr::new(db, node);
+    pub(crate) fn find_id(&self, node: &RedNode<'_>) -> Key<RedNodePtr> {
+        let ptr = RedNodePtr::new(node);
         *self.map.find(hash_one(&ptr), |&key| self.arena[key] == ptr).unwrap()
     }
 

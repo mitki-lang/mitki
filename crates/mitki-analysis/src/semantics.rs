@@ -35,8 +35,8 @@ impl<'db> Semantics<'db> {
         Self { source_map }
     }
 
-    pub fn function(&self, db: &'db dyn Database, function: &RedNode) -> FunctionLocation<'db> {
-        self.source_map.functions[&RedNodePtr::new(db, function)]
+    pub fn function(&self, _db: &'db dyn Database, function: &RedNode) -> FunctionLocation<'db> {
+        self.source_map.functions[&RedNodePtr::new(function)]
     }
 
     pub fn resolver(

@@ -1,21 +1,17 @@
 pub mod ast;
 mod builder;
-pub mod cursor;
-mod green;
-mod red;
+mod maybe_dangling;
+mod nodes;
+mod syntax;
 mod syntax_kind;
 mod syntax_set;
+mod trivia;
 
 pub use builder::Builder;
-pub use green::{
-    Green, GreenChild, GreenNode, GreenToken, GreenTrivia, TriviaPiece, TriviaPieceKind,
+pub use syntax::{
+    NodeOrToken, Red, RedNode, RedNodePtr, RedToken, SyntaxElement, SyntaxNode, SyntaxToken,
+    SyntaxTree, TokenAtOffset,
 };
-pub use red::{Red, RedNode, RedNodePtr, RedToken, TokenAtOffset};
 pub use syntax_kind::SyntaxKind;
 pub use syntax_set::SyntaxSet;
-
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
-pub enum NodeOrToken<N, T> {
-    Node(N),
-    Token(T),
-}
+pub use trivia::{TriviaPiece, TriviaPieceKind};

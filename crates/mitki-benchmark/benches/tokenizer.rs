@@ -55,7 +55,8 @@ fn iterate(s: &str) {
     let mut tokenizer = Tokenizer::new(s);
 
     loop {
-        let next_token = tokenizer.next_token();
+        let token_index = tokenizer.next_token_index();
+        let next_token = tokenizer.token(token_index);
 
         if next_token.kind == SyntaxKind::EOF {
             break;

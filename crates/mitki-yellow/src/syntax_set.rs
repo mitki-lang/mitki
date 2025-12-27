@@ -1,6 +1,6 @@
 use crate::SyntaxKind;
 
-const SIZE: usize = 1;
+const SIZE: usize = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SyntaxSet {

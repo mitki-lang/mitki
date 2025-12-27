@@ -76,10 +76,13 @@ fn lower_type_ref<'db>(
         ast::Type::Path(path) => {
             let token = path
                 .syntax()
-                .children_with_tokens(db)
-                .find_map(|t| t.into_token())
+                .children_with_tokens()
+                .find_map(|child| {
+                    let token = child.into_token()?;
+                    if token.is_trivia() { None } else { Some(token) }
+                })
                 .expect("path should have at least one token");
-            let sym = token.green().text_trimmed(db).into_symbol(db);
+            let sym = token.text_trimmed().into_symbol(db);
             Some(node_store.alloc_type_ref(sym))
         }
     }
@@ -101,7 +104,7 @@ impl<'db> FunctionLocation<'db> {
         let item = item_tree[index].id;
         let ptr = ast_map.find_node(item);
 
-        let syntax = ptr.to_node(db, &file.parse(db).syntax_node());
+        let syntax = ptr.to_node(&file.parse(db).syntax_node());
         ast::Function::cast(db, syntax).unwrap()
     }
 }
