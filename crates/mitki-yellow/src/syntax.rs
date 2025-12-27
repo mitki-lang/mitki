@@ -74,13 +74,7 @@ impl<'a> SyntaxToken<'a> {
         TextRange::new(first_token.token.start(), last_token.token.end())
     }
 
-    /// Returns the range including attached trivia.
-    #[inline]
-    pub fn range(self) -> TextRange {
-        self.text_range()
-    }
-
-    /// Returns the token text range excluding trivia.
+    /// Returns the token's own text range, excluding attached trivia.
     #[inline]
     pub fn trimmed_range(self) -> TextRange {
         self.token.text_range()
@@ -92,7 +86,7 @@ impl<'a> SyntaxToken<'a> {
         &self.tree.text[self.text_range()]
     }
 
-    /// Returns the token text excluding trivia.
+    /// Returns the token text for `trimmed_range`, excluding attached trivia.
     #[inline]
     pub fn text_trimmed(self) -> &'a str {
         self.token.text(self.tree)
@@ -205,31 +199,37 @@ impl<'a> SyntaxNode<'a> {
         SyntaxToken { tree: self.tree, token: self.node.last_token(self.tree) }
     }
 
-    /// Returns the text range covered by this node.
+    /// Returns the text range covered by this node, including trivia within the
+    /// node.
     #[inline]
     pub fn text_range(self) -> TextRange {
         self.node.text_range(self.tree)
     }
 
-    /// Returns the range covered by this node.
-    #[inline]
-    pub fn range(self) -> TextRange {
-        self.text_range()
-    }
-
-    /// Returns the range with leading/trailing trivia trimmed away.
+    /// Returns the non-trivia range of this node.
+    ///
+    /// This is derived from the first and last non-trivia tokens and returns an
+    /// empty range at the node start if no such tokens exist.
     #[inline]
     pub fn trimmed_range(self) -> TextRange {
-        non_trivia_range(self)
+        let first = self.first_non_trivia_token();
+        let last = self.last_non_trivia_token();
+        match (first, last) {
+            (Some(first), Some(last)) => {
+                TextRange::new(first.trimmed_range().start(), last.trimmed_range().end())
+            }
+            _ => TextRange::empty(self.text_range().start()),
+        }
     }
 
-    /// Returns the text slice covered by this node.
+    /// Returns the text slice covered by this node, including trivia.
     #[inline]
     pub fn text(self) -> &'a str {
         self.node.text(self.tree)
     }
 
-    /// Returns the text slice excluding leading/trailing trivia.
+    /// Returns the text slice for `trimmed_range`, excluding leading/trailing
+    /// trivia.
     #[inline]
     pub fn text_trimmed(self) -> &'a str {
         &self.tree.text[self.trimmed_range()]
@@ -392,6 +392,18 @@ pub enum NodeOrTokenOrList<'a> {
     List(SyntaxList<'a>),
 }
 
+impl<'a> NodeOrTokenOrList<'a> {
+    /// Returns the child as a node or list, ignoring tokens.
+    #[inline]
+    fn into_node_or_list(self) -> Option<NodeOrList<'a>> {
+        match self {
+            NodeOrTokenOrList::Node(it) => Some(NodeOrList::Node(it)),
+            NodeOrTokenOrList::List(it) => Some(NodeOrList::List(it)),
+            NodeOrTokenOrList::Token(_) => None,
+        }
+    }
+}
+
 /// Iterator over children including tokens and lists.
 pub struct ChildrenWithTokensAndLists<'a> {
     tree: &'a TreeInner,
@@ -406,6 +418,7 @@ impl Clone for ChildrenWithTokensAndLists<'_> {
 }
 
 impl<'a> ChildrenWithTokensAndLists<'a> {
+    /// Maps a raw child pointer to its typed wrapper.
     #[inline]
     fn map_child(&self, child: Option<&'a NodeOrListOrToken>) -> Option<NodeOrTokenOrList<'a>> {
         let tree = self.tree;
@@ -474,22 +487,10 @@ impl Clone for ChildrenWithLists<'_> {
 }
 
 impl<'a> ChildrenWithLists<'a> {
-    #[inline]
-    fn filter_child(child: NodeOrTokenOrList<'a>) -> Option<NodeOrList<'a>> {
-        match child {
-            NodeOrTokenOrList::Node(it) => Some(NodeOrList::Node(it)),
-            NodeOrTokenOrList::List(it) => Some(NodeOrList::List(it)),
-            NodeOrTokenOrList::Token(_) => None,
-        }
-    }
-
+    /// Returns a double-ended iterator over node and list children.
     #[inline]
     fn iter(self) -> impl DoubleEndedIterator<Item = NodeOrList<'a>> {
-        self.inner.filter_map(|child| match child {
-            NodeOrTokenOrList::Node(it) => Some(NodeOrList::Node(it)),
-            NodeOrTokenOrList::List(it) => Some(NodeOrList::List(it)),
-            NodeOrTokenOrList::Token(_) => None,
-        })
+        self.inner.filter_map(NodeOrTokenOrList::into_node_or_list)
     }
 }
 
@@ -498,7 +499,7 @@ impl<'a> Iterator for ChildrenWithLists<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.find_map(Self::filter_child)
+        self.inner.find_map(NodeOrTokenOrList::into_node_or_list)
     }
 
     #[inline]
@@ -531,7 +532,7 @@ impl<'a> Iterator for ChildrenWithLists<'a> {
 impl<'a> DoubleEndedIterator for ChildrenWithLists<'a> {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.inner.by_ref().rev().find_map(Self::filter_child)
+        self.inner.by_ref().rev().find_map(NodeOrTokenOrList::into_node_or_list)
     }
 
     #[inline]
@@ -614,20 +615,10 @@ pub struct Children<'a> {
 }
 
 impl<'a> Children<'a> {
-    #[inline]
-    fn filter_child(child: SyntaxElement<'a>) -> Option<SyntaxNode<'a>> {
-        match child {
-            SyntaxElement::Node(it) => Some(it),
-            SyntaxElement::Token(_) => None,
-        }
-    }
-
+    /// Returns an iterator over node children only.
     #[inline]
     fn iter(self) -> impl Iterator<Item = SyntaxNode<'a>> {
-        self.inner.filter_map(|child| match child {
-            SyntaxElement::Node(it) => Some(it),
-            SyntaxElement::Token(_) => None,
-        })
+        self.inner.filter_map(NodeOrToken::into_node)
     }
 }
 
@@ -636,7 +627,7 @@ impl<'a> Iterator for Children<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.find_map(Self::filter_child)
+        self.inner.find_map(NodeOrToken::into_node)
     }
 
     #[inline]
@@ -666,6 +657,7 @@ pub struct Preorder<'a> {
 
 impl<'a> Preorder<'a> {
     #[inline]
+    /// Creates a preorder traversal starting at `start`.
     fn new(start: SyntaxNode<'a>) -> Preorder<'a> {
         Preorder { inner: PreorderWithTokens::new(start) }
     }
@@ -706,6 +698,7 @@ pub struct PreorderWithTokens<'a> {
 
 impl<'a> PreorderWithTokens<'a> {
     #[inline]
+    /// Creates a preorder traversal starting at `start`.
     fn new(start: SyntaxNode<'a>) -> PreorderWithTokens<'a> {
         PreorderWithTokens { stack: Vec::with_capacity(128), root: Some(start) }
     }
@@ -761,7 +754,7 @@ pub struct SyntaxNodePtr {
 impl SyntaxNodePtr {
     /// Builds a pointer from a concrete node.
     pub fn new(node: &SyntaxNode<'_>) -> Self {
-        Self { kind: node.kind(), range: non_trivia_range(*node) }
+        Self { kind: node.kind(), range: node.trimmed_range() }
     }
 
     /// Attempts to resolve this pointer within `root`.
@@ -777,51 +770,45 @@ impl SyntaxNodePtr {
         };
 
         std::iter::successors(Some(start_node), |node| node.parent())
-            .find(|node| node.kind() == self.kind && non_trivia_range(*node) == self.range)
+            .find(|node| node.kind() == self.kind && node.trimmed_range() == self.range)
     }
 
     #[track_caller]
+    /// Resolves this pointer within `root`, panicking on failure.
     pub fn to_node<'a>(&self, root: &SyntaxNode<'a>) -> SyntaxNode<'a> {
         self.try_to_node(root).unwrap()
     }
 }
 
-fn non_trivia_range(node: SyntaxNode<'_>) -> TextRange {
-    let first = first_non_trivia_token(node);
-    let last = last_non_trivia_token(node);
-    match (first, last) {
-        (Some(first), Some(last)) => {
-            TextRange::new(first.trimmed_range().start(), last.trimmed_range().end())
+impl<'a> SyntaxNode<'a> {
+    /// Returns the first non-trivia token within this node.
+    fn first_non_trivia_token(self) -> Option<SyntaxToken<'a>> {
+        let mut token = self.first_token();
+        let last_ptr = self.node.last_token(self.tree).ptr();
+        loop {
+            if !token.is_trivia() {
+                return Some(token);
+            }
+            if token.token.ptr() == last_ptr {
+                return None;
+            }
+            token = token.next_token()?;
         }
-        _ => TextRange::empty(node.text_range().start()),
     }
-}
 
-fn first_non_trivia_token(node: SyntaxNode<'_>) -> Option<SyntaxToken<'_>> {
-    let mut token = node.first_token();
-    let last_ptr = node.node.last_token(node.tree).ptr();
-    loop {
-        if !token.is_trivia() {
-            return Some(token);
+    /// Returns the last non-trivia token within this node.
+    fn last_non_trivia_token(self) -> Option<SyntaxToken<'a>> {
+        let mut token = self.last_token();
+        let first_ptr = self.node.first_token(self.tree).ptr();
+        loop {
+            if !token.is_trivia() {
+                return Some(token);
+            }
+            if token.token.ptr() == first_ptr {
+                return None;
+            }
+            token = token.prev_token()?;
         }
-        if token.token.ptr() == last_ptr {
-            return None;
-        }
-        token = token.next_token()?;
-    }
-}
-
-fn last_non_trivia_token(node: SyntaxNode<'_>) -> Option<SyntaxToken<'_>> {
-    let mut token = node.last_token();
-    let first_ptr = node.node.first_token(node.tree).ptr();
-    loop {
-        if !token.is_trivia() {
-            return Some(token);
-        }
-        if token.token.ptr() == first_ptr {
-            return None;
-        }
-        token = token.prev_token()?;
     }
 }
 

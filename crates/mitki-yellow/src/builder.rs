@@ -104,26 +104,32 @@ impl<'db> Builder<'db> {
         }
     }
 
+    /// Retrieves a recycled node-children buffer or allocates a new one.
     fn new_node_children_vec(&mut self) -> Vec<ChildKind> {
         self.node_children_pool.pop().unwrap_or_else(|| Vec::with_capacity(DEFAULT_CHILDREN_LEN))
     }
 
+    /// Returns a node-children buffer to the pool.
     fn recycle_node_children_vec(&mut self, vec: Vec<ChildKind>) {
         self.node_children_pool.push(vec);
     }
 
+    /// Retrieves a recycled list-children buffer or allocates a new one.
     fn new_list_children_vec(&mut self) -> Vec<usize> {
         self.list_children_pool.pop().unwrap_or_else(|| Vec::with_capacity(DEFAULT_CHILDREN_LEN))
     }
 
+    /// Returns a list-children buffer to the pool.
     fn recycle_list_children_vec(&mut self, vec: Vec<usize>) {
         self.list_children_pool.push(vec);
     }
 
+    /// Returns the most recently opened node or list.
     fn last_opened(&self) -> Opened {
         *self.opened.last().expect("no opened nodes?")
     }
 
+    /// Returns the most recently opened node or panics if it's a list.
     #[track_caller]
     fn expect_last_opened_node(&self) -> usize {
         match self.last_opened() {
@@ -157,6 +163,7 @@ impl<'db> Builder<'db> {
         self.opened.push(Opened::Node(new_node));
     }
 
+    /// Returns the most recent opened node index, skipping lists.
     fn last_parent(&mut self) -> Option<usize> {
         self.opened.iter().rev().find_map(|opened| match *opened {
             Opened::Node(node) => Some(node),
@@ -164,6 +171,7 @@ impl<'db> Builder<'db> {
         })
     }
 
+    /// Returns the last opened entry, if any.
     fn last_opened_opt(&self) -> Option<Opened> {
         self.opened.last().copied()
     }
@@ -258,6 +266,7 @@ impl<'db> Builder<'db> {
         self.last_token_index = last_token.try_into().unwrap();
     }
 
+    /// Updates token ranges for all open ancestor nodes.
     fn update_first_last_tokens(&mut self, first_token: usize, last_token: usize) {
         // Walk ancestors, update first and last token.
         let first_token = first_token.try_into().unwrap();
@@ -283,6 +292,7 @@ impl<'db> Builder<'db> {
         SyntaxTree { tree, _marker: PhantomData }
     }
 
+    /// Finalizes buffers into stable tree storage.
     #[expect(unsafe_code)]
     fn finish_impl(mut self) -> TreeInner {
         // Important: The addresses here must be stable, so we must preallocate.
@@ -343,6 +353,7 @@ impl<'db> Builder<'db> {
     }
 }
 
+/// Returns a stable pointer to an element in the output buffer.
 #[inline]
 #[expect(unsafe_code)]
 fn ptr<T>(out: &mut MaybeDangling<Box<[MaybeUninit<T>]>>, index: usize) -> *const T {
@@ -355,11 +366,13 @@ fn ptr<T>(out: &mut MaybeDangling<Box<[MaybeUninit<T>]>>, index: usize) -> *cons
     unsafe { (&raw const (**out.as_mut_ptr())[index]).cast::<T>() }
 }
 
+/// Allocates an uninitialized boxed slice with the same length as `input`.
 #[inline]
 fn new_boxed_slice<T>(input: &[impl Sized]) -> MaybeDangling<Box<[MaybeUninit<T>]>> {
     MaybeDangling::new(Box::new_uninit_slice(input.len()))
 }
 
+/// Maps `input` into the output buffer using `mapper`.
 #[expect(unsafe_code)]
 fn create_boxed_slice<T, U>(
     out: &mut MaybeDangling<Box<[MaybeUninit<U>]>>,
@@ -389,6 +402,7 @@ fn ensure_exact_size_iter<T>(
     (len, iter)
 }
 
+/// Maps trivia piece kinds to syntax kinds.
 #[inline]
 fn trivia_piece_kind(kind: TriviaPieceKind) -> SyntaxKind {
     match kind {

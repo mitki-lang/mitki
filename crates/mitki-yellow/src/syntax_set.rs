@@ -15,6 +15,7 @@ impl SyntaxSet {
     pub const EMPTY: Self = Self { bits: [0; SIZE] };
     const BITS_PER_SLOT: u16 = u64::BITS as u16;
 
+    /// Builds a set containing a single kind.
     const fn from_kind(kind: SyntaxKind) -> Self {
         let kind = kind as u16;
 

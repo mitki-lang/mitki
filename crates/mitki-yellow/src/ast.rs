@@ -635,10 +635,12 @@ impl<'db> Node<'db> for PathType<'db> {
 
 impl<'db> HasName<'db> for PathType<'db> {}
 
+/// Returns the first child node matching `N`.
 fn child<'db, N: Node<'db>>(db: &'db dyn Database, parent: &SyntaxNode<'db>) -> Option<N> {
     parent.children().find_map(|syntax| N::cast(db, syntax))
 }
 
+/// Returns the first non-trivia token among the node's children.
 fn first_non_trivia_token<'db>(node: &SyntaxNode<'db>) -> Option<SyntaxToken<'db>> {
     node.children_with_tokens().find_map(|child| {
         let token = child.into_token()?;
