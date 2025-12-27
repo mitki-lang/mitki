@@ -1,30 +1,47 @@
 mod cursor;
 
+use std::marker::PhantomData;
+use std::sync::Arc;
+
 use ascii::AsciiChar;
 use cursor::{Cursor, EOF_CHAR};
 pub use mitki_yellow::SyntaxKind;
 use mitki_yellow::SyntaxKind::*;
-use mitki_yellow::{GreenTrivia, TriviaPiece, TriviaPieceKind};
+use mitki_yellow::{TriviaPiece, TriviaPieceKind};
 use text_size::{TextRange, TextSize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Token {
-    pub leading: GreenTrivia,
     pub kind: SyntaxKind,
     pub kind_range: TextRange,
-    pub trailing: GreenTrivia,
+    pub leading: TriviaRange,
+    pub trailing: TriviaRange,
+    leading_has_newline: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TriviaRange {
+    pub start: u32,
+    pub len: u32,
 }
 
 impl Token {
-    const EOF: Self = Self {
-        kind: EOF,
-        kind_range: TextRange::empty(TextSize::new(0)),
-        leading: GreenTrivia::empty(),
-        trailing: GreenTrivia::empty(),
-    };
-
     pub fn on_same_line(&self) -> bool {
-        self.leading.pieces().iter().all(|item| item.kind != TriviaPieceKind::Newline)
+        !self.leading_has_newline
+    }
+}
+
+impl TriviaRange {
+    fn new(start: usize, len: usize) -> Self {
+        let start = u32::try_from(start).expect("trivia start overflow");
+        let len = u32::try_from(len).expect("trivia len overflow");
+        Self { start, len }
+    }
+
+    fn range(self) -> std::ops::Range<usize> {
+        let start = self.start as usize;
+        let end = start + self.len as usize;
+        start..end
     }
 }
 
@@ -39,33 +56,136 @@ enum TriviaMode {
     NoNewlines,
 }
 
+pub type TokenIndex = u32;
+
 #[derive(Clone)]
 pub struct Tokenizer<'db> {
-    text: &'db str,
-    cursor: Cursor<'db>,
-    current: Token,
-    trivia_pieces: Vec<TriviaPiece>,
-    diagnostics: Vec<Diagnostic>,
-    whitespace: GreenTrivia,
+    kinds: Arc<[SyntaxKind]>,
+    kind_ranges: Arc<[TextRange]>,
+    leading_ranges: Arc<[TriviaRange]>,
+    trailing_ranges: Arc<[TriviaRange]>,
+    leading_has_newline: Arc<[bool]>,
+    trivia: Arc<[TriviaPiece]>,
+    diagnostics: Arc<[Diagnostic]>,
+    position: TokenIndex,
+    _marker: PhantomData<&'db str>,
 }
 
 impl<'db> Tokenizer<'db> {
     pub fn new(text: &'db str) -> Self {
-        let mut tokenizer = Self {
-            text,
-            cursor: Cursor::new(text),
-            current: Token::EOF,
-            trivia_pieces: Vec::with_capacity(4),
-            diagnostics: Vec::new(),
-            whitespace: GreenTrivia::whitespace(1),
-        };
+        let mut lexer = Lexer::new(text);
+        let mut kinds = Vec::new();
+        let mut kind_ranges = Vec::new();
+        let mut leading_ranges = Vec::new();
+        let mut trailing_ranges = Vec::new();
+        let mut leading_has_newline = Vec::new();
 
-        tokenizer.next_token();
-        tokenizer
+        loop {
+            let token = lexer.next_token();
+            let is_eof = token.kind == EOF;
+            kinds.push(token.kind);
+            kind_ranges.push(token.kind_range);
+            leading_ranges.push(token.leading);
+            trailing_ranges.push(token.trailing);
+            leading_has_newline.push(token.leading_has_newline);
+            if is_eof {
+                break;
+            }
+        }
+
+        let Lexer { diagnostics, trivia, .. } = lexer;
+
+        Self {
+            kinds: Arc::from(kinds),
+            kind_ranges: Arc::from(kind_ranges),
+            leading_ranges: Arc::from(leading_ranges),
+            trailing_ranges: Arc::from(trailing_ranges),
+            leading_has_newline: Arc::from(leading_has_newline),
+            trivia: Arc::from(trivia),
+            diagnostics: Arc::from(diagnostics),
+            position: 0,
+            _marker: PhantomData,
+        }
     }
 
-    pub fn peek(&self) -> &Token {
-        &self.current
+    pub fn peek(&self) -> Token {
+        self.token_at(self.position)
+    }
+
+    pub fn next_token(&mut self) -> Token {
+        let token = self.peek();
+        if token.kind != EOF {
+            self.position += 1;
+        }
+        token
+    }
+
+    pub fn next_token_index(&mut self) -> TokenIndex {
+        let index = self.position;
+        if self.kinds[index as usize] != EOF {
+            self.position += 1;
+        }
+        index
+    }
+
+    pub fn token(&self, index: TokenIndex) -> Token {
+        self.token_at(index)
+    }
+
+    pub fn leading_trivia(&self, index: TokenIndex) -> &[TriviaPiece] {
+        let range = self.leading_ranges[index as usize];
+        self.trivia_range(range)
+    }
+
+    pub fn trailing_trivia(&self, index: TokenIndex) -> &[TriviaPiece] {
+        let range = self.trailing_ranges[index as usize];
+        self.trivia_range(range)
+    }
+
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        self.diagnostics.as_ref()
+    }
+
+    fn trivia_range(&self, range: TriviaRange) -> &[TriviaPiece] {
+        let range = range.range();
+        &self.trivia[range]
+    }
+
+    fn token_at(&self, index: TokenIndex) -> Token {
+        let index = index as usize;
+        Token {
+            kind: self.kinds[index],
+            kind_range: self.kind_ranges[index],
+            leading: self.leading_ranges[index],
+            trailing: self.trailing_ranges[index],
+            leading_has_newline: self.leading_has_newline[index],
+        }
+    }
+}
+
+struct Lexer<'db> {
+    text: &'db str,
+    cursor: Cursor<'db>,
+    trivia: Vec<TriviaPiece>,
+    diagnostics: Vec<Diagnostic>,
+}
+
+impl<'db> Lexer<'db> {
+    fn new(text: &'db str) -> Self {
+        Self {
+            text,
+            cursor: Cursor::new(text),
+            trivia: Vec::with_capacity(4),
+            diagnostics: Vec::new(),
+        }
+    }
+
+    fn next_token(&mut self) -> Token {
+        let (leading, leading_has_newline) = self.trivia(TriviaMode::Normal);
+        let (kind, kind_range) = self.syntax_kind();
+        let (trailing, _) = self.trivia(TriviaMode::NoNewlines);
+
+        Token { kind, kind_range, leading, trailing, leading_has_newline }
     }
 
     fn offset(&self) -> TextSize {
@@ -83,31 +203,9 @@ impl<'db> Tokenizer<'db> {
         &self.text[self.range()]
     }
 
-    pub fn next_token(&mut self) -> Token {
-        self.trivia(TriviaMode::Normal);
-        let trailing_start = self.trivia_pieces.len();
-        let (kind, kind_range) = self.syntax_kind();
-        self.trivia(TriviaMode::NoNewlines);
-
-        let (leading, trailing) = self.trivia_pieces.split_at(trailing_start);
-        let leading = self.green_trivia(leading);
-        let trailing = self.green_trivia(trailing);
-
-        self.trivia_pieces.clear();
-        std::mem::replace(&mut self.current, Token { leading, kind, kind_range, trailing })
-    }
-
-    fn green_trivia(&self, pieces: &[TriviaPiece]) -> GreenTrivia {
-        match pieces {
-            [] => GreenTrivia::empty(),
-            [TriviaPiece { kind: TriviaPieceKind::Whitespace, len }] if *len == 1.into() => {
-                self.whitespace.clone()
-            }
-            _ => GreenTrivia::new(pieces),
-        }
-    }
-
-    fn trivia(&mut self, mode: TriviaMode) {
+    fn trivia(&mut self, mode: TriviaMode) -> (TriviaRange, bool) {
+        let start = self.trivia.len();
+        let mut has_newline = false;
         loop {
             let kind = match self.cursor.peek() {
                 '/' if self.cursor.second() == '/' => {
@@ -128,9 +226,16 @@ impl<'db> Tokenizer<'db> {
                 }
             };
 
-            self.trivia_pieces.push(TriviaPiece::new(kind, self.cursor.pos_within_token()));
+            if kind == TriviaPieceKind::Newline {
+                has_newline = true;
+            }
+
+            self.trivia.push(TriviaPiece::new(kind, self.cursor.pos_within_token()));
             self.cursor.reset_pos_within_token();
         }
+
+        let len = self.trivia.len() - start;
+        (TriviaRange::new(start, len), has_newline)
     }
 
     fn syntax_kind(&mut self) -> (SyntaxKind, TextRange) {
@@ -319,10 +424,6 @@ impl<'db> Tokenizer<'db> {
             self.digits(false);
         }
     }
-
-    pub fn diagnostics(self) -> Vec<Diagnostic> {
-        self.diagnostics
-    }
 }
 
 fn is_operator(c: char) -> bool {
@@ -355,7 +456,11 @@ mod tests {
             let mut tokenizer = Tokenizer::new(input);
             let kind = tokenizer.next_token().kind;
             assert_eq!(kind, expected_kind, "Input: '{input}'");
-            assert!(tokenizer.cursor.is_eof(), "Tokenizer did not consume all input for '{input}'");
+            assert_eq!(
+                tokenizer.peek().kind,
+                EOF,
+                "Tokenizer did not consume all input for '{input}'"
+            );
         }
     }
 
@@ -373,7 +478,11 @@ mod tests {
             let mut tokenizer = Tokenizer::new(input);
             let kind = tokenizer.next_token().kind;
             assert_eq!(kind, expected_kind, "Input: '{input}'");
-            assert!(tokenizer.cursor.is_eof(), "Tokenizer did not consume all input for '{input}'");
+            assert_eq!(
+                tokenizer.peek().kind,
+                EOF,
+                "Tokenizer did not consume all input for '{input}'"
+            );
         }
     }
 
@@ -385,7 +494,11 @@ mod tests {
             let mut tokenizer = Tokenizer::new(input);
             let kind = tokenizer.next_token().kind;
             assert_eq!(kind, expected_kind, "Input: '{input}'");
-            assert!(tokenizer.cursor.is_eof(), "Tokenizer did not consume all input for '{input}'");
+            assert_eq!(
+                tokenizer.peek().kind,
+                EOF,
+                "Tokenizer did not consume all input for '{input}'"
+            );
         }
     }
 
@@ -397,7 +510,11 @@ mod tests {
             let mut tokenizer = Tokenizer::new(input);
             let kind = tokenizer.next_token().kind;
             assert_eq!(kind, expected_kind, "Input: '{input}'");
-            assert!(tokenizer.cursor.is_eof(), "Tokenizer did not consume all input for '{input}'");
+            assert_eq!(
+                tokenizer.peek().kind,
+                EOF,
+                "Tokenizer did not consume all input for '{input}'"
+            );
         }
     }
 

@@ -50,19 +50,10 @@ static CANDIDATES: [(&str, &str); 2] =
     [("identifiers", IDENTIFIERS), ("keywords_operators_and_punctators", SOURCE)];
 
 fn iterate(s: &str) {
-    use mitki_tokenizer::{SyntaxKind, Tokenizer};
+    use mitki_tokenizer::Tokenizer;
 
-    let mut tokenizer = Tokenizer::new(s);
-
-    loop {
-        let next_token = tokenizer.next_token();
-
-        if next_token.kind == SyntaxKind::EOF {
-            break;
-        }
-
-        black_box(next_token);
-    }
+    let tokenizer = Tokenizer::new(s);
+    black_box(tokenizer);
 }
 
 fn bench_iterate(c: &mut Criterion) {

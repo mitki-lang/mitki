@@ -9,9 +9,8 @@ pub struct FilePosition {
 }
 
 fn pick_best_token<'db>(
-    db: &'db dyn salsa::Database,
-    tokens: mitki_yellow::TokenAtOffset<'db>,
+    tokens: mitki_yellow::TokenAtOffset<mitki_yellow::RedToken<'db>>,
     f: impl Fn(mitki_yellow::SyntaxKind) -> usize,
 ) -> Option<mitki_yellow::RedToken<'db>> {
-    tokens.max_by_key(move |t| f(t.kind(db)))
+    tokens.filter(|token| !token.is_trivia()).max_by_key(move |t| f(t.kind()))
 }

@@ -1,8 +1,8 @@
 use drop_bomb::DropBomb;
 use mitki_errors::Diagnostic;
-use mitki_tokenizer::{Token, Tokenizer};
+use mitki_tokenizer::{TokenIndex, Tokenizer};
 use mitki_yellow::SyntaxKind::{self, *};
-use mitki_yellow::{Builder, GreenNode, SyntaxSet};
+use mitki_yellow::{Builder, SyntaxSet, SyntaxTree};
 use salsa::Database;
 use text_size::TextRange;
 
@@ -62,9 +62,10 @@ impl<'db> Parser<'db> {
             return;
         }
 
-        let token = self.tokenizer.next_token();
+        let token_index = self.tokenizer.next_token_index();
+        let token = self.tokenizer.token(token_index);
         self.previous_range = token.kind_range;
-        self.events.push(Event::Token(token));
+        self.events.push(Event::Token(token_index));
     }
 
     pub(crate) fn at(&mut self, kind: SyntaxKind) -> bool {
@@ -134,7 +135,7 @@ impl<'db> Parser<'db> {
         self.error_with_range(message, range);
     }
 
-    pub(crate) fn build_tree(self) -> (GreenNode<'db>, Vec<Diagnostic>) {
+    pub(crate) fn build_tree(self) -> (SyntaxTree<'db>, Vec<Diagnostic>) {
         let Parser { db, text, tokenizer, mut events, mut diagnostics, .. } = self;
         let mut builder = Builder::new(db, text);
         let mut forward_parents = Vec::new();
@@ -168,19 +169,25 @@ impl<'db> Parser<'db> {
                     }
                 }
                 Event::Finish => builder.finish_node(),
-                Event::Token(Token { leading, kind, kind_range, trailing }) => {
-                    builder.token(leading, kind, kind_range, trailing);
+                Event::Token(token_index) => {
+                    let token = tokenizer.token(token_index);
+                    let leading = tokenizer.leading_trivia(token_index);
+                    let trailing = tokenizer.trailing_trivia(token_index);
+                    builder.token(
+                        leading.iter().copied(),
+                        token.kind,
+                        token.kind_range.len(),
+                        trailing.iter().copied(),
+                    );
                 }
             }
         }
 
-        diagnostics.extend(tokenizer.diagnostics().into_iter().map(
-            |diagnostic| match diagnostic {
-                mitki_tokenizer::Diagnostic::InconsistentWhitespaceAroundEqual(range) => {
-                    Diagnostic::error("Consistent whitespace required around '='", range)
-                }
-            },
-        ));
+        diagnostics.extend(tokenizer.diagnostics().iter().map(|diagnostic| match diagnostic {
+            mitki_tokenizer::Diagnostic::InconsistentWhitespaceAroundEqual(range) => {
+                Diagnostic::error("Consistent whitespace required around '='", *range)
+            }
+        }));
 
         (builder.finish(), diagnostics)
     }
@@ -192,7 +199,7 @@ impl<'db> Parser<'db> {
 
 enum Event {
     Start { kind: SyntaxKind, forward_parent: Option<u32> },
-    Token(Token),
+    Token(TokenIndex),
     Finish,
 }
 

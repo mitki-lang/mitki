@@ -26,7 +26,7 @@ impl HasItemTree for File {
         for item in self.parse(db).tree(db).items(db) {
             let item = match item {
                 mitki_yellow::ast::Item::Function(func) => {
-                    let id = ast_map.find_id(db, func.syntax());
+                    let id = ast_map.find_id(func.syntax());
                     let Some(name) = func.name(db).map(|name| name.as_str(db).into_symbol(db))
                     else {
                         continue;

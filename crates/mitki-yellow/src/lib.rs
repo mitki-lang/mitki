@@ -1,21 +1,28 @@
+//! Lossless, immutable syntax tree with parent pointers and attached trivia.
+//!
+//! The tree is built once and then navigated by offset-based, lifetime-guided
+//! handles without allocation or refcounting.
+
+/// Typed AST wrappers around the raw syntax tree.
 pub mod ast;
 mod builder;
-pub mod cursor;
-mod green;
-mod red;
+mod maybe_dangling;
+mod nodes;
+mod syntax;
 mod syntax_kind;
 mod syntax_set;
+mod trivia;
 
+/// Incremental builder for constructing a `SyntaxTree`.
 pub use builder::Builder;
-pub use green::{
-    Green, GreenChild, GreenNode, GreenToken, GreenTrivia, TriviaPiece, TriviaPieceKind,
+/// Primary syntax tree API types and adapters.
+pub use syntax::{
+    NodeOrToken, Red, RedNode, RedNodePtr, RedToken, SyntaxElement, SyntaxNode, SyntaxToken,
+    SyntaxTree, TokenAtOffset,
 };
-pub use red::{Red, RedNode, RedNodePtr, RedToken, TokenAtOffset};
+/// Token and node kinds used throughout the tree.
 pub use syntax_kind::SyntaxKind;
+/// Compact set for grouping `SyntaxKind` values.
 pub use syntax_set::SyntaxSet;
-
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
-pub enum NodeOrToken<N, T> {
-    Node(N),
-    Token(T),
-}
+/// Trivia pieces attached to tokens.
+pub use trivia::{TriviaPiece, TriviaPieceKind};

@@ -18,14 +18,14 @@ impl super::Analysis {
         let semantics = Semantics::new(db, file);
         let root = file.parse(db).syntax_node();
 
-        let tokens = root.token_at_offset(db, offset);
-        let original_token = pick_best_token(db, tokens, |kind| match kind {
+        let tokens = root.token_at_offset(offset);
+        let original_token = pick_best_token(tokens, |kind| match kind {
             SyntaxKind::NAME => 2,
             _ => 1,
         })?;
 
-        let path = original_token.parent().unwrap();
-        if path.kind(db) != SyntaxKind::NAME_REF {
+        let path = original_token.parent();
+        if path.kind() != SyntaxKind::NAME_REF {
             return None;
         }
 
@@ -34,21 +34,21 @@ impl super::Analysis {
             .find_map(|syntax| ast::Item::cast(db, syntax))
             .map(|item| semantics.function(db, item.syntax()))?;
 
-        let resolver = semantics.resolver(db, location, path);
-        let path = original_token.green().text_trimmed(db).into_symbol(db);
+        let resolver = semantics.resolver(db, location, &path);
+        let path = original_token.text_trimmed().into_symbol(db);
 
         match resolver.resolve_path(path)? {
             Resolution::Local(path) => {
                 let source_map = location.hir_function(db).source_map(db);
                 let range = source_map.node_syntax(&path).range;
 
-                Some((original_token.trimmed_range(db), range))
+                Some((original_token.trimmed_range(), range))
             }
             Resolution::Function(function_location) => {
                 let function = function_location.source(db);
-                let function_name_range = function.name(db).unwrap().syntax().trimmed_range(db);
+                let function_name_range = function.name(db).unwrap().syntax().trimmed_range();
 
-                Some((original_token.trimmed_range(db), function_name_range))
+                Some((original_token.trimmed_range(), function_name_range))
             }
             Resolution::Type(_ty) => None,
         }

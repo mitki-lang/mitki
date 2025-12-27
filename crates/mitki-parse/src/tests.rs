@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use expect_test::expect_file;
 use mitki_inputs::File;
-use mitki_yellow::{GreenChild, GreenNode};
+use mitki_yellow::RedNode;
 use salsa::{Database, DatabaseImpl};
 
 use crate::FileParse as _;
@@ -41,30 +41,28 @@ impl TestCase {
     }
 }
 
-struct Printer<'db>(GreenNode<'db>);
+struct Printer<'db>(RedNode<'db>);
 
 impl<'db> Debug for Printer<'db> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        salsa::plumbing::with_attached_database(|db| fmt_rec(f, db, 0, self.0)).unwrap()
+        fmt_rec(f, 0, self.0)
     }
 }
 
-fn fmt_rec(
-    f: &mut std::fmt::Formatter<'_>,
-    db: &dyn Database,
-    level: usize,
-    node: GreenNode,
-) -> std::fmt::Result {
+fn fmt_rec(f: &mut std::fmt::Formatter<'_>, level: usize, node: RedNode) -> std::fmt::Result {
     let indent = "  ".repeat(level);
-    writeln!(f, "{}{:?}", indent, node.kind(db))?;
-    for &child in node.children(db) {
+    writeln!(f, "{}{:?}", indent, node.kind())?;
+    for child in node.children_with_tokens() {
         match child {
-            GreenChild::Node { node, .. } => fmt_rec(f, db, level + 1, node)?,
-            GreenChild::Token { token, .. } => {
-                let kind = token.kind(db);
-                let text = token.text_trimmed(db);
+            mitki_yellow::NodeOrToken::Node(node) => fmt_rec(f, level + 1, node)?,
+            mitki_yellow::NodeOrToken::Token(token) => {
+                if token.is_trivia() {
+                    continue;
+                }
+                let kind = token.kind();
+                let text = token.text_trimmed();
 
-                writeln!(f, "{indent}  {kind:?}: {text:?}")?
+                writeln!(f, "{indent}  {kind:?}: {text:?}")?;
             }
         }
     }
@@ -73,7 +71,7 @@ fn fmt_rec(
 
 #[salsa::tracked]
 fn parse_module(db: &dyn Database, file: File) -> String {
-    format!("{:?}", Printer(file.parse(db).root))
+    format!("{:?}", Printer(file.parse(db).syntax_node()))
 }
 
 #[test]
@@ -86,7 +84,7 @@ fn parse() {
             let text = File::new(&db, "".into(), case.text.clone());
 
             let parsed = text.parse(&db);
-            let tree = format!("{:?}", Printer(parsed.root));
+            let tree = format!("{:?}", Printer(parsed.syntax_node()));
             let diagnostics = parsed
                 .diagnostics
                 .iter()

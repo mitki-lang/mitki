@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use mitki_errors::Diagnostic;
 use mitki_inputs::File;
-use mitki_yellow::{GreenNode, RedNode, ast};
+use mitki_yellow::{RedNode, SyntaxTree, ast};
 
 mod grammar;
 mod parser;
@@ -11,7 +11,7 @@ mod tests;
 
 #[derive(salsa::Update)]
 pub struct Parsed<'db, T> {
-    root: GreenNode<'db>,
+    root: SyntaxTree<'db>,
     diagnostics: Vec<Diagnostic>,
     phantom: PhantomData<fn() -> T>,
 }
@@ -24,18 +24,18 @@ impl<T> std::fmt::Debug for Parsed<'_, T> {
 
 impl<T> PartialEq for Parsed<'_, T> {
     fn eq(&self, other: &Self) -> bool {
-        self.root == other.root
+        self.root.text() == other.root.text()
     }
 }
 
 impl<T> Eq for Parsed<'_, T> {}
 
 impl<'db, T: ast::Node<'db>> Parsed<'db, T> {
-    pub fn syntax_node(&self) -> RedNode<'db> {
-        RedNode::new_root(self.root)
+    pub fn syntax_node(&'db self) -> RedNode<'db> {
+        self.root.root()
     }
 
-    pub fn tree(&self, db: &'db dyn salsa::Database) -> T {
+    pub fn tree(&'db self, db: &'db dyn salsa::Database) -> T {
         T::cast(db, self.syntax_node()).unwrap()
     }
 

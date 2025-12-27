@@ -36,7 +36,7 @@ impl<'db> NodeStore<'db> {
     }
 
     fn alloc_token(&mut self, db: &'db dyn salsa::Database, token: &RedToken<'db>) -> NodeId {
-        self.alloc_binding(token.green().text_trimmed(db).into_symbol(db))
+        self.alloc_binding(token.text_trimmed().into_symbol(db))
     }
 
     #[track_caller]

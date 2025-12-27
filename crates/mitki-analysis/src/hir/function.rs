@@ -25,8 +25,8 @@ pub struct FunctionSourceMap {
 }
 
 impl FunctionSourceMap {
-    pub(crate) fn syntax_expr(&self, db: &dyn Database, syntax: &RedNode) -> Option<NodeId> {
-        self.node_map.get(&RedNodePtr::new(db, syntax)).copied()
+    pub(crate) fn syntax_expr(&self, syntax: &RedNode) -> Option<NodeId> {
+        self.node_map.get(&RedNodePtr::new(syntax)).copied()
     }
 
     #[track_caller]
@@ -198,7 +198,7 @@ impl<'db> FunctionBuilder<'db> {
     }
 
     fn alloc_ptr(&mut self, node: NodeId, syntax: &RedNode) {
-        let ptr = RedNodePtr::new(self.db, syntax);
+        let ptr = RedNodePtr::new(syntax);
         self.source_map.node_map.insert(ptr, node);
         self.source_map.node_map_back.insert(node, ptr);
     }
@@ -269,13 +269,13 @@ impl<'db> FunctionBuilder<'db> {
             ast::Type::Path(path) => {
                 let path = path
                     .syntax()
-                    .children_with_tokens(self.db)
-                    .next()
-                    .unwrap()
-                    .into_token()
-                    .unwrap()
-                    .green()
-                    .text_trimmed(self.db);
+                    .children_with_tokens()
+                    .find_map(|child| {
+                        let token = child.into_token()?;
+                        if token.is_trivia() { None } else { Some(token) }
+                    })
+                    .expect("path should have at least one token")
+                    .text_trimmed();
                 let path = path.into_symbol(self.db);
                 self.function.node_store.alloc_type_ref(path)
             }

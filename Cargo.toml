@@ -31,10 +31,8 @@ needless_continue = "warn"
 needless_for_each = "warn"
 needless_pass_by_value = "warn"
 single_match_else = "warn"
-string_to_string = "warn"
 unused_self = "warn"
 unused_trait_names = "warn"
-use_self = "warn"
 
 [workspace.dependencies]
 anyhow = "1.0"
