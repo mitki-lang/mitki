@@ -50,7 +50,7 @@ impl<'db> Semantics<'db> {
         let scope = current_node
             .ancestors()
             .filter_map(|syntax| ast::Expr::cast(db, syntax))
-            .find_map(|expr| source_map.syntax_expr(db, expr.syntax()))
+            .find_map(|expr| source_map.syntax_expr(expr.syntax()))
             .and_then(|expr| scopes.scope_by_node(expr));
 
         Resolver::for_scope(db, location.file(db).item_scope(db), scopes, scope)

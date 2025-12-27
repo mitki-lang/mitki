@@ -25,7 +25,7 @@ pub struct FunctionSourceMap {
 }
 
 impl FunctionSourceMap {
-    pub(crate) fn syntax_expr(&self, _db: &dyn Database, syntax: &RedNode) -> Option<NodeId> {
+    pub(crate) fn syntax_expr(&self, syntax: &RedNode) -> Option<NodeId> {
         self.node_map.get(&RedNodePtr::new(syntax)).copied()
     }
 
