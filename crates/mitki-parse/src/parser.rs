@@ -1,3 +1,6 @@
+#[cfg(test)]
+use std::fmt::Write;
+
 use drop_bomb::DropBomb;
 use mitki_errors::Diagnostic;
 use mitki_tokenizer::{TokenIndex, Tokenizer};
@@ -183,11 +186,7 @@ impl<'db> Parser<'db> {
             }
         }
 
-        diagnostics.extend(tokenizer.diagnostics().iter().map(|diagnostic| match diagnostic {
-            mitki_tokenizer::Diagnostic::InconsistentWhitespaceAroundEqual(range) => {
-                Diagnostic::error("Consistent whitespace required around '='", *range)
-            }
-        }));
+        extend_with_tokenizer_diagnostics(&mut diagnostics, &tokenizer);
 
         (builder.finish(), diagnostics)
     }
@@ -195,6 +194,71 @@ impl<'db> Parser<'db> {
     pub(crate) fn previous_range(&self) -> TextRange {
         self.previous_range
     }
+
+    #[cfg(test)]
+    pub(crate) fn debug_tree(self) -> (String, Vec<Diagnostic>) {
+        let Parser { text, tokenizer, mut events, mut diagnostics, .. } = self;
+        let mut output = String::new();
+        let mut indent = 0usize;
+        let mut forward_parents = Vec::new();
+
+        for i in 0..events.len() {
+            match std::mem::replace(&mut events[i], Event::TOMBSTONE) {
+                Event::Start { kind, forward_parent } => {
+                    if kind == TOMBSTONE {
+                        continue;
+                    }
+
+                    forward_parents.push(kind);
+                    let mut idx = i;
+                    let mut fp = forward_parent;
+                    while let Some(fwd) = fp {
+                        idx += fwd as usize;
+
+                        fp = match std::mem::replace(&mut events[idx], Event::TOMBSTONE) {
+                            Event::Start { kind, forward_parent, .. } => {
+                                if kind != TOMBSTONE {
+                                    forward_parents.push(kind);
+                                }
+                                forward_parent
+                            }
+                            _ => unreachable!(),
+                        };
+                    }
+
+                    for kind in forward_parents.drain(..).rev() {
+                        let indent_str = "  ".repeat(indent);
+                        let _ = writeln!(output, "{indent_str}{kind:?}");
+                        indent += 1;
+                    }
+                }
+                Event::Finish => {
+                    indent -= 1;
+                }
+                Event::Token(token_index) => {
+                    let token = tokenizer.token(token_index);
+                    if token.kind.is_trivia() {
+                        continue;
+                    }
+                    let token_text = &text[token.kind_range];
+                    let indent_str = "  ".repeat(indent);
+                    let _ = writeln!(output, "{indent_str}{:?}: {:?}", token.kind, token_text);
+                }
+            }
+        }
+
+        extend_with_tokenizer_diagnostics(&mut diagnostics, &tokenizer);
+
+        (output, diagnostics)
+    }
+}
+
+fn extend_with_tokenizer_diagnostics(diagnostics: &mut Vec<Diagnostic>, tokenizer: &Tokenizer<'_>) {
+    diagnostics.extend(tokenizer.diagnostics().iter().map(|diagnostic| match diagnostic {
+        mitki_tokenizer::Diagnostic::InconsistentWhitespaceAroundEqual(range) => {
+            Diagnostic::error("Consistent whitespace required around '='", *range)
+        }
+    }));
 }
 
 enum Event {
