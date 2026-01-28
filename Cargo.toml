@@ -47,7 +47,7 @@ mitki-parse = { path = "crates/mitki-parse" }
 mitki-span = { path = "crates/mitki-span" }
 mitki-tokenizer = { path = "crates/mitki-tokenizer" }
 mitki-yellow = { path = "crates/mitki-yellow" }
-salsa = { version = "0.24", default-features = false, features = [
+salsa = { version = "0.25", default-features = false, features = [
     "macros",
     "inventory",
 ] }
