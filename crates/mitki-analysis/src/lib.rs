@@ -1,22 +1,16 @@
-mod arena;
-pub mod ast_map;
-pub mod hir;
-pub mod infer;
-pub mod item;
-pub mod resolver;
 pub mod semantics;
-pub mod ty;
 
-use item::scope::Declaration;
 use mitki_errors::Diagnostic;
+use mitki_lower::item::scope::Declaration;
 use mitki_parse::FileParse as _;
 pub use semantics::Semantics;
 
 #[salsa::tracked(returns(ref), no_eq)]
 pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) -> Vec<Diagnostic> {
-    use hir::HasFunction as _;
-    use infer::Inferable as _;
-    use item::scope::HasItemScope as _;
+    use mitki_lower::hir::HasFunction as _;
+    use mitki_lower::item::scope::HasItemScope as _;
+    use mitki_typeck::infer;
+    use mitki_typeck::infer::Inferable as _;
 
     let mut diagnostics = file.parse(db).diagnostics().to_owned();
 

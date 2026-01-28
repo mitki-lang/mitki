@@ -1,13 +1,13 @@
 use Expectation::{ExpectHasType, NoExpectation};
+use mitki_hir::hir::{Function, NodeId, NodeKind};
+use mitki_hir::ty::{Ty, TyKind};
+use mitki_lower::hir::HasFunction as _;
+use mitki_lower::item::scope::FunctionLocation;
+use mitki_resolve::{Resolution, Resolver};
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
-use crate::hir::{Function, HasFunction as _, NodeId, NodeKind};
-use crate::item::scope::FunctionLocation;
-use crate::resolver::{Resolution, Resolver};
-use crate::ty::{Ty, TyKind};
-
-pub(crate) trait Inferable<'db> {
+pub trait Inferable<'db> {
     fn infer(self, db: &'db dyn Database) -> &'db Inference<'db>;
 }
 
@@ -28,19 +28,19 @@ impl<'db> Inferable<'db> for FunctionLocation<'db> {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, salsa::Update)]
-pub(crate) struct Inference<'db> {
+pub struct Inference<'db> {
     type_of_node: FxHashMap<NodeId, Ty<'db>>,
     diagnostics: Vec<Diagnostic<'db>>,
 }
 
 impl<'db> Inference<'db> {
-    pub(crate) fn diagnostics(&self) -> &[Diagnostic<'db>] {
+    pub fn diagnostics(&self) -> &[Diagnostic<'db>] {
         &self.diagnostics
     }
 }
 
 #[derive(Debug, PartialEq, Eq, salsa::Update)]
-pub(crate) enum Diagnostic<'db> {
+pub enum Diagnostic<'db> {
     UnresolvedIdent(NodeId),
     TypeMismatch(NodeId, Ty<'db>, Ty<'db>),
     ExpectedValueFoundType(NodeId, Ty<'db>),

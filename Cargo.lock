@@ -683,12 +683,13 @@ dependencies = [
 name = "mitki-analysis"
 version = "0.1.0"
 dependencies = [
- "hashbrown 0.15.5",
- "indexmap",
  "mitki-errors",
  "mitki-inputs",
+ "mitki-lower",
  "mitki-parse",
+ "mitki-resolve",
  "mitki-span",
+ "mitki-typeck",
  "mitki-yellow",
  "rustc-hash",
  "salsa",
@@ -726,13 +727,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "mitki-hir"
+version = "0.1.0"
+dependencies = [
+ "mitki-span",
+ "salsa",
+]
+
+[[package]]
 name = "mitki-ide"
 version = "0.1.0"
 dependencies = [
  "mitki-analysis",
  "mitki-db",
  "mitki-inputs",
+ "mitki-lower",
  "mitki-parse",
+ "mitki-resolve",
  "mitki-span",
  "mitki-yellow",
  "salsa",
@@ -745,6 +756,21 @@ version = "0.1.0"
 dependencies = [
  "camino",
  "line-index",
+ "salsa",
+]
+
+[[package]]
+name = "mitki-lower"
+version = "0.1.0"
+dependencies = [
+ "hashbrown 0.15.5",
+ "indexmap",
+ "mitki-hir",
+ "mitki-inputs",
+ "mitki-parse",
+ "mitki-span",
+ "mitki-yellow",
+ "rustc-hash",
  "salsa",
 ]
 
@@ -779,6 +805,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mitki-resolve"
+version = "0.1.0"
+dependencies = [
+ "mitki-hir",
+ "mitki-lower",
+ "mitki-span",
+ "rustc-hash",
+ "salsa",
+]
+
+[[package]]
 name = "mitki-span"
 version = "0.1.0"
 dependencies = [
@@ -794,6 +831,17 @@ dependencies = [
  "mitki-yellow",
  "quickcheck",
  "text-size",
+]
+
+[[package]]
+name = "mitki-typeck"
+version = "0.1.0"
+dependencies = [
+ "mitki-hir",
+ "mitki-lower",
+ "mitki-resolve",
+ "rustc-hash",
+ "salsa",
 ]
 
 [[package]]

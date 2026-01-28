@@ -1,8 +1,6 @@
 mod function;
-mod syntax;
-
-pub(crate) use function::{Function, FunctionSourceMap};
-pub(crate) use syntax::{NodeId, NodeKind, NodeStore};
+pub use function::FunctionSourceMap;
+use mitki_hir::hir::Function;
 
 #[salsa::tracked]
 pub struct FunctionWithSourceMap<'db> {

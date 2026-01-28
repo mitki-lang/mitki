@@ -1,12 +1,11 @@
 use hashbrown::HashTable;
+use mitki_hir::arena::{Arena, Key};
 use mitki_inputs::File;
 use mitki_parse::FileParse as _;
 use mitki_yellow::{SyntaxKind, SyntaxNode, SyntaxNodePtr};
 use salsa::Database;
 
-use crate::arena::{Arena, Key};
-
-pub(crate) trait HasAstMap {
+pub trait HasAstMap {
     fn ast_map(self, db: &dyn Database) -> &AstMap;
 }
 
@@ -19,7 +18,7 @@ impl HasAstMap for File {
 }
 
 #[derive(Debug)]
-pub(crate) struct AstMap {
+pub struct AstMap {
     arena: Arena<SyntaxNodePtr>,
     map: HashTable<Key<SyntaxNodePtr>>,
 }
@@ -33,7 +32,7 @@ impl PartialEq for AstMap {
 impl Eq for AstMap {}
 
 impl AstMap {
-    pub(crate) fn from_root(root: &SyntaxNode<'_>) -> Self {
+    pub fn from_root(root: &SyntaxNode<'_>) -> Self {
         let mut arena = Arena::new();
         let mut map = HashTable::default();
 
@@ -51,12 +50,12 @@ impl AstMap {
         Self { arena, map }
     }
 
-    pub(crate) fn find_id(&self, node: &SyntaxNode<'_>) -> Key<SyntaxNodePtr> {
+    pub fn find_id(&self, node: &SyntaxNode<'_>) -> Key<SyntaxNodePtr> {
         let ptr = SyntaxNodePtr::new(node);
         *self.map.find(hash_one(&ptr), |&key| self.arena[key] == ptr).unwrap()
     }
 
-    pub(crate) fn find_node(&self, index: Key<SyntaxNodePtr>) -> &SyntaxNodePtr {
+    pub fn find_node(&self, index: Key<SyntaxNodePtr>) -> &SyntaxNodePtr {
         &self.arena[index]
     }
 }

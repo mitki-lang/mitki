@@ -1,5 +1,6 @@
 use std::ops::Index;
 
+use mitki_hir::arena::{Arena, Key};
 use mitki_inputs::File;
 use mitki_parse::FileParse as _;
 use mitki_span::{IntoSymbol as _, Symbol};
@@ -7,12 +8,11 @@ use mitki_yellow::SyntaxNodePtr;
 use mitki_yellow::ast::{HasName as _, Node as _};
 use salsa::Database;
 
-use crate::arena::{Arena, Key};
 use crate::ast_map::HasAstMap as _;
 
 pub type Function<'db> = Key<FunctionData<'db>>;
 
-pub(crate) trait HasItemTree {
+pub trait HasItemTree {
     fn item_tree(self, db: &dyn Database) -> &ItemTree<'_>;
 }
 
@@ -44,7 +44,7 @@ impl HasItemTree for File {
 }
 
 #[derive(Debug, Default, salsa::Update)]
-pub(crate) struct ItemTree<'db> {
+pub struct ItemTree<'db> {
     items: Vec<Item<'db>>,
     functions: Arena<FunctionData<'db>>,
 }
@@ -70,6 +70,6 @@ pub(crate) enum Item<'db> {
 
 #[derive(Debug, PartialEq, Eq, salsa::Update)]
 pub struct FunctionData<'db> {
-    pub(crate) id: Key<SyntaxNodePtr>,
-    pub(crate) name: Symbol<'db>,
+    pub id: Key<SyntaxNodePtr>,
+    pub name: Symbol<'db>,
 }

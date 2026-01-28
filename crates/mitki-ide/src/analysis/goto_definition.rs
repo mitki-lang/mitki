@@ -1,7 +1,7 @@
 use mitki_analysis::Semantics;
-use mitki_analysis::hir::HasFunction as _;
-use mitki_analysis::resolver::Resolution;
+use mitki_lower::hir::HasFunction as _;
 use mitki_parse::FileParse as _;
+use mitki_resolve::Resolution;
 use mitki_span::IntoSymbol as _;
 use mitki_yellow::SyntaxKind;
 use mitki_yellow::ast::{self, HasName as _, Node as _};

@@ -1,5 +1,5 @@
 [package]
-name = "mitki-ide"
+name = "mitki-lower"
 version = "0.1.0"
 license.workspace = true
 edition.workspace = true
@@ -11,13 +11,12 @@ doctest = false
 workspace = true
 
 [dependencies]
-mitki-analysis.workspace = true
-mitki-db.workspace = true
+hashbrown = "0.15"
+indexmap = "2.6"
+mitki-hir.workspace = true
 mitki-inputs.workspace = true
-mitki-lower.workspace = true
 mitki-parse.workspace = true
-mitki-resolve.workspace = true
 mitki-span.workspace = true
 mitki-yellow.workspace = true
+rustc-hash = "2.0"
 salsa.workspace = true
-text-size.workspace = true

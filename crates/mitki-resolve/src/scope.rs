@@ -1,12 +1,12 @@
+use mitki_hir::arena::{Arena, Key, Range};
+use mitki_hir::hir::{Function, NodeId, NodeKind};
+use mitki_lower::hir::HasFunction as _;
+use mitki_lower::item::scope::FunctionLocation;
 use mitki_span::Symbol;
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
-use crate::arena::{Arena, Key, Range};
-use crate::hir::{Function, HasFunction as _, NodeId, NodeKind};
-use crate::item::scope::FunctionLocation;
-
-pub(crate) trait HasExprScopes<'db> {
+pub trait HasExprScopes<'db> {
     fn expr_scopes(self, db: &'db dyn Database) -> &'db ExprScopes<'db>;
 }
 
@@ -23,14 +23,14 @@ impl<'db> HasExprScopes<'db> for FunctionLocation<'db> {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, salsa::Update)]
-pub(crate) struct ExprScopes<'db> {
+pub struct ExprScopes<'db> {
     scopes: Arena<ScopeData<'db>>,
     scope_entries: Arena<ScopeEntry<'db>>,
     scope_by_node: FxHashMap<NodeId, Scope<'db>>,
 }
 
 impl<'db> ExprScopes<'db> {
-    pub(crate) fn scope_by_node(&self, node: NodeId) -> Option<Scope<'db>> {
+    pub fn scope_by_node(&self, node: NodeId) -> Option<Scope<'db>> {
         self.scope_by_node.get(&node).copied()
     }
 
@@ -53,10 +53,10 @@ pub(crate) struct ScopeEntry<'db> {
     pub(crate) binding: NodeId,
 }
 
-pub(crate) type Scope<'db> = Key<ScopeData<'db>>;
+pub type Scope<'db> = Key<ScopeData<'db>>;
 
 #[derive(Debug, PartialEq, Eq, salsa::Update)]
-pub(crate) struct ScopeData<'db> {
+pub struct ScopeData<'db> {
     parent: Option<Scope<'db>>,
     entries: Range<ScopeEntry<'db>>,
 }

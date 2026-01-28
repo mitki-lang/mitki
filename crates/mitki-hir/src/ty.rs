@@ -5,7 +5,7 @@ pub struct Ty<'db> {
 }
 
 impl<'db> Ty<'db> {
-    pub(crate) fn display(self, db: &'db dyn salsa::Database) -> TyDisplay<'db> {
+    pub fn display(self, db: &'db dyn salsa::Database) -> TyDisplay<'db> {
         TyDisplay { db, ty_kind: self.kind(db) }
     }
 }
@@ -22,7 +22,7 @@ pub enum TyKind<'db> {
     Function { inputs: Vec<Ty<'db>>, output: Ty<'db> },
 }
 
-pub(crate) struct TyDisplay<'db> {
+pub struct TyDisplay<'db> {
     ty_kind: &'db TyKind<'db>,
     db: &'db dyn salsa::Database,
 }

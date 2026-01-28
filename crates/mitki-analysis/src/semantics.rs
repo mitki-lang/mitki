@@ -1,15 +1,14 @@
 use mitki_inputs::File;
+use mitki_lower::ast_map::HasAstMap as _;
+use mitki_lower::hir::HasFunction as _;
+use mitki_lower::item::scope::{Declaration, FunctionLocation, HasItemScope as _};
+use mitki_lower::item::tree::HasItemTree as _;
+use mitki_resolve::Resolver;
+use mitki_resolve::scope::HasExprScopes as _;
 use mitki_yellow::ast::Node as _;
 use mitki_yellow::{SyntaxNode, SyntaxNodePtr, ast};
 use rustc_hash::FxHashMap;
 use salsa::Database;
-
-use crate::ast_map::HasAstMap as _;
-use crate::hir::HasFunction as _;
-use crate::item::scope::{Declaration, FunctionLocation, HasItemScope as _};
-use crate::item::tree::HasItemTree as _;
-use crate::resolver::Resolver;
-use crate::resolver::scope::HasExprScopes as _;
 
 pub struct Semantics<'db> {
     source_map: SourceMap<'db>,

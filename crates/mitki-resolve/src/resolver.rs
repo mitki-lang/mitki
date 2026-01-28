@@ -1,13 +1,11 @@
-pub(crate) mod scope;
-
+use mitki_hir::hir::NodeId;
+use mitki_hir::ty::{Ty, TyKind};
+use mitki_lower::item::scope::{FunctionLocation, HasItemScope as _, ItemScope};
 use mitki_span::{IntoSymbol as _, Symbol};
 use rustc_hash::FxHashMap;
 use salsa::Database;
-use scope::{ExprScopes, HasExprScopes as _, Scope};
 
-use crate::hir::NodeId;
-use crate::item::scope::{FunctionLocation, HasItemScope as _, ItemScope};
-use crate::ty::{Ty, TyKind};
+use crate::scope::{ExprScopes, HasExprScopes as _, Scope};
 
 #[salsa::tracked(returns(ref))]
 fn builtin_scope(db: &dyn Database) -> FxHashMap<Symbol<'_>, Ty<'_>> {
@@ -29,7 +27,7 @@ pub struct Resolver<'db> {
 }
 
 impl<'db> Resolver<'db> {
-    pub(crate) fn new(db: &'db dyn Database, function: FunctionLocation<'db>) -> Self {
+    pub fn new(db: &'db dyn Database, function: FunctionLocation<'db>) -> Self {
         let file = function.file(db);
 
         Self {
@@ -40,11 +38,11 @@ impl<'db> Resolver<'db> {
         }
     }
 
-    pub(crate) fn scopes(&self) -> impl ExactSizeIterator<Item = Scope<'db>> + '_ {
+    fn scopes(&self) -> impl ExactSizeIterator<Item = Scope<'db>> + '_ {
         self.scopes.iter().rev().copied()
     }
 
-    pub(crate) fn scopes_for_node(&mut self, node: NodeId) -> Guard {
+    pub fn scopes_for_node(&mut self, node: NodeId) -> Guard {
         let start = self.scopes.len();
 
         let innermost_scope = self.scopes().next();
@@ -62,7 +60,7 @@ impl<'db> Resolver<'db> {
         Guard(start)
     }
 
-    pub(crate) fn reset(&mut self, Guard(start): Guard) {
+    pub fn reset(&mut self, Guard(start): Guard) {
         self.scopes.truncate(start);
     }
 
@@ -86,7 +84,7 @@ impl<'db> Resolver<'db> {
         None
     }
 
-    pub(crate) fn for_scope(
+    pub fn for_scope(
         db: &'db dyn Database,
         item_scope: &'db ItemScope<'db>,
         expr_scopes: &'db ExprScopes<'db>,
@@ -99,7 +97,7 @@ impl<'db> Resolver<'db> {
     }
 }
 
-pub(crate) struct Guard(usize);
+pub struct Guard(usize);
 
 #[derive(Debug)]
 pub enum Resolution<'db> {
