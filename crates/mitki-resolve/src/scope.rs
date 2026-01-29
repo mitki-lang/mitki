@@ -1,5 +1,5 @@
 use mitki_hir::arena::{Arena, Key, Range};
-use mitki_hir::hir::{ExprId, Function, NameId, NodeKind, ParamId, StmtId};
+use mitki_hir::hir::{ExprId, Function, NameId, NodeKind, ParamId, StmtId, TyId};
 use mitki_lower::hir::HasFunction as _;
 use mitki_lower::item::scope::FunctionLocation;
 use mitki_span::Symbol;
@@ -27,6 +27,7 @@ pub struct ExprScopes<'db> {
     scopes: Arena<ScopeData<'db>>,
     scope_entries: Arena<ScopeEntry<'db>>,
     scope_by_node: FxHashMap<StmtId, Scope<'db>>,
+    scope_by_type: FxHashMap<TyId, Scope<'db>>,
 }
 
 impl<'db> ExprScopes<'db> {
@@ -44,6 +45,10 @@ impl<'db> ExprScopes<'db> {
 
     pub(crate) fn scope_for(&self, expr: ExprId) -> Option<Scope<'db>> {
         self.scope_by_node.get(&expr.into()).copied()
+    }
+
+    pub(crate) fn scope_for_ty(&self, ty: TyId) -> Option<Scope<'db>> {
+        self.scope_by_type.get(&ty).copied()
     }
 }
 
@@ -92,6 +97,13 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
     }
 
     #[track_caller]
+    fn add_type(&mut self, ty: TyId, scope: Key<ScopeData<'db>>) {
+        if ty != TyId::ZERO {
+            self.scopes.scope_by_type.insert(ty, scope);
+        }
+    }
+
+    #[track_caller]
     fn build_node_scopes(&mut self, node: StmtId, scope: &mut Scope<'db>) {
         let nodes = self.function.node_store();
         self.scopes.scope_by_node.insert(node, *scope);
@@ -100,6 +112,7 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
             NodeKind::LocalVar => {
                 let var_id = nodes.as_local_var(node).expect("LocalVar node mismatch");
                 let var = nodes.local_var(var_id);
+                self.add_type(var.ty, *scope);
                 self.build_node_scopes(var.initializer.into(), scope);
 
                 *scope = self.scope(*scope);
@@ -159,6 +172,7 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
         let mut scope = self.root_scope();
 
         self.add_bindings(self.function.params().iter().copied(), scope);
+        self.add_type(self.function.ret_type(), scope);
         if self.function.body() != ExprId::ZERO {
             self.build_node_scopes(self.function.body().into(), &mut scope);
         }
@@ -170,7 +184,8 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
     fn add_bindings(&mut self, params: impl IntoIterator<Item = ParamId>, scope: Scope<'db>) {
         let nodes = self.function.node_store();
         for param in params {
-            let (name, _) = nodes.param(param);
+            let (name, ty_id) = nodes.param(param);
+            self.add_type(ty_id, scope);
             self.add_binding(name, scope);
         }
     }

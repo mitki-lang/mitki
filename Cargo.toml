@@ -55,4 +55,5 @@ salsa = { version = "0.25", default-features = false, features = [
     "macros",
     "inventory",
 ] }
+rustc-hash = "2.0"
 text-size = "1.1"

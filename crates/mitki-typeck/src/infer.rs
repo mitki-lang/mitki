@@ -1,9 +1,9 @@
-use Expectation::{ExpectHasType, NoExpectation};
 use mitki_hir::hir::{ExprId, Function, NodeKind, NodeStore, StmtId, TyId};
 use mitki_hir::ty::{Ty, TyKind};
 use mitki_lower::hir::HasFunction as _;
 use mitki_lower::item::scope::FunctionLocation;
 use mitki_resolve::{Resolution, Resolver};
+use mitki_span::Symbol;
 use rustc_hash::FxHashMap;
 use salsa::Database;
 
@@ -20,6 +20,7 @@ impl<'db> Inferable<'db> for FunctionLocation<'db> {
             resolver: Resolver::new(db, self),
             inference: Inference::default(),
             function: self.hir_function(db).function(db),
+            context: Vec::new(),
             unit: Ty::new(db, TyKind::Tuple(Vec::new())),
             unknown: Ty::new(db, TyKind::Unknown),
         }
@@ -40,10 +41,32 @@ impl<'db> Inference<'db> {
 }
 
 #[derive(Debug, PartialEq, Eq, salsa::Update)]
-pub enum Diagnostic<'db> {
+pub struct Diagnostic<'db> {
+    kind: DiagnosticKind<'db>,
+    context: Option<ExprId>,
+}
+
+impl<'db> Diagnostic<'db> {
+    fn new(kind: DiagnosticKind<'db>, context: Option<ExprId>) -> Self {
+        Self { kind, context }
+    }
+
+    pub fn kind(&self) -> &DiagnosticKind<'db> {
+        &self.kind
+    }
+
+    pub fn context(&self) -> Option<ExprId> {
+        self.context
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, salsa::Update)]
+pub enum DiagnosticKind<'db> {
     UnresolvedIdent(ExprId),
+    UnresolvedType(TyId, Symbol<'db>),
     TypeMismatch(ExprId, Ty<'db>, Ty<'db>),
     ExpectedValueFoundType(ExprId, Ty<'db>),
+    ClosureArityMismatch(ExprId, usize, usize),
 }
 
 pub(crate) struct InferenceBuilder<'func, 'db> {
@@ -51,27 +74,88 @@ pub(crate) struct InferenceBuilder<'func, 'db> {
     resolver: Resolver<'db>,
     inference: Inference<'db>,
     function: &'func Function<'db>,
+    context: Vec<ExprId>,
 
     unit: Ty<'db>,
     unknown: Ty<'db>,
 }
 
 impl<'db> InferenceBuilder<'_, 'db> {
-    fn infer_node(&mut self, node: ExprId, expected: Expectation<'db>) -> Ty<'db> {
-        let actual_ty = self.infer_node_inner(node, expected);
-
-        if let ExpectHasType(expected_ty) = expected
-            && actual_ty != expected_ty
-        {
-            self.inference.diagnostics.push(Diagnostic::TypeMismatch(node, actual_ty, expected_ty));
-        }
-
-        actual_ty
+    fn infer_expr(&mut self, node: ExprId) -> Ty<'db> {
+        self.typecheck_expr(node, ExpectedType::None)
     }
 
-    fn infer_node_inner(&mut self, node: ExprId, _expected: Expectation) -> Ty<'db> {
+    fn check_expr(&mut self, node: ExprId, expected: Ty<'db>) -> Ty<'db> {
+        self.typecheck_expr(node, ExpectedType::Known(expected))
+    }
+
+    fn typecheck_expr(&mut self, node: ExprId, expected: ExpectedType<'db>) -> Ty<'db> {
         let nodes = self.function.node_store();
-        let ty = match nodes.node_kind(node) {
+        let kind = nodes.node_kind(node);
+        if Self::is_context_node(kind) {
+            self.with_context(node, |this| this.typecheck_expr_with_expectation(node, expected))
+        } else {
+            self.typecheck_expr_with_expectation(node, expected)
+        }
+    }
+
+    fn typecheck_expr_with_expectation(
+        &mut self,
+        node: ExprId,
+        expected: ExpectedType<'db>,
+    ) -> Ty<'db> {
+        let actual_ty = self.typecheck_expr_inner(node, expected);
+        let ty = self.finish_expected_type(node, expected, actual_ty);
+        self.inference.type_of_node.insert(node, ty);
+        ty
+    }
+
+    fn finish_expected_type(
+        &mut self,
+        node: ExprId,
+        expected: ExpectedType<'db>,
+        actual: Ty<'db>,
+    ) -> Ty<'db> {
+        match expected {
+            ExpectedType::Known(expected_ty) => {
+                if self.is_unknown(expected_ty) {
+                    return actual;
+                }
+                if self.is_unknown(actual) {
+                    return expected_ty;
+                }
+                if actual != expected_ty {
+                    self.emit(DiagnosticKind::TypeMismatch(node, actual, expected_ty));
+                }
+                expected_ty
+            }
+            ExpectedType::None => actual,
+        }
+    }
+
+    fn is_unknown(&self, ty: Ty<'db>) -> bool {
+        matches!(ty.kind(self.db), TyKind::Unknown)
+    }
+
+    fn emit(&mut self, kind: DiagnosticKind<'db>) {
+        let context = self.context.last().copied();
+        self.inference.diagnostics.push(Diagnostic::new(kind, context));
+    }
+
+    fn with_context<T>(&mut self, node: ExprId, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.context.push(node);
+        let out = f(self);
+        self.context.pop();
+        out
+    }
+
+    fn is_context_node(kind: NodeKind) -> bool {
+        matches!(kind, NodeKind::Tuple | NodeKind::If | NodeKind::Closure | NodeKind::Call)
+    }
+
+    fn typecheck_expr_inner(&mut self, node: ExprId, expected: ExpectedType<'db>) -> Ty<'db> {
+        let nodes = self.function.node_store();
+        match nodes.node_kind(node) {
             NodeKind::Int => Ty::new(self.db, TyKind::Int),
             NodeKind::Float => Ty::new(self.db, TyKind::Float),
             NodeKind::String => Ty::new(self.db, TyKind::String),
@@ -79,13 +163,31 @@ impl<'db> InferenceBuilder<'_, 'db> {
             NodeKind::True | NodeKind::False => Ty::new(self.db, TyKind::Bool),
             NodeKind::Tuple => {
                 let tuple = nodes.tuple(nodes.as_tuple(node).expect("Tuple node mismatch"));
-                let tys = tuple.iter().map(|item| self.infer_node(item, NoExpectation)).collect();
-                Ty::new(self.db, TyKind::Tuple(tys))
+                match expected {
+                    ExpectedType::Known(expected_ty) => match expected_ty.kind(self.db) {
+                        TyKind::Tuple(expected_items) if expected_items.len() == tuple.len() => {
+                            let tys = tuple
+                                .iter()
+                                .zip(expected_items.iter())
+                                .map(|(item, &expected_item)| self.check_expr(item, expected_item))
+                                .collect();
+                            Ty::new(self.db, TyKind::Tuple(tys))
+                        }
+                        _ => {
+                            let tys = tuple.iter().map(|item| self.infer_expr(item)).collect();
+                            Ty::new(self.db, TyKind::Tuple(tys))
+                        }
+                    },
+                    ExpectedType::None => {
+                        let tys = tuple.iter().map(|item| self.infer_expr(item)).collect();
+                        Ty::new(self.db, TyKind::Tuple(tys))
+                    }
+                }
             }
             NodeKind::LocalVar => {
                 let var_id = nodes.as_local_var(node).expect("LocalVar node mismatch");
                 let var = nodes.local_var(var_id);
-                let ty = self.infer_node(var.initializer, NoExpectation);
+                let ty = self.infer_expr(var.initializer);
                 self.inference.type_of_node.insert(var.name.into(), ty);
                 self.unit
             }
@@ -98,8 +200,8 @@ impl<'db> InferenceBuilder<'_, 'db> {
                 self.resolver.reset(guard);
 
                 let Some(resolution) = resolution else {
-                    self.inference.diagnostics.push(Diagnostic::UnresolvedIdent(node));
-                    return Ty::new(self.db, TyKind::Unknown);
+                    self.emit(DiagnosticKind::UnresolvedIdent(node));
+                    return self.unknown;
                 };
 
                 match resolution {
@@ -139,9 +241,7 @@ impl<'db> InferenceBuilder<'_, 'db> {
                         Ty::new(self.db, TyKind::Function { inputs, output })
                     }
                     Resolution::Type(ty) => {
-                        self.inference
-                            .diagnostics
-                            .push(Diagnostic::ExpectedValueFoundType(node, ty));
+                        self.emit(DiagnosticKind::ExpectedValueFoundType(node, ty));
                         self.unknown
                     }
                 }
@@ -151,114 +251,195 @@ impl<'db> InferenceBuilder<'_, 'db> {
                     nodes.block_stmts(nodes.as_block(node).expect("Block node mismatch"));
 
                 for stmt in stmts.iter() {
-                    self.infer_stmt(stmt);
+                    self.typecheck_stmt(stmt);
                 }
 
-                if tail != ExprId::ZERO {
-                    self.infer_node_inner(tail, _expected)
-                } else {
-                    self.unit
-                }
+                if tail != ExprId::ZERO { self.typecheck_expr(tail, expected) } else { self.unit }
             }
             NodeKind::Binary => {
                 let binary = nodes.binary(nodes.as_binary(node).expect("Binary node mismatch"));
-                self.infer_node(binary.lhs, NoExpectation);
-                self.infer_node(binary.rhs, NoExpectation);
-                Ty::new(self.db, TyKind::Unknown)
+                self.infer_expr(binary.lhs);
+                self.infer_expr(binary.rhs);
+                self.unknown
             }
             NodeKind::Postfix => {
                 let postfix = nodes.postfix(nodes.as_postfix(node).expect("Postfix node mismatch"));
-                self.infer_node(postfix.expr, NoExpectation);
-                Ty::new(self.db, TyKind::Unknown)
+                self.infer_expr(postfix.expr);
+                self.unknown
             }
             NodeKind::Prefix => {
                 let prefix = nodes.prefix(nodes.as_prefix(node).expect("Prefix node mismatch"));
-                self.infer_node(prefix.expr, NoExpectation);
-                Ty::new(self.db, TyKind::Unknown)
+                self.infer_expr(prefix.expr);
+                self.unknown
             }
             NodeKind::If => {
                 let if_expr = nodes.if_expr(nodes.as_if(node).expect("If node mismatch"));
-                self.infer_node(if_expr.cond, NoExpectation);
-                if if_expr.then_branch != ExprId::ZERO {
-                    self.infer_node(if_expr.then_branch, NoExpectation);
+                self.check_expr(if_expr.cond, Ty::new(self.db, TyKind::Bool));
+                match expected {
+                    ExpectedType::Known(expected_ty) => {
+                        if if_expr.then_branch != ExprId::ZERO {
+                            self.check_expr(if_expr.then_branch, expected_ty);
+                        }
+                        if if_expr.else_branch != ExprId::ZERO {
+                            self.check_expr(if_expr.else_branch, expected_ty);
+                        }
+                        expected_ty
+                    }
+                    ExpectedType::None => {
+                        if if_expr.then_branch != ExprId::ZERO {
+                            self.infer_expr(if_expr.then_branch);
+                        }
+                        if if_expr.else_branch != ExprId::ZERO {
+                            self.infer_expr(if_expr.else_branch);
+                        }
+                        self.unknown
+                    }
                 }
-                if if_expr.else_branch != ExprId::ZERO {
-                    self.infer_node(if_expr.else_branch, NoExpectation);
-                }
-                Ty::new(self.db, TyKind::Unknown)
             }
             NodeKind::Closure => {
                 let (params, body) =
                     nodes.closure_parts(nodes.as_closure(node).expect("Closure node mismatch"));
-                for param in params.iter() {
-                    let (name, _) = nodes.param(param);
-                    self.inference.type_of_node.insert(name.into(), self.unknown);
+                let mut expected_closure = None;
+
+                if let ExpectedType::Known(expected_ty) = expected
+                    && let TyKind::Function { inputs, output } = expected_ty.kind(self.db)
+                {
+                    if inputs.len() == params.len() {
+                        for (param, &input_ty) in params.iter().zip(inputs.iter()) {
+                            let (name, ty_id) = nodes.param(param);
+                            let annotated = self.resolve_type_annotation(ty_id);
+                            let param_ty = if let Some(annotated_ty) = annotated {
+                                if !self.is_unknown(annotated_ty)
+                                    && !self.is_unknown(input_ty)
+                                    && annotated_ty != input_ty
+                                {
+                                    self.emit(DiagnosticKind::TypeMismatch(
+                                        name.into(),
+                                        annotated_ty,
+                                        input_ty,
+                                    ));
+                                }
+                                annotated_ty
+                            } else {
+                                input_ty
+                            };
+                            self.inference.type_of_node.insert(name.into(), param_ty);
+                        }
+                        if body != ExprId::ZERO {
+                            self.check_expr(body, *output);
+                        }
+                        expected_closure = Some(expected_ty);
+                    } else {
+                        self.emit(DiagnosticKind::ClosureArityMismatch(
+                            node,
+                            params.len(),
+                            inputs.len(),
+                        ));
+                    }
                 }
-                if body != ExprId::ZERO {
-                    self.infer_node(body, NoExpectation);
+
+                if let Some(expected_ty) = expected_closure {
+                    expected_ty
+                } else {
+                    let mut inputs = Vec::with_capacity(params.len());
+                    for param in params.iter() {
+                        let (name, ty_id) = nodes.param(param);
+                        let annotated = self.resolve_type_annotation(ty_id);
+                        let param_ty = annotated.unwrap_or(self.unknown);
+                        self.inference.type_of_node.insert(name.into(), param_ty);
+                        inputs.push(param_ty);
+                    }
+                    let output =
+                        if body != ExprId::ZERO { self.infer_expr(body) } else { self.unknown };
+                    Ty::new(self.db, TyKind::Function { inputs, output })
                 }
-                Ty::new(self.db, TyKind::Function { inputs: vec![], output: self.unknown })
             }
             NodeKind::Call => {
                 let (callee, args) = nodes.call(nodes.as_call(node).expect("Call node mismatch"));
-                let callee_ty = self.infer_node(callee, NoExpectation);
+                let callee_ty = self.infer_expr(callee);
 
                 if let TyKind::Function { inputs, output } = callee_ty.kind(self.db) {
                     if inputs.len() != args.len() {
-                        let arg_tys = args
-                            .iter()
-                            .map(|arg| self.infer_node(arg, NoExpectation))
-                            .collect::<Vec<_>>();
+                        let arg_tys =
+                            args.iter().map(|arg| self.infer_expr(arg)).collect::<Vec<_>>();
 
                         let actual_ty = Ty::new(
                             self.db,
                             TyKind::Function { inputs: arg_tys.clone(), output: *output },
                         );
 
-                        self.inference
-                            .diagnostics
-                            .push(Diagnostic::TypeMismatch(node, actual_ty, callee_ty));
+                        self.emit(DiagnosticKind::TypeMismatch(node, actual_ty, callee_ty));
                     }
                     for (arg_node, &expected_ty) in args.iter().zip(inputs.iter()) {
-                        self.infer_node(arg_node, ExpectHasType(expected_ty));
+                        self.check_expr(arg_node, expected_ty);
                     }
 
                     *output
+                } else if self.is_unknown(callee_ty) {
+                    self.unknown
                 } else {
                     let expected_fn = Ty::new(
                         self.db,
                         TyKind::Function { inputs: Vec::new(), output: self.unknown },
                     );
 
-                    self.inference.diagnostics.push(Diagnostic::TypeMismatch(
-                        node,
-                        callee_ty,
-                        expected_fn,
-                    ));
+                    self.emit(DiagnosticKind::TypeMismatch(node, callee_ty, expected_fn));
                     self.unknown
                 }
             }
-            _ => Ty::new(self.db, TyKind::Unknown),
-        };
-        self.inference.type_of_node.insert(node, ty);
-        ty
+            _ => self.unknown,
+        }
     }
 
-    fn infer_stmt(&mut self, stmt: StmtId) {
+    fn typecheck_stmt(&mut self, stmt: StmtId) {
         let nodes = self.function.node_store();
         match nodes.node_kind(stmt) {
             NodeKind::LocalVar => {
                 let var_id = nodes.as_local_var(stmt).expect("LocalVar node mismatch");
                 let var = nodes.local_var(var_id);
-                let ty = self.infer_node(var.initializer, NoExpectation);
-                self.inference.type_of_node.insert(var.name.into(), ty);
+                let expected_ty = self.resolve_type_annotation(var.ty);
+
+                let binding_ty = if var.initializer != ExprId::ZERO {
+                    match expected_ty {
+                        Some(expected) => {
+                            self.check_expr(var.initializer, expected);
+                            expected
+                        }
+                        None => self.infer_expr(var.initializer),
+                    }
+                } else {
+                    expected_ty.unwrap_or(self.unknown)
+                };
+
+                self.inference.type_of_node.insert(var.name.into(), binding_ty);
             }
             _ => {
                 if let Some(expr) = stmt_as_expr(nodes, stmt) {
-                    self.infer_node(expr, NoExpectation);
+                    self.infer_expr(expr);
                 }
             }
         }
+    }
+
+    fn resolve_type_annotation(&mut self, ty: TyId) -> Option<Ty<'db>> {
+        if ty == TyId::ZERO {
+            return None;
+        }
+
+        let nodes = self.function.node_store();
+        let type_path = nodes.as_type_path(ty)?;
+        let name = nodes.type_ref(type_path);
+
+        let guard = self.resolver.scopes_for_type(ty);
+        let resolved = if let Some(Resolution::Type(ty)) = self.resolver.resolve_path(name) {
+            Some(ty)
+        } else {
+            self.emit(DiagnosticKind::UnresolvedType(ty, name));
+            None
+        };
+        self.resolver.reset(guard);
+
+        resolved
     }
 
     fn build(mut self) -> Inference<'db> {
@@ -267,13 +448,18 @@ impl<'db> InferenceBuilder<'_, 'db> {
         }
 
         for &param in self.function.params() {
-            let (name, _) = self.function.node_store().param(param);
-            self.inference.type_of_node.insert(name.into(), self.unknown);
+            let (name, ty_id) = self.function.node_store().param(param);
+            let param_ty = self.resolve_type_annotation(ty_id).unwrap_or(self.unknown);
+            self.inference.type_of_node.insert(name.into(), param_ty);
         }
 
-        let ret_ty = if self.function.ret_type() == TyId::ZERO { self.unit } else { self.unknown };
+        let ret_ty = if self.function.ret_type() == TyId::ZERO {
+            self.unit
+        } else {
+            self.resolve_type_annotation(self.function.ret_type()).unwrap_or(self.unknown)
+        };
 
-        self.infer_node(self.function.body(), ExpectHasType(ret_ty));
+        self.check_expr(self.function.body(), ret_ty);
 
         self.inference
     }
@@ -302,7 +488,7 @@ fn stmt_as_expr(nodes: &NodeStore<'_>, stmt: StmtId) -> Option<ExprId> {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum Expectation<'db> {
-    ExpectHasType(Ty<'db>),
-    NoExpectation,
+enum ExpectedType<'db> {
+    Known(Ty<'db>),
+    None,
 }

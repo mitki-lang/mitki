@@ -649,6 +649,7 @@ name = "mitki-analysis"
 version = "0.1.0"
 dependencies = [
  "mitki-errors",
+ "mitki-hir",
  "mitki-inputs",
  "mitki-lower",
  "mitki-parse",
@@ -679,6 +680,7 @@ version = "0.1.0"
 dependencies = [
  "mitki-analysis",
  "mitki-errors",
+ "mitki-inputs",
  "salsa",
 ]
 
@@ -816,6 +818,7 @@ dependencies = [
  "mitki-hir",
  "mitki-lower",
  "mitki-resolve",
+ "mitki-span",
  "rustc-hash",
  "salsa",
 ]

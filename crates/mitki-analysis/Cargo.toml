@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 mitki-errors.workspace = true
+mitki-hir.workspace = true
 mitki-inputs.workspace = true
 mitki-lower.workspace = true
 mitki-parse.workspace = true

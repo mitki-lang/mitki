@@ -14,3 +14,6 @@ workspace = true
 mitki-analysis.workspace = true
 mitki-errors.workspace = true
 salsa.workspace = true
+
+[dev-dependencies]
+mitki-inputs.workspace = true
