@@ -1,0 +1,15 @@
+[package]
+name = "mitki-hir"
+version = "0.1.0"
+license.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mitki-span.workspace = true
+salsa.workspace = true

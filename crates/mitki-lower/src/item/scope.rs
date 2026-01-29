@@ -1,16 +1,16 @@
+use mitki_hir::hir::{NodeId, NodeStore};
 use mitki_inputs::File;
 use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::ast::{self, Node as _};
 use salsa::Database;
 
 use super::tree::{Item, ItemTree};
-use crate::hir::{NodeId, NodeStore};
 use crate::item::tree::{Function, HasItemTree as _};
 
 type FxIndexMap<K, V> =
     indexmap::IndexMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
 
-pub(crate) trait HasItemScope {
+pub trait HasItemScope {
     fn item_scope(self, db: &dyn Database) -> &ItemScope<'_>;
 }
 
@@ -128,11 +128,11 @@ pub struct ItemScope<'db> {
 }
 
 impl<'db> ItemScope<'db> {
-    pub(crate) fn get(&self, name: &Symbol<'db>) -> Option<FunctionLocation<'db>> {
+    pub fn get(&self, name: &Symbol<'db>) -> Option<FunctionLocation<'db>> {
         self.values.get(name).copied()
     }
 
-    pub(crate) fn declarations(&self) -> &[Declaration<'db>] {
+    pub fn declarations(&self) -> &[Declaration<'db>] {
         &self.declarations
     }
 }

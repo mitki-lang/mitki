@@ -49,7 +49,7 @@ impl<T> From<u32> for Key<T> {
 }
 
 #[derive(Debug, salsa::Update)]
-pub(crate) struct Range<T> {
+pub struct Range<T> {
     pub start: Key<T>,
     pub end: Key<T>,
 }
@@ -78,17 +78,17 @@ impl<T> Clone for Range<T> {
 }
 
 impl<T> Range<T> {
-    pub(crate) fn new(start: Key<T>, end: Key<T>) -> Self {
+    pub fn new(start: Key<T>, end: Key<T>) -> Self {
         Self { start, end }
     }
 
-    pub(crate) fn new_inclusive(start: Key<T>, end: Key<T>) -> Self {
+    pub fn new_inclusive(start: Key<T>, end: Key<T>) -> Self {
         Self { start, end: Key::new(end.index() + 1) }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub(crate) struct Arena<T> {
+pub struct Arena<T> {
     items: Vec<T>,
 }
 
@@ -120,21 +120,22 @@ unsafe impl<T: salsa::Update> salsa::Update for Arena<T> {
 }
 
 impl<T> Arena<T> {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self { items: Vec::new() }
     }
 
-    pub(crate) fn alloc(&mut self, value: T) -> Key<T> {
+    pub fn alloc(&mut self, value: T) -> Key<T> {
         let idx = self.items.len() as u32;
         self.items.push(value);
         Key::new(idx)
     }
 
-    pub(crate) fn iter_enumerated(&self) -> impl Iterator<Item = (Key<T>, &T)> {
+    pub fn iter_enumerated(&self) -> impl Iterator<Item = (Key<T>, &T)> {
         self.items.iter().enumerate().map(|(i, item)| (Key::new(i as u32), item))
     }
 
-    pub(crate) fn len(&self) -> usize {
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
         self.items.len()
     }
 }

@@ -40,11 +40,15 @@ camino = "1.1"
 mitki-analysis = { path = "crates/mitki-analysis" }
 mitki-db = { path = "crates/mitki-db" }
 mitki-errors = { path = "crates/mitki-errors" }
+mitki-hir = { path = "crates/mitki-hir" }
 mitki-ide = { path = "crates/mitki-ide" }
 mitki-inputs = { path = "crates/mitki-inputs" }
 mitki-lsp-server = { path = "crates/mitki-lsp-server" }
+mitki-lower = { path = "crates/mitki-lower" }
 mitki-parse = { path = "crates/mitki-parse" }
+mitki-resolve = { path = "crates/mitki-resolve" }
 mitki-span = { path = "crates/mitki-span" }
+mitki-typeck = { path = "crates/mitki-typeck" }
 mitki-tokenizer = { path = "crates/mitki-tokenizer" }
 mitki-yellow = { path = "crates/mitki-yellow" }
 salsa = { version = "0.25", default-features = false, features = [

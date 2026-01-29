@@ -1,5 +1,4 @@
-use mitki_span::{IntoSymbol as _, Symbol};
-use mitki_yellow::{SyntaxToken, ast};
+use mitki_span::Symbol;
 
 #[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
 pub struct NodeStore<'db> {
@@ -9,34 +8,18 @@ pub struct NodeStore<'db> {
 }
 
 impl<'db> NodeStore<'db> {
-    pub(crate) fn alloc_binding(&mut self, symbol: Symbol<'db>) -> NodeId {
+    pub fn alloc_binding(&mut self, symbol: Symbol<'db>) -> NodeId {
         self.symbols.push_with_index(symbol).into()
     }
 
-    pub(crate) fn alloc_name(&mut self, symbol: Symbol<'db>) -> NodeId {
+    pub fn alloc_name(&mut self, symbol: Symbol<'db>) -> NodeId {
         let binding = self.alloc_binding(symbol);
         self.alloc(NodeKind::Name, binding, NodeId::ZERO)
     }
 
-    pub(crate) fn alloc_literal(
-        &mut self,
-        db: &'db dyn salsa::Database,
-        literal: &ast::Literal<'db>,
-    ) -> NodeId {
-        let (kind, lhs) = match literal.kind(db) {
-            ast::LiteralKind::Bool(true) => (NodeKind::True, NodeId::ZERO),
-            ast::LiteralKind::Bool(false) => (NodeKind::False, NodeId::ZERO),
-            ast::LiteralKind::Int(token) => (NodeKind::Int, self.alloc_token(db, &token)),
-            ast::LiteralKind::Float(token) => (NodeKind::Float, self.alloc_token(db, &token)),
-            ast::LiteralKind::String(token) => (NodeKind::String, self.alloc_token(db, &token)),
-            ast::LiteralKind::Char(token) => (NodeKind::Char, self.alloc_token(db, &token)),
-        };
-
+    pub fn alloc_literal(&mut self, kind: NodeKind, value: Option<Symbol<'db>>) -> NodeId {
+        let lhs = value.map_or(NodeId::ZERO, |symbol| self.alloc_binding(symbol));
         self.alloc(kind, lhs, NodeId::ZERO)
-    }
-
-    fn alloc_token(&mut self, db: &'db dyn salsa::Database, token: &SyntaxToken<'db>) -> NodeId {
-        self.alloc_binding(token.text_trimmed().into_symbol(db))
     }
 
     #[track_caller]
@@ -44,7 +27,7 @@ impl<'db> NodeStore<'db> {
         self.symbols[binding.get()]
     }
 
-    pub(crate) fn alloc_tuple(&mut self, items: Vec<NodeId>) -> NodeId {
+    pub fn alloc_tuple(&mut self, items: Vec<NodeId>) -> NodeId {
         let start = self.node_ids.len().into();
         self.node_ids.extend(items);
         let end = self.node_ids.len().into();
@@ -65,19 +48,14 @@ impl<'db> NodeStore<'db> {
         &self.node_ids[start..end]
     }
 
-    pub(crate) fn alloc_local_var(
-        &mut self,
-        name: NodeId,
-        ty: NodeId,
-        initializer: NodeId,
-    ) -> NodeId {
+    pub fn alloc_local_var(&mut self, name: NodeId, ty: NodeId, initializer: NodeId) -> NodeId {
         let lhs = self.node_ids.push_with_index(name).into();
         let rhs = self.node_ids.push_with_index(ty).into();
         self.node_ids.push(initializer);
         self.alloc(NodeKind::LocalVar, lhs, rhs)
     }
 
-    pub(crate) fn alloc_block(&mut self, stmts: Vec<NodeId>, tail: NodeId) -> NodeId {
+    pub fn alloc_block(&mut self, stmts: Vec<NodeId>, tail: NodeId) -> NodeId {
         let start = self.node_ids.len().into();
         self.node_ids.extend(stmts);
         let end = self.node_ids.len().into();
@@ -88,11 +66,11 @@ impl<'db> NodeStore<'db> {
         self.alloc(NodeKind::Block, range, tail)
     }
 
-    pub(crate) fn alloc_error(&mut self) -> NodeId {
+    pub fn alloc_error(&mut self) -> NodeId {
         self.alloc(NodeKind::Error, NodeId::ZERO, NodeId::ZERO)
     }
 
-    pub(crate) fn alloc_call(&mut self, callee: NodeId, args: Vec<NodeId>) -> NodeId {
+    pub fn alloc_call(&mut self, callee: NodeId, args: Vec<NodeId>) -> NodeId {
         let start = self.node_ids.len().into();
         self.node_ids.push_with_index(callee);
         self.node_ids.extend(args);
@@ -110,34 +88,29 @@ impl<'db> NodeStore<'db> {
         (*callee, args)
     }
 
-    pub(crate) fn alloc_binary(&mut self, lhs: NodeId, op: NodeId, rhs: NodeId) -> NodeId {
+    pub fn alloc_binary(&mut self, lhs: NodeId, op: NodeId, rhs: NodeId) -> NodeId {
         let lhs_idx = self.node_ids.push_with_index(lhs).into();
         let rhs_idx = self.node_ids.push_with_index(op).into();
         self.node_ids.push(rhs);
         self.alloc(NodeKind::Binary, lhs_idx, rhs_idx)
     }
 
-    pub(crate) fn alloc_postfix(&mut self, expr: NodeId, op: NodeId) -> NodeId {
+    pub fn alloc_postfix(&mut self, expr: NodeId, op: NodeId) -> NodeId {
         self.alloc(NodeKind::Postfix, expr, op)
     }
 
-    pub(crate) fn alloc_prefix(&mut self, op: NodeId, expr: NodeId) -> NodeId {
+    pub fn alloc_prefix(&mut self, op: NodeId, expr: NodeId) -> NodeId {
         self.alloc(NodeKind::Prefix, op, expr)
     }
 
-    pub(crate) fn alloc_if(
-        &mut self,
-        cond: NodeId,
-        then_branch: NodeId,
-        else_branch: NodeId,
-    ) -> NodeId {
+    pub fn alloc_if(&mut self, cond: NodeId, then_branch: NodeId, else_branch: NodeId) -> NodeId {
         let lhs_idx = self.node_ids.push_with_index(cond).into();
         let rhs_idx = self.node_ids.push_with_index(then_branch).into();
         self.node_ids.push(else_branch);
         self.alloc(NodeKind::If, lhs_idx, rhs_idx)
     }
 
-    pub(crate) fn alloc_closure(&mut self, params: Vec<NodeId>, body: NodeId) -> NodeId {
+    pub fn alloc_closure(&mut self, params: Vec<NodeId>, body: NodeId) -> NodeId {
         let start = self.node_ids.len().into();
         self.node_ids.extend(params);
         let end = self.node_ids.len().into();
@@ -232,13 +205,13 @@ impl<'db> NodeStore<'db> {
         }
     }
 
-    pub(crate) fn alloc_param(&mut self, name: Symbol<'db>, ty: NodeId) -> NodeId {
+    pub fn alloc_param(&mut self, name: Symbol<'db>, ty: NodeId) -> NodeId {
         let name_id = self.alloc_name(name);
         let ty_id = self.node_ids.push_with_index(ty).into();
         self.alloc(NodeKind::Param, name_id, ty_id)
     }
 
-    pub(crate) fn param(&self, node: NodeId) -> (Symbol<'db>, NodeId) {
+    pub fn param(&self, node: NodeId) -> (Symbol<'db>, NodeId) {
         let node = &self.nodes[node.get()];
         assert_eq!(node.kind, NodeKind::Param);
 
@@ -248,12 +221,12 @@ impl<'db> NodeStore<'db> {
         (name, ty)
     }
 
-    pub(crate) fn alloc_type_ref(&mut self, path: Symbol<'db>) -> NodeId {
+    pub fn alloc_type_ref(&mut self, path: Symbol<'db>) -> NodeId {
         let lhs = self.alloc_binding(path);
         self.alloc(NodeKind::TypePath, lhs, NodeId::ZERO)
     }
 
-    pub(crate) fn type_ref(&self, node: NodeId) -> Symbol<'db> {
+    pub fn type_ref(&self, node: NodeId) -> Symbol<'db> {
         let node = &self.nodes[node.get()];
         assert_eq!(node.kind, NodeKind::TypePath);
         self.symbol(node.data.lhs)
@@ -263,7 +236,7 @@ impl<'db> NodeStore<'db> {
 pub struct LocalVar {
     pub name: NodeId,
     pub(crate) _ty: NodeId,
-    pub(crate) initializer: NodeId,
+    pub initializer: NodeId,
 }
 
 pub struct BinaryExpr {
@@ -294,7 +267,7 @@ pub struct NodeId {
 }
 
 impl NodeId {
-    pub(crate) const ZERO: Self = Self { raw: 0 };
+    pub const ZERO: Self = Self { raw: 0 };
 
     fn new(raw: usize) -> Self {
         let raw: u32 = raw.try_into().unwrap();
