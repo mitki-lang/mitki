@@ -1,4 +1,4 @@
-use mitki_hir::hir::NodeId;
+use mitki_hir::hir::{ExprId, NameId};
 use mitki_hir::ty::{Ty, TyKind};
 use mitki_lower::item::scope::{FunctionLocation, HasItemScope as _, ItemScope};
 use mitki_span::{IntoSymbol as _, Symbol};
@@ -42,7 +42,7 @@ impl<'db> Resolver<'db> {
         self.scopes.iter().rev().copied()
     }
 
-    pub fn scopes_for_node(&mut self, node: NodeId) -> Guard {
+    pub fn scopes_for_node(&mut self, node: ExprId) -> Guard {
         let start = self.scopes.len();
 
         let innermost_scope = self.scopes().next();
@@ -101,7 +101,7 @@ pub struct Guard(usize);
 
 #[derive(Debug)]
 pub enum Resolution<'db> {
-    Local(NodeId),
+    Local(NameId),
     Function(FunctionLocation<'db>),
     Type(Ty<'db>),
 }

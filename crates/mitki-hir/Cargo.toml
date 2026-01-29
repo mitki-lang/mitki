@@ -12,4 +12,8 @@ workspace = true
 
 [dependencies]
 mitki-span.workspace = true
+mitki-hir-macros = { path = "../mitki-hir-macros" }
 salsa.workspace = true
+
+[dev-dependencies]
+trybuild = "1"

@@ -40,7 +40,7 @@ impl super::Analysis {
         match resolver.resolve_path(path)? {
             Resolution::Local(path) => {
                 let source_map = location.hir_function(db).source_map(db);
-                let range = source_map.node_syntax(&path).range;
+                let range = source_map.node_syntax(path.into()).range;
 
                 Some((original_token.trimmed_range(), range))
             }

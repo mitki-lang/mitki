@@ -1,5 +1,5 @@
 use mitki_hir::arena::{Arena, Key, Range};
-use mitki_hir::hir::{Function, NodeId, NodeKind};
+use mitki_hir::hir::{ExprId, Function, NameId, NodeKind, ParamId, StmtId};
 use mitki_lower::hir::HasFunction as _;
 use mitki_lower::item::scope::FunctionLocation;
 use mitki_span::Symbol;
@@ -26,11 +26,11 @@ impl<'db> HasExprScopes<'db> for FunctionLocation<'db> {
 pub struct ExprScopes<'db> {
     scopes: Arena<ScopeData<'db>>,
     scope_entries: Arena<ScopeEntry<'db>>,
-    scope_by_node: FxHashMap<NodeId, Scope<'db>>,
+    scope_by_node: FxHashMap<StmtId, Scope<'db>>,
 }
 
 impl<'db> ExprScopes<'db> {
-    pub fn scope_by_node(&self, node: NodeId) -> Option<Scope<'db>> {
+    pub fn scope_by_node(&self, node: StmtId) -> Option<Scope<'db>> {
         self.scope_by_node.get(&node).copied()
     }
 
@@ -42,15 +42,15 @@ impl<'db> ExprScopes<'db> {
         &self.scope_entries[self.scopes[scope].entries]
     }
 
-    pub(crate) fn scope_for(&self, expr: NodeId) -> Option<Scope<'db>> {
-        self.scope_by_node.get(&expr).copied()
+    pub(crate) fn scope_for(&self, expr: ExprId) -> Option<Scope<'db>> {
+        self.scope_by_node.get(&expr.into()).copied()
     }
 }
 
 #[derive(Debug, PartialEq, Eq, salsa::Update)]
 pub(crate) struct ScopeEntry<'db> {
     pub(crate) name: Symbol<'db>,
-    pub(crate) binding: NodeId,
+    pub(crate) binding: NameId,
 }
 
 pub type Scope<'db> = Key<ScopeData<'db>>;
@@ -84,67 +84,71 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
     }
 
     #[track_caller]
-    fn add_binding(&mut self, name: NodeId, scope: Key<ScopeData<'db>>) {
-        let symbol = self.function.name(name);
+    fn add_binding(&mut self, name: NameId, scope: Key<ScopeData<'db>>) {
+        let symbol = self.function.node_store().name(name);
         let entry = self.scopes.scope_entries.alloc(ScopeEntry { name: symbol, binding: name });
         self.scopes.scopes[scope].entries =
             Range::new_inclusive(self.scopes.scopes[scope].entries.start, entry);
     }
 
     #[track_caller]
-    fn build_node_scopes(&mut self, node: NodeId, scope: &mut Scope<'db>) {
+    fn build_node_scopes(&mut self, node: StmtId, scope: &mut Scope<'db>) {
+        let nodes = self.function.node_store();
         self.scopes.scope_by_node.insert(node, *scope);
 
-        match self.function.node_kind(node) {
+        match nodes.node_kind(node) {
             NodeKind::LocalVar => {
-                let var = self.function.local_var(node);
-                self.build_node_scopes(var.initializer, scope);
+                let var_id = nodes.as_local_var(node).expect("LocalVar node mismatch");
+                let var = nodes.local_var(var_id);
+                self.build_node_scopes(var.initializer.into(), scope);
 
                 *scope = self.scope(*scope);
                 self.add_binding(var.name, *scope);
             }
             NodeKind::Call => {}
             NodeKind::Binary => {
-                let binary = self.function.binary(node);
-                self.build_node_scopes(binary.lhs, scope);
-                self.build_node_scopes(binary.rhs, scope);
+                let binary = nodes.binary(nodes.as_binary(node).expect("Binary node mismatch"));
+                self.build_node_scopes(binary.lhs.into(), scope);
+                self.build_node_scopes(binary.rhs.into(), scope);
             }
             NodeKind::Postfix => {
-                let postfix = self.function.postfix(node);
-                self.build_node_scopes(postfix.expr, scope);
+                let postfix = nodes.postfix(nodes.as_postfix(node).expect("Postfix node mismatch"));
+                self.build_node_scopes(postfix.expr.into(), scope);
             }
             NodeKind::Prefix => {
-                let prefix = self.function.prefix(node);
-                self.build_node_scopes(prefix.expr, scope);
+                let prefix = nodes.prefix(nodes.as_prefix(node).expect("Prefix node mismatch"));
+                self.build_node_scopes(prefix.expr.into(), scope);
             }
             NodeKind::If => {
-                let if_expr = self.function.if_expr(node);
-                self.build_node_scopes(if_expr.cond, scope);
-                if if_expr.then_branch != NodeId::ZERO {
-                    self.build_node_scopes(if_expr.then_branch, scope);
+                let if_expr = nodes.if_expr(nodes.as_if(node).expect("If node mismatch"));
+                self.build_node_scopes(if_expr.cond.into(), scope);
+                if if_expr.then_branch != ExprId::ZERO {
+                    self.build_node_scopes(if_expr.then_branch.into(), scope);
                 }
-                if if_expr.else_branch != NodeId::ZERO {
-                    self.build_node_scopes(if_expr.else_branch, scope);
+                if if_expr.else_branch != ExprId::ZERO {
+                    self.build_node_scopes(if_expr.else_branch.into(), scope);
                 }
             }
             NodeKind::Closure => {
-                let (params, body) = self.function.closure_parts(node);
+                let (params, body) =
+                    nodes.closure_parts(nodes.as_closure(node).expect("Closure node mismatch"));
                 let mut closure_scope = self.scope(*scope);
-                self.add_bindings(params, closure_scope);
-                if body != NodeId::ZERO {
-                    self.build_node_scopes(body, &mut closure_scope);
+                self.add_bindings(params.iter(), closure_scope);
+                if body != ExprId::ZERO {
+                    self.build_node_scopes(body.into(), &mut closure_scope);
                 }
             }
             NodeKind::Block => {
                 let scope = &mut self.scope(*scope);
-                let (stmts, tail) = self.function.block_stmts(node);
+                let (stmts, tail) =
+                    nodes.block_stmts(nodes.as_block(node).expect("Block node mismatch"));
 
-                for &stmt in stmts {
+                for stmt in stmts.iter() {
                     self.build_node_scopes(stmt, scope);
                 }
 
-                if tail != NodeId::ZERO {
-                    self.build_node_scopes(tail, scope);
+                if tail != ExprId::ZERO {
+                    self.build_node_scopes(tail.into(), scope);
                 }
             }
             _ => {}
@@ -154,17 +158,19 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
     fn build(mut self) -> ExprScopes<'db> {
         let mut scope = self.root_scope();
 
-        self.add_bindings(self.function.params(), scope);
-        if self.function.body() != NodeId::ZERO {
-            self.build_node_scopes(self.function.body(), &mut scope);
+        self.add_bindings(self.function.params().iter().copied(), scope);
+        if self.function.body() != ExprId::ZERO {
+            self.build_node_scopes(self.function.body().into(), &mut scope);
         }
 
         self.scopes
     }
 
     #[track_caller]
-    fn add_bindings(&mut self, params: &[NodeId], scope: Scope<'db>) {
-        for &name in params {
+    fn add_bindings(&mut self, params: impl IntoIterator<Item = ParamId>, scope: Scope<'db>) {
+        let nodes = self.function.node_store();
+        for param in params {
+            let (name, _) = nodes.param(param);
             self.add_binding(name, scope);
         }
     }
