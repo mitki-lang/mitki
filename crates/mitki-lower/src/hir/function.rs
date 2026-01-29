@@ -11,6 +11,8 @@ use super::FunctionWithSourceMap;
 pub struct FunctionSourceMap {
     node_map: FxHashMap<SyntaxNodePtr, ExprId>,
     node_map_back: FxHashMap<ExprId, SyntaxNodePtr>,
+    type_map: FxHashMap<SyntaxNodePtr, TyId>,
+    type_map_back: FxHashMap<TyId, SyntaxNodePtr>,
 }
 
 impl FunctionSourceMap {
@@ -21,6 +23,15 @@ impl FunctionSourceMap {
     #[track_caller]
     pub fn node_syntax(&self, node: ExprId) -> SyntaxNodePtr {
         self.node_map_back[&node]
+    }
+
+    pub fn syntax_type(&self, syntax: &SyntaxNode) -> Option<TyId> {
+        self.type_map.get(&SyntaxNodePtr::new(syntax)).copied()
+    }
+
+    #[track_caller]
+    pub fn type_syntax(&self, ty: TyId) -> SyntaxNodePtr {
+        self.type_map_back[&ty]
     }
 }
 
@@ -106,6 +117,12 @@ impl<'db> FunctionBuilder<'db> {
         let ptr = SyntaxNodePtr::new(syntax);
         self.source_map.node_map.insert(ptr, node);
         self.source_map.node_map_back.insert(node, ptr);
+    }
+
+    fn alloc_type_ptr(&mut self, ty: TyId, syntax: &SyntaxNode) {
+        let ptr = SyntaxNodePtr::new(syntax);
+        self.source_map.type_map.insert(ptr, ty);
+        self.source_map.type_map_back.insert(ty, ptr);
     }
 
     fn build_expr(&mut self, expr: Option<ast::Expr<'db>>) -> ExprId {
@@ -207,20 +224,25 @@ impl<'db> FunctionBuilder<'db> {
     }
 
     fn build_ty(&mut self, ty: Option<ast::Type<'_>>) -> TyId {
-        ty.map_or(TyId::ZERO, |ty| match ty {
-            ast::Type::Path(path) => {
-                let path = path
-                    .syntax()
-                    .children_with_tokens()
-                    .find_map(|child| {
-                        let token = child.into_token()?;
-                        if token.is_trivia() { None } else { Some(token) }
-                    })
-                    .expect("path should have at least one token")
-                    .text_trimmed();
-                let path = path.into_symbol(self.db);
-                self.function.node_store_mut().alloc_type_ref(path).into()
-            }
+        ty.map_or(TyId::ZERO, |ty| {
+            let syntax = ty.syntax();
+            let ty_id = match &ty {
+                ast::Type::Path(path) => {
+                    let path = path
+                        .syntax()
+                        .children_with_tokens()
+                        .find_map(|child| {
+                            let token = child.into_token()?;
+                            if token.is_trivia() { None } else { Some(token) }
+                        })
+                        .expect("path should have at least one token")
+                        .text_trimmed();
+                    let path = path.into_symbol(self.db);
+                    self.function.node_store_mut().alloc_type_ref(path).into()
+                }
+            };
+            self.alloc_type_ptr(ty_id, syntax);
+            ty_id
         })
     }
 }

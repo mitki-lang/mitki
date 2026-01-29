@@ -1,4 +1,4 @@
-use mitki_hir::hir::{ExprId, NameId};
+use mitki_hir::hir::{ExprId, NameId, TyId};
 use mitki_hir::ty::{Ty, TyKind};
 use mitki_lower::item::scope::{FunctionLocation, HasItemScope as _, ItemScope};
 use mitki_span::{IntoSymbol as _, Symbol};
@@ -49,6 +49,24 @@ impl<'db> Resolver<'db> {
         let scope_for_expr = self.expr_scopes.scope_for(node);
 
         let scopes = self.expr_scopes.chain(scope_for_expr);
+        if let Some(scope) = innermost_scope {
+            self.scopes.extend(scopes.take_while(|&it| it != scope));
+        } else {
+            self.scopes.extend(scopes);
+        }
+
+        self.scopes[start..].reverse();
+
+        Guard(start)
+    }
+
+    pub fn scopes_for_type(&mut self, ty: TyId) -> Guard {
+        let start = self.scopes.len();
+
+        let innermost_scope = self.scopes().next();
+        let scope_for_ty = self.expr_scopes.scope_for_ty(ty);
+
+        let scopes = self.expr_scopes.chain(scope_for_ty);
         if let Some(scope) = innermost_scope {
             self.scopes.extend(scopes.take_while(|&it| it != scope));
         } else {

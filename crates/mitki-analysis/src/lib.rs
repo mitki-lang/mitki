@@ -18,26 +18,59 @@ pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) -> Vec<Dia
         match declaration {
             Declaration::Function(func) => {
                 let source_map = func.hir_function(db).source_map(db);
+                let function = func.hir_function(db).function(db);
+                let nodes = function.node_store();
+
+                let context_label = |node_id| match nodes.node_kind(node_id) {
+                    mitki_hir::hir::NodeKind::Call => "call expression",
+                    mitki_hir::hir::NodeKind::Closure => "closure",
+                    mitki_hir::hir::NodeKind::If => "if expression",
+                    mitki_hir::hir::NodeKind::Tuple => "tuple expression",
+                    _ => "expression",
+                };
 
                 for diagnostic in func.infer(db).diagnostics() {
-                    let (message, range) = salsa::plumbing::attach(db, || match diagnostic {
-                        infer::Diagnostic::UnresolvedIdent(node_id) => (
-                            "Unresolved identifier".to_owned(),
-                            source_map.node_syntax(*node_id).range,
-                        ),
-                        infer::Diagnostic::TypeMismatch(node_id, actual, expected) => (
-                            format!(
-                                "expected `{expected}`, found `{actual}`",
-                                expected = expected.display(db),
-                                actual = actual.display(db)
+                    let (message, range) =
+                        salsa::plumbing::attach(db, || match diagnostic.kind() {
+                            infer::DiagnosticKind::UnresolvedIdent(node_id) => (
+                                "Unresolved identifier".to_owned(),
+                                source_map.node_syntax(*node_id).range,
                             ),
-                            source_map.node_syntax(*node_id).range,
-                        ),
-                        infer::Diagnostic::ExpectedValueFoundType(node_id, ty) => (
-                            format!("expected value, found type `{}`", ty.display(db)),
-                            source_map.node_syntax(*node_id).range,
-                        ),
-                    });
+                            infer::DiagnosticKind::UnresolvedType(ty_id, name) => (
+                                format!("Unknown type `{}`", name.text(db)),
+                                source_map.type_syntax(*ty_id).range,
+                            ),
+                            infer::DiagnosticKind::TypeMismatch(node_id, actual, expected) => (
+                                format!(
+                                    "expected `{expected}`, found `{actual}`",
+                                    expected = expected.display(db),
+                                    actual = actual.display(db)
+                                ),
+                                source_map.node_syntax(*node_id).range,
+                            ),
+                            infer::DiagnosticKind::ExpectedValueFoundType(node_id, ty) => (
+                                format!("expected value, found type `{}`", ty.display(db)),
+                                source_map.node_syntax(*node_id).range,
+                            ),
+                            infer::DiagnosticKind::ClosureArityMismatch(
+                                node_id,
+                                actual,
+                                expected,
+                            ) => (
+                                format!(
+                                    "expected {expected} parameter(s), found {actual}",
+                                    expected = expected,
+                                    actual = actual
+                                ),
+                                source_map.node_syntax(*node_id).range,
+                            ),
+                        });
+
+                    let message = if let Some(context) = diagnostic.context() {
+                        format!("In {}: {message}", context_label(context))
+                    } else {
+                        message
+                    };
 
                     diagnostics.push(Diagnostic::error(message, range))
                 }

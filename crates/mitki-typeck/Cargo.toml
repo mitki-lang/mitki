@@ -14,5 +14,6 @@ workspace = true
 mitki-hir.workspace = true
 mitki-lower.workspace = true
 mitki-resolve.workspace = true
-rustc-hash = "2.0"
+mitki-span.workspace = true
+rustc-hash.workspace = true
 salsa.workspace = true
