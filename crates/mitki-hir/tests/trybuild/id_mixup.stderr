@@ -1,0 +1,40 @@
+error[E0308]: mismatched types
+  --> tests/trybuild/id_mixup.rs:13:16
+   |
+13 |     takes_expr(stmt);
+   |     ---------- ^^^^ expected `Id<ExprTag>`, found `Id<StmtTag>`
+   |     |
+   |     arguments to this function are incorrect
+   |
+   = note: expected struct `hir::id::Id<ExprTag>`
+              found struct `hir::id::Id<StmtTag>`
+note: function defined here
+  --> tests/trybuild/id_mixup.rs:3:4
+   |
+ 3 | fn takes_expr(_expr: ExprId) {}
+   |    ^^^^^^^^^^ -------------
+
+error[E0308]: mismatched types
+  --> tests/trybuild/id_mixup.rs:16:22
+   |
+16 |     takes_exprs(vec![ty]);
+   |                      ^^ expected `Id<ExprTag>`, found `Id<TyTag>`
+   |
+   = note: expected struct `hir::id::Id<ExprTag>`
+              found struct `hir::id::Id<TyTag>`
+
+error[E0308]: mismatched types
+  --> tests/trybuild/id_mixup.rs:19:14
+   |
+19 |     takes_ty(expr);
+   |     -------- ^^^^ expected `Id<TyTag>`, found `Id<ExprTag>`
+   |     |
+   |     arguments to this function are incorrect
+   |
+   = note: expected struct `hir::id::Id<TyTag>`
+              found struct `hir::id::Id<ExprTag>`
+note: function defined here
+  --> tests/trybuild/id_mixup.rs:5:4
+   |
+ 5 | fn takes_ty(_ty: TyId) {}
+   |    ^^^^^^^^ ---------

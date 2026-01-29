@@ -23,7 +23,7 @@ pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) -> Vec<Dia
                     let (message, range) = salsa::plumbing::attach(db, || match diagnostic {
                         infer::Diagnostic::UnresolvedIdent(node_id) => (
                             "Unresolved identifier".to_owned(),
-                            source_map.node_syntax(node_id).range,
+                            source_map.node_syntax(*node_id).range,
                         ),
                         infer::Diagnostic::TypeMismatch(node_id, actual, expected) => (
                             format!(
@@ -31,11 +31,11 @@ pub fn check_file(db: &dyn salsa::Database, file: mitki_inputs::File) -> Vec<Dia
                                 expected = expected.display(db),
                                 actual = actual.display(db)
                             ),
-                            source_map.node_syntax(node_id).range,
+                            source_map.node_syntax(*node_id).range,
                         ),
                         infer::Diagnostic::ExpectedValueFoundType(node_id, ty) => (
                             format!("expected value, found type `{}`", ty.display(db)),
-                            source_map.node_syntax(node_id).range,
+                            source_map.node_syntax(*node_id).range,
                         ),
                     });
 

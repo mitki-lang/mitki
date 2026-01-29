@@ -1,4 +1,4 @@
-use mitki_hir::hir::{NodeId, NodeStore};
+use mitki_hir::hir::{NodeStore, ParamId, TyId};
 use mitki_inputs::File;
 use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::ast::{self, Node as _};
@@ -50,7 +50,7 @@ impl<'db> FunctionLocation<'db> {
                     let type_id = param
                         .ty(db)
                         .and_then(|ty| lower_type_ref(db, &mut node_store, ty))
-                        .unwrap_or(NodeId::ZERO);
+                        .unwrap_or(TyId::ZERO);
                     node_store.alloc_param(name, type_id)
                 })
                 .collect()
@@ -61,7 +61,7 @@ impl<'db> FunctionLocation<'db> {
             .ret_type(db)
             .and_then(|r| r.ty(db))
             .and_then(|ty| lower_type_ref(db, &mut node_store, ty))
-            .unwrap_or(NodeId::ZERO);
+            .unwrap_or(TyId::ZERO);
 
         Signature::new(db, params, ret_type, node_store)
     }
@@ -71,7 +71,7 @@ fn lower_type_ref<'db>(
     db: &'db dyn Database,
     node_store: &mut NodeStore<'db>,
     ty: ast::Type,
-) -> Option<NodeId> {
+) -> Option<TyId> {
     match ty {
         ast::Type::Path(path) => {
             let token = path
@@ -83,7 +83,7 @@ fn lower_type_ref<'db>(
                 })
                 .expect("path should have at least one token");
             let sym = token.text_trimmed().into_symbol(db);
-            Some(node_store.alloc_type_ref(sym))
+            Some(node_store.alloc_type_ref(sym).into())
         }
     }
 }
@@ -113,9 +113,9 @@ impl<'db> FunctionLocation<'db> {
 pub struct Signature<'db> {
     #[tracked]
     #[returns(deref)]
-    pub params: Vec<NodeId>,
+    pub params: Vec<ParamId>,
     #[tracked]
-    pub ret_type: NodeId,
+    pub ret_type: TyId,
     #[tracked]
     #[returns(ref)]
     pub nodes: NodeStore<'db>,

@@ -1,5 +1,5 @@
 #[cfg(test)]
-use std::fmt::Write;
+use std::fmt::Write as _;
 
 use drop_bomb::DropBomb;
 use mitki_errors::Diagnostic;
