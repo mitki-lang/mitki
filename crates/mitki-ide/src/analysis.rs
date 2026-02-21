@@ -1,5 +1,9 @@
 mod goto_definition;
+mod hover;
+mod inlay_hints;
 
+pub use hover::HoverResult;
+pub use inlay_hints::InlayHint;
 use mitki_db::RootDatabase;
 
 #[derive(Default)]

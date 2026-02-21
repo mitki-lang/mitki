@@ -79,7 +79,7 @@ impl<'db> Builder<'db> {
     ///
     /// The internal token buffer is seeded with a fake token at index 0 to make
     /// token ranges uniform.
-    pub fn new(_db: &'db dyn salsa::Database, text: &str) -> Self {
+    pub fn new(text: &str) -> Self {
         let mut tokens = Vec::with_capacity(DEFAULT_TREE_SIZE);
         tokens.push(Token {
             kind: SyntaxKind::TOMBSTONE,
@@ -285,11 +285,11 @@ impl<'db> Builder<'db> {
     }
 
     /// Finishes building and returns the immutable `SyntaxTree`.
-    pub fn finish(self) -> SyntaxTree<'db> {
+    pub fn finish(self) -> SyntaxTree {
         assert!(self.opened.is_empty());
         assert!(!self.nodes.is_empty());
         let tree = self.finish_impl();
-        SyntaxTree { tree, _marker: PhantomData }
+        SyntaxTree { tree }
     }
 
     /// Finalizes buffers into stable tree storage.

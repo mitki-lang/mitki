@@ -1,9 +1,12 @@
+use mitki_span::Symbol;
+
 use super::{ExprId, NodeStore, ParamId, TyId};
 
 #[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
 pub struct Function<'db> {
     node_store: NodeStore<'db>,
 
+    type_params: Vec<Symbol<'db>>,
     params: Vec<ParamId>,
     body: ExprId,
     ret_type: TyId,
@@ -18,6 +21,10 @@ impl<'db> Function<'db> {
         &mut self.node_store
     }
 
+    pub fn set_type_params(&mut self, type_params: Vec<Symbol<'db>>) {
+        self.type_params = type_params;
+    }
+
     pub fn set_params(&mut self, params: Vec<ParamId>) {
         self.params = params;
     }
@@ -28,6 +35,10 @@ impl<'db> Function<'db> {
 
     pub fn set_body(&mut self, body: ExprId) {
         self.body = body;
+    }
+
+    pub fn type_params(&self) -> &[Symbol<'db>] {
+        &self.type_params
     }
 
     pub fn params(&self) -> &[ParamId] {

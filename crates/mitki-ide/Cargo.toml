@@ -13,11 +13,13 @@ workspace = true
 [dependencies]
 mitki-analysis.workspace = true
 mitki-db.workspace = true
+mitki-hir.workspace = true
 mitki-inputs.workspace = true
 mitki-lower.workspace = true
 mitki-parse.workspace = true
 mitki-resolve.workspace = true
 mitki-span.workspace = true
+mitki-typeck.workspace = true
 mitki-yellow.workspace = true
 salsa.workspace = true
 text-size.workspace = true

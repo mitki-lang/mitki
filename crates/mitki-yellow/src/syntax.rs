@@ -1,7 +1,6 @@
 //! Public syntax tree API built on immutable, parent-linked nodes.
 
 use std::fmt;
-use std::marker::PhantomData;
 
 use text_size::{TextRange, TextSize};
 
@@ -9,15 +8,14 @@ use crate::SyntaxKind;
 use crate::nodes::{ChildKind, List, Node, NodeOrListOrToken, TokenRef, TokenRefIter, TreeInner};
 
 /// Owned syntax tree for a single source text.
-pub struct SyntaxTree<'db> {
+pub struct SyntaxTree {
     pub(crate) tree: TreeInner,
-    pub(crate) _marker: PhantomData<&'db ()>,
 }
 
-impl<'db> SyntaxTree<'db> {
+impl SyntaxTree {
     /// Returns the root syntax node.
     #[inline]
-    pub fn root(&'db self) -> SyntaxNode<'db> {
+    pub fn root(&self) -> SyntaxNode<'_> {
         SyntaxNode { tree: &self.tree, node: self.tree.nodes.root() }
     }
 
@@ -28,13 +26,13 @@ impl<'db> SyntaxTree<'db> {
     }
 }
 
-impl fmt::Debug for SyntaxTree<'_> {
+impl fmt::Debug for SyntaxTree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SyntaxTree").field("text_len", &self.text().len()).finish_non_exhaustive()
     }
 }
 
-unsafe impl salsa::Update for SyntaxTree<'_> {
+unsafe impl salsa::Update for SyntaxTree {
     unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {
         let old_value = unsafe { &mut *old_pointer };
         if old_value.text() == new_value.text() {

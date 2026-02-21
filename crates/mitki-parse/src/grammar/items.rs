@@ -40,8 +40,45 @@ fn item(p: &mut Parser) {
 
             m.complete(p, FN);
         }
+        STRUCT_KW => {
+            let m = p.start();
+            p.advance();
+
+            name(p, &SyntaxSet::new([LEFT_BRACE, SEMICOLON]));
+            generic_param_list(p);
+
+            if p.at(LEFT_BRACE) {
+                struct_field_list(p);
+            } else {
+                p.error("expected `{`");
+            }
+
+            m.complete(p, STRUCT_DEF);
+        }
+        ENUM_KW => {
+            let m = p.start();
+            p.advance();
+
+            name(p, &SyntaxSet::new([LEFT_BRACE, SEMICOLON]));
+            generic_param_list(p);
+
+            if p.at(LEFT_BRACE) {
+                enum_variant_list(p);
+            } else {
+                p.error("expected `{`");
+            }
+
+            m.complete(p, ENUM_DEF);
+        }
         SEMICOLON => p.error_and_bump("expected item, found `;`"),
-        _ => p.error_and_bump("expected an item"),
+        _ => {
+            let m = p.start();
+            p.error("expected an item");
+            while !matches!(p.peek_kind(), EOF | FUN_KW | VAL_KW | STRUCT_KW | ENUM_KW) {
+                p.advance();
+            }
+            m.complete(p, ERROR);
+        }
     }
 }
 
@@ -107,9 +144,87 @@ fn param(p: &mut Parser) {
 
     if p.at(COLON) {
         types::ascription(p);
-    } else {
-        p.error("missing type for function parameter");
     }
 
     m.complete(p, PARAM);
+}
+
+fn struct_field_list(p: &mut Parser) {
+    let m = p.start();
+    p.advance(); // eat LEFT_BRACE
+
+    while !matches!(p.peek_kind(), RIGHT_BRACE | EOF) {
+        if p.peek_kind() != NAME {
+            p.error("expected field name");
+            if p.eat(COMMA) {
+                continue;
+            }
+            break;
+        }
+
+        let field = p.start();
+        name(p, &SyntaxSet::EMPTY);
+
+        if p.at(COLON) {
+            types::ascription(p);
+        } else {
+            p.error("missing type for struct field");
+        }
+        field.complete(p, STRUCT_FIELD);
+
+        if !p.eat(COMMA) {
+            if p.peek_kind() == NAME {
+                p.expect(COMMA);
+            } else {
+                break;
+            }
+        }
+    }
+
+    p.expect(RIGHT_BRACE);
+    m.complete(p, STRUCT_FIELD_LIST);
+}
+
+fn enum_variant_list(p: &mut Parser) {
+    let m = p.start();
+    p.advance(); // eat LEFT_BRACE
+
+    while !matches!(p.peek_kind(), RIGHT_BRACE | EOF) {
+        if p.peek_kind() != NAME {
+            p.error("expected variant name");
+            if p.eat(COMMA) {
+                continue;
+            }
+            break;
+        }
+
+        let variant = p.start();
+        name(p, &SyntaxSet::EMPTY);
+
+        if p.at(LEFT_PAREN) {
+            let tl = p.start();
+            p.advance();
+            while !matches!(p.peek_kind(), RIGHT_PAREN | EOF) {
+                types::type_(p);
+                if !p.at(RIGHT_PAREN) {
+                    p.expect(COMMA);
+                }
+            }
+            p.expect(RIGHT_PAREN);
+            tl.complete(p, TUPLE_TYPE);
+        }
+
+        variant.complete(p, ENUM_VARIANT);
+
+        if !p.eat(COMMA) {
+            if p.peek_kind() == NAME {
+                p.expect(COMMA);
+            } else {
+                break;
+            }
+        }
+    }
+
+    p.expect(RIGHT_BRACE);
+    m.complete(p, ENUM_VARIANT_LIST);
 }

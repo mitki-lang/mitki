@@ -6,22 +6,19 @@ use mitki_errors::Diagnostic;
 use mitki_tokenizer::{TokenIndex, Tokenizer};
 use mitki_yellow::SyntaxKind::{self, *};
 use mitki_yellow::{Builder, SyntaxSet, SyntaxTree};
-use salsa::Database;
 use text_size::TextRange;
 
-pub(crate) struct Parser<'db> {
-    db: &'db dyn Database,
-    text: &'db str,
-    tokenizer: Tokenizer<'db>,
+pub(crate) struct Parser<'text> {
+    text: &'text str,
+    tokenizer: Tokenizer,
     events: Vec<Event>,
     diagnostics: Vec<Diagnostic>,
     previous_range: TextRange,
 }
 
-impl<'db> Parser<'db> {
-    pub(crate) fn new(db: &'db dyn Database, text: &'db str) -> Self {
+impl<'text> Parser<'text> {
+    pub(crate) fn new(text: &'text str) -> Self {
         Self {
-            db,
             text,
             tokenizer: Tokenizer::new(text),
             events: Vec::new(),
@@ -30,21 +27,17 @@ impl<'db> Parser<'db> {
         }
     }
 
-    pub(crate) fn try_parse(&mut self, parser: fn(&mut Self) -> bool) {
-        let mut snapshot = self.fork();
-        if parser(&mut snapshot) {
-            self.merge(snapshot);
-        }
-    }
+    pub(crate) fn try_parse(&mut self, parser: impl FnOnce(&mut Self) -> bool) {
+        let prev_events = self.events.len();
+        let prev_diagnostics = self.diagnostics.len();
+        let prev_tokenizer = self.tokenizer.clone();
+        let prev_range = self.previous_range;
 
-    fn fork(&self) -> Self {
-        Self {
-            db: self.db,
-            text: self.text,
-            tokenizer: self.tokenizer.clone(),
-            events: Vec::new(),
-            diagnostics: Vec::new(),
-            previous_range: TextRange::default(),
+        if !parser(self) {
+            self.events.truncate(prev_events);
+            self.diagnostics.truncate(prev_diagnostics);
+            self.tokenizer = prev_tokenizer;
+            self.previous_range = prev_range;
         }
     }
 
@@ -58,6 +51,14 @@ impl<'db> Parser<'db> {
 
     pub(crate) fn next_token_on_same_line(&self) -> bool {
         self.tokenizer.peek().on_same_line()
+    }
+
+    pub(crate) fn peek_text(&self) -> &'text str {
+        &self.text[self.peek_range()]
+    }
+
+    pub(crate) fn at_binary_op(&self, op: &str) -> bool {
+        self.peek_kind() == BINARY_OPERATOR && self.peek_text() == op
     }
 
     pub(crate) fn advance(&mut self) {
@@ -115,14 +116,8 @@ impl<'db> Parser<'db> {
 
     pub(crate) fn start(&mut self) -> Marker {
         let pos = self.events.len() as u32;
-        self.events.push(Event::TOMBSTONE);
+        self.events.push(Event::Start { kind: TOMBSTONE, forward_parent: None });
         Marker::new(pos)
-    }
-
-    pub(crate) fn merge(&mut self, other: Self) {
-        self.tokenizer = other.tokenizer;
-        self.events.extend(other.events);
-        self.diagnostics.extend(other.diagnostics);
     }
 
     pub(crate) fn error_with_range(&mut self, message: &str, range: TextRange) {
@@ -138,9 +133,9 @@ impl<'db> Parser<'db> {
         self.error_with_range(message, range);
     }
 
-    pub(crate) fn build_tree(self) -> (SyntaxTree<'db>, Vec<Diagnostic>) {
-        let Parser { db, text, tokenizer, mut events, mut diagnostics, .. } = self;
-        let mut builder = Builder::new(db, text);
+    pub(crate) fn build_tree(self) -> (SyntaxTree, Vec<Diagnostic>) {
+        let Parser { text, tokenizer, mut events, mut diagnostics, .. } = self;
+        let mut builder = Builder::new(text);
         let mut forward_parents = Vec::new();
 
         for i in 0..events.len() {
@@ -150,22 +145,13 @@ impl<'db> Parser<'db> {
                         continue;
                     }
 
-                    forward_parents.push(kind);
-                    let mut idx = i;
-                    let mut fp = forward_parent;
-                    while let Some(fwd) = fp {
-                        idx += fwd as usize;
-
-                        fp = match std::mem::replace(&mut events[idx], Event::TOMBSTONE) {
-                            Event::Start { kind, forward_parent, .. } => {
-                                if kind != TOMBSTONE {
-                                    forward_parents.push(kind);
-                                }
-                                forward_parent
-                            }
-                            _ => unreachable!(),
-                        };
-                    }
+                    collect_forward_parents(
+                        &mut events,
+                        i,
+                        kind,
+                        forward_parent,
+                        &mut forward_parents,
+                    );
 
                     for kind in forward_parents.drain(..).rev() {
                         builder.start_node(kind);
@@ -209,22 +195,13 @@ impl<'db> Parser<'db> {
                         continue;
                     }
 
-                    forward_parents.push(kind);
-                    let mut idx = i;
-                    let mut fp = forward_parent;
-                    while let Some(fwd) = fp {
-                        idx += fwd as usize;
-
-                        fp = match std::mem::replace(&mut events[idx], Event::TOMBSTONE) {
-                            Event::Start { kind, forward_parent, .. } => {
-                                if kind != TOMBSTONE {
-                                    forward_parents.push(kind);
-                                }
-                                forward_parent
-                            }
-                            _ => unreachable!(),
-                        };
-                    }
+                    collect_forward_parents(
+                        &mut events,
+                        i,
+                        kind,
+                        forward_parent,
+                        &mut forward_parents,
+                    );
 
                     for kind in forward_parents.drain(..).rev() {
                         let indent_str = "  ".repeat(indent);
@@ -253,7 +230,33 @@ impl<'db> Parser<'db> {
     }
 }
 
-fn extend_with_tokenizer_diagnostics(diagnostics: &mut Vec<Diagnostic>, tokenizer: &Tokenizer<'_>) {
+fn collect_forward_parents(
+    events: &mut [Event],
+    start_index: usize,
+    kind: SyntaxKind,
+    forward_parent: Option<u32>,
+    forward_parents: &mut Vec<SyntaxKind>,
+) {
+    forward_parents.push(kind);
+    let mut idx = start_index;
+    let mut fp = forward_parent;
+
+    while let Some(fwd) = fp {
+        idx += fwd as usize;
+
+        fp = match std::mem::replace(&mut events[idx], Event::TOMBSTONE) {
+            Event::Start { kind, forward_parent, .. } => {
+                if kind != TOMBSTONE {
+                    forward_parents.push(kind);
+                }
+                forward_parent
+            }
+            _ => unreachable!(),
+        };
+    }
+}
+
+fn extend_with_tokenizer_diagnostics(diagnostics: &mut Vec<Diagnostic>, tokenizer: &Tokenizer) {
     diagnostics.extend(tokenizer.diagnostics().iter().map(|diagnostic| match diagnostic {
         mitki_tokenizer::Diagnostic::InconsistentWhitespaceAroundEqual(range) => {
             Diagnostic::error("Consistent whitespace required around '='", *range)
@@ -292,17 +295,22 @@ impl Marker {
         }
 
         p.events.push(Event::Finish);
-        CompletedMarker::new(self.position)
+        CompletedMarker::new(self.position, kind)
     }
 }
 
 pub(crate) struct CompletedMarker {
     pos: u32,
+    kind: SyntaxKind,
 }
 
 impl CompletedMarker {
-    fn new(pos: u32) -> Self {
-        Self { pos }
+    fn new(pos: u32, kind: SyntaxKind) -> Self {
+        Self { pos, kind }
+    }
+
+    pub(crate) fn kind(&self) -> SyntaxKind {
+        self.kind
     }
 
     pub(crate) fn precede(self, p: &mut Parser<'_>) -> Marker {

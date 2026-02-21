@@ -1,6 +1,5 @@
 mod cursor;
 
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use ascii::AsciiChar;
@@ -59,7 +58,7 @@ enum TriviaMode {
 pub type TokenIndex = u32;
 
 #[derive(Clone)]
-pub struct Tokenizer<'db> {
+pub struct Tokenizer {
     kinds: Arc<[SyntaxKind]>,
     kind_ranges: Arc<[TextRange]>,
     leading_ranges: Arc<[TriviaRange]>,
@@ -68,11 +67,10 @@ pub struct Tokenizer<'db> {
     trivia: Arc<[TriviaPiece]>,
     diagnostics: Arc<[Diagnostic]>,
     position: TokenIndex,
-    _marker: PhantomData<&'db str>,
 }
 
-impl<'db> Tokenizer<'db> {
-    pub fn new(text: &'db str) -> Self {
+impl Tokenizer {
+    pub fn new(text: &str) -> Self {
         let mut lexer = Lexer::new(text);
         let mut kinds = Vec::new();
         let mut kind_ranges = Vec::new();
@@ -104,7 +102,6 @@ impl<'db> Tokenizer<'db> {
             trivia: Arc::from(trivia),
             diagnostics: Arc::from(diagnostics),
             position: 0,
-            _marker: PhantomData,
         }
     }
 
@@ -286,6 +283,8 @@ impl<'db> Lexer<'db> {
             "true" => TRUE_KW,
             "false" => FALSE_KW,
             "in" => IN_KW,
+            "struct" => STRUCT_KW,
+            "enum" => ENUM_KW,
             _ => NAME,
         }
     }

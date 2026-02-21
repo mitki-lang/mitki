@@ -1,0 +1,3 @@
+fun main() {
+    if b { object1 } else { object2 }
+}

@@ -1,8 +1,7 @@
-use std::marker::PhantomData;
-
 use mitki_errors::Diagnostic;
 use mitki_inputs::File;
-use mitki_yellow::{SyntaxNode, SyntaxTree, ast};
+use mitki_yellow::ast::{self, Node as _};
+use mitki_yellow::{SyntaxNode, SyntaxTree};
 
 mod grammar;
 mod parser;
@@ -10,33 +9,32 @@ mod parser;
 mod tests;
 
 #[derive(salsa::Update)]
-pub struct Parsed<'db, T> {
-    root: SyntaxTree<'db>,
+pub struct Parsed {
+    root: SyntaxTree,
     diagnostics: Vec<Diagnostic>,
-    phantom: PhantomData<fn() -> T>,
 }
 
-impl<T> std::fmt::Debug for Parsed<'_, T> {
+impl std::fmt::Debug for Parsed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Parsed").field("root", &self.root).finish_non_exhaustive()
     }
 }
 
-impl<T> PartialEq for Parsed<'_, T> {
+impl PartialEq for Parsed {
     fn eq(&self, other: &Self) -> bool {
         self.root.text() == other.root.text()
     }
 }
 
-impl<T> Eq for Parsed<'_, T> {}
+impl Eq for Parsed {}
 
-impl<'db, T: ast::Node<'db>> Parsed<'db, T> {
-    pub fn syntax_node(&'db self) -> SyntaxNode<'db> {
+impl Parsed {
+    pub fn syntax_node(&self) -> SyntaxNode<'_> {
         self.root.root()
     }
 
-    pub fn tree(&'db self, db: &'db dyn salsa::Database) -> T {
-        T::cast(db, self.syntax_node()).unwrap()
+    pub fn tree(&self) -> ast::Module<'_> {
+        ast::Module::cast(self.syntax_node()).unwrap()
     }
 
     pub fn diagnostics(&self) -> &[Diagnostic] {
@@ -45,16 +43,16 @@ impl<'db, T: ast::Node<'db>> Parsed<'db, T> {
 }
 
 pub trait FileParse {
-    fn parse<'db>(self, db: &'db dyn salsa::Database) -> &'db Parsed<'db, ast::Module<'db>>;
+    fn parse(self, db: &dyn salsa::Database) -> &Parsed;
 }
 
 #[salsa::tracked]
 impl FileParse for File {
     #[salsa::tracked(returns(ref))]
-    fn parse(self, db: &dyn salsa::Database) -> Parsed<'_, ast::Module<'_>> {
-        let mut parser = parser::Parser::new(db, self.text(db));
+    fn parse(self, db: &dyn salsa::Database) -> Parsed {
+        let mut parser = parser::Parser::new(self.text(db));
         grammar::items::module(&mut parser);
         let (root, diagnostics) = parser.build_tree();
-        Parsed { root, diagnostics, phantom: PhantomData }
+        Parsed { root, diagnostics }
     }
 }

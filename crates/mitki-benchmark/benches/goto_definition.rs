@@ -1,16 +1,8 @@
 use std::hint::black_box;
 
 use codspeed_criterion_compat::{Criterion, criterion_group, criterion_main};
-use mitki_ide::{Analysis, FilePosition};
+use mitki_ide::{Analysis, FilePosition, extract_cursor_offset};
 use mitki_inputs::File;
-use text_size::TextSize;
-
-fn extract_offset(text: &str) -> (TextSize, String) {
-    let marker = "$0";
-    let pos = text.find(marker).expect("Cursor marker not found");
-    let new_text = format!("{}{}", &text[..pos], &text[pos + marker.len()..]);
-    (TextSize::from(pos as u32), new_text)
-}
 
 fn benchmark_goto_definition(c: &mut Criterion) {
     let analysis = Analysis::default();
@@ -63,7 +55,7 @@ fn benchmark_goto_definition(c: &mut Criterion) {
             println!("Computed: {}", value);
         }
     "#;
-    let (offset, fixture_text) = extract_offset(fixture);
+    let (offset, fixture_text) = extract_cursor_offset(fixture);
 
     let file = File::new(analysis.db(), "goto_complex_test".into(), fixture_text.clone());
     let file_position = FilePosition { file, offset };
