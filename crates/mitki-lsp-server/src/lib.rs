@@ -25,10 +25,20 @@ impl Server {
                     ..Default::default()
                 },
             )),
-            text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Kind(
-                lsp_types::TextDocumentSyncKind::FULL,
+            text_document_sync: Some(lsp_types::TextDocumentSyncCapability::Options(
+                lsp_types::TextDocumentSyncOptions {
+                    open_close: Some(true),
+                    change: Some(lsp_types::TextDocumentSyncKind::FULL),
+                    will_save: Some(false),
+                    will_save_wait_until: Some(false),
+                    save: Some(lsp_types::TextDocumentSyncSaveOptions::SaveOptions(
+                        lsp_types::SaveOptions { include_text: Some(true) },
+                    )),
+                },
             )),
             definition_provider: Some(lsp_types::OneOf::Left(true)),
+            hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
+            inlay_hint_provider: Some(lsp_types::OneOf::Left(true)),
             semantic_tokens_provider: Some(
                 lsp_types::SemanticTokensOptions {
                     work_done_progress_options: Default::default(),

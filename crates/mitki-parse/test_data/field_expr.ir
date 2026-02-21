@@ -1,0 +1,26 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      VAL_STMT
+        VAL_KW: "val"
+        IDENT
+          NAME: "n"
+        EQ: "="
+        FIELD_EXPR
+          PATH_EXPR
+            NAME_REF
+              NAME: "Color"
+          DOT: "."
+          NAME_REF
+            NAME: "Red"
+      SEMICOLON: ";"
+      RIGHT_BRACE: "}"
+
+Errors:

@@ -28,13 +28,14 @@ impl<'db> Semantics<'db> {
                     let &ptr = ast_map.find_node(id);
                     source_map.functions.insert(ptr, func);
                 }
+                Declaration::Struct(_) | Declaration::Enum(_) => {}
             }
         }
 
         Self { source_map }
     }
 
-    pub fn function(&self, _db: &'db dyn Database, function: &SyntaxNode) -> FunctionLocation<'db> {
+    pub fn function(&self, function: &SyntaxNode) -> FunctionLocation<'db> {
         self.source_map.functions[&SyntaxNodePtr::new(function)]
     }
 
@@ -48,7 +49,7 @@ impl<'db> Semantics<'db> {
         let scopes = location.expr_scopes(db);
         let scope = current_node
             .ancestors()
-            .filter_map(|syntax| ast::Expr::cast(db, syntax))
+            .filter_map(ast::Expr::cast)
             .find_map(|expr| source_map.syntax_expr(expr.syntax()))
             .and_then(|expr| scopes.scope_by_node(expr.into()));
 

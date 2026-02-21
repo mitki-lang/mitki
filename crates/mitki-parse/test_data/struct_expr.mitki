@@ -1,0 +1,3 @@
+fun main() {
+    Point { x: 1, y: 2 }
+}

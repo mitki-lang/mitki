@@ -8,6 +8,7 @@ MODULE
       PARAM
         IDENT
           NAME: "x"
+      COMMA: ","
       PARAM
         IDENT
           NAME: "y"
@@ -31,5 +32,3 @@ MODULE
       RIGHT_BRACE: "}"
 
 Errors:
-  missing type for function parameter
-  missing type for function parameter

@@ -1,5 +1,7 @@
 use mitki_analysis::Semantics;
+use mitki_hir::ty::{Ty, TyKind};
 use mitki_lower::hir::HasFunction as _;
+use mitki_lower::item::scope::{Declaration, HasItemScope as _};
 use mitki_parse::FileParse as _;
 use mitki_resolve::Resolution;
 use mitki_span::IntoSymbol as _;
@@ -7,7 +9,7 @@ use mitki_yellow::SyntaxKind;
 use mitki_yellow::ast::{self, HasName as _, Node as _};
 use text_size::TextRange;
 
-use crate::{FilePosition, pick_best_token};
+use crate::{FilePosition, find_name_at_offset};
 
 impl super::Analysis {
     pub fn goto_definition(
@@ -18,41 +20,165 @@ impl super::Analysis {
         let semantics = Semantics::new(db, file);
         let root = file.parse(db).syntax_node();
 
-        let tokens = root.token_at_offset(offset);
-        let original_token = pick_best_token(tokens, |kind| match kind {
-            SyntaxKind::NAME => 2,
-            _ => 1,
+        let name_at_offset = find_name_at_offset(root, offset, |kind| {
+            kind == SyntaxKind::NAME_REF || kind == SyntaxKind::PATH_TYPE
         })?;
+        let original_token = name_at_offset.token;
+        let name_node = name_at_offset.node;
 
-        let path = original_token.parent();
-        if path.kind() != SyntaxKind::NAME_REF {
-            return None;
-        }
-
-        let location = path
+        let symbol = original_token.text_trimmed().into_symbol(db);
+        let location = name_node
             .ancestors()
-            .find_map(|syntax| ast::Item::cast(db, syntax))
-            .map(|item| semantics.function(db, item.syntax()))?;
+            .find_map(ast::Function::cast)
+            .map(|function| semantics.function(function.syntax()));
 
-        let resolver = semantics.resolver(db, location, &path);
-        let path = original_token.text_trimmed().into_symbol(db);
+        if let Some(location) = location {
+            let mut resolver = semantics.resolver(db, location, &name_node);
 
-        match resolver.resolve_path(path)? {
-            Resolution::Local(path) => {
+            let mut type_guard = None;
+            if name_node.kind() == SyntaxKind::PATH_TYPE {
                 let source_map = location.hir_function(db).source_map(db);
-                let range = source_map.node_syntax(path.into()).range;
-
-                Some((original_token.trimmed_range(), range))
+                if let Some(ty_id) = source_map.syntax_type(&name_node) {
+                    type_guard = Some(resolver.scopes_for_type(ty_id));
+                }
             }
-            Resolution::Function(function_location) => {
-                let function = function_location.source(db);
-                let function_name_range = function.name(db).unwrap().text_range();
 
-                Some((original_token.trimmed_range(), function_name_range))
+            if let Some(target) = enum_variant_target(db, file, &resolver, &name_node, symbol) {
+                return Some((original_token.trimmed_range(), target));
             }
-            Resolution::Type(_ty) => None,
+
+            let resolution = resolver.resolve_path(symbol);
+            if let Some(guard) = type_guard {
+                resolver.reset(guard);
+            }
+
+            match resolution? {
+                Resolution::Local(path) => {
+                    let source_map = location.hir_function(db).source_map(db);
+                    let range = source_map.node_syntax(path.into()).range;
+
+                    Some((original_token.trimmed_range(), range))
+                }
+                Resolution::Function(function_location) => {
+                    let function = function_location.source(db);
+                    let function_name_range = function.name().unwrap().text_range();
+
+                    Some((original_token.trimmed_range(), function_name_range))
+                }
+                Resolution::Type(ty) => type_definition_range(db, file, ty)
+                    .map(|range| (original_token.trimmed_range(), range)),
+            }
+        } else {
+            file.item_scope(db)
+                .get_type(&symbol)
+                .and_then(|ty| type_definition_range(db, file, ty))
+                .map(|range| (original_token.trimmed_range(), range))
         }
     }
+}
+
+fn enum_variant_target(
+    db: &dyn salsa::Database,
+    file: mitki_inputs::File,
+    resolver: &mitki_resolve::Resolver<'_>,
+    name_ref: &mitki_yellow::SyntaxNode,
+    variant_name: mitki_span::Symbol<'_>,
+) -> Option<TextRange> {
+    let field_expr = name_ref.ancestors().find_map(ast::FieldExpr::cast)?;
+    let field_name = field_expr.name()?;
+    if field_name.syntax().text_range() != name_ref.text_range() {
+        return None;
+    }
+
+    let enum_ty = if let Some(base_expr) = field_expr.expr() {
+        let ast::Expr::Path(path) = base_expr else {
+            return None;
+        };
+        let base_name = path.name()?.as_str().into_symbol(db);
+        match resolver.resolve_path(base_name) {
+            Some(Resolution::Type(ty)) => ty,
+            _ => return None,
+        }
+    } else {
+        resolver.resolve_enum_variant(variant_name)?
+    };
+
+    enum_variant_definition_range(db, file, enum_ty, variant_name)
+}
+
+fn enum_variant_definition_range(
+    db: &dyn salsa::Database,
+    file: mitki_inputs::File,
+    enum_ty: Ty<'_>,
+    variant_name: mitki_span::Symbol<'_>,
+) -> Option<TextRange> {
+    let TyKind::Enum { name, .. } = enum_ty.kind(db) else {
+        return None;
+    };
+
+    let enum_decl = file
+        .item_scope(db)
+        .declarations()
+        .iter()
+        .filter_map(|decl| match decl {
+            Declaration::Enum(enum_decl) => Some(*enum_decl),
+            _ => None,
+        })
+        .find(|enum_decl| {
+            enum_decl
+                .source(db)
+                .name()
+                .is_some_and(|enum_name| enum_name.as_str().into_symbol(db) == *name)
+        })?;
+
+    let variants = enum_decl.source(db).variant_list()?;
+    for variant in variants.variants() {
+        let Some(name_node) = variant.name() else {
+            continue;
+        };
+        if name_node.as_str().into_symbol(db) == variant_name {
+            return Some(name_node.text_range());
+        }
+    }
+
+    None
+}
+
+fn type_definition_range(
+    db: &dyn salsa::Database,
+    file: mitki_inputs::File,
+    ty: Ty<'_>,
+) -> Option<TextRange> {
+    let ty_name = match ty.kind(db) {
+        TyKind::Struct { name, .. } | TyKind::Enum { name, .. } => *name,
+        _ => return None,
+    };
+
+    for declaration in file.item_scope(db).declarations() {
+        match declaration {
+            Declaration::Struct(struct_decl) => {
+                let source = struct_decl.source(db);
+                let Some(name_node) = source.name() else {
+                    continue;
+                };
+                if name_node.as_str().into_symbol(db) == ty_name {
+                    return Some(name_node.text_range());
+                }
+            }
+            Declaration::Enum(enum_decl) => {
+                let source = enum_decl.source(db);
+                let Some(name_node) = source.name() else {
+                    continue;
+                };
+                if name_node.as_str().into_symbol(db) == ty_name {
+                    return Some(name_node.text_range());
+                }
+            }
+            Declaration::Function(_) => {}
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -62,18 +188,9 @@ mod tests {
     use mitki_inputs::File;
     use text_size::{TextRange, TextSize};
 
-    use crate::{Analysis, FilePosition};
+    use crate::{Analysis, FilePosition, extract_cursor_offset};
 
-    const CURSOR_MARKER: &str = "$0";
-
-    fn extract_offset(text: &str) -> (TextSize, String) {
-        let cursor_pos = text.find(CURSOR_MARKER).expect("Cursor marker not found");
-        let mut new_text = String::with_capacity(text.len() - CURSOR_MARKER.len());
-        new_text.push_str(&text[..cursor_pos]);
-        new_text.push_str(&text[cursor_pos + CURSOR_MARKER.len()..]);
-        let cursor_pos = TextSize::from(cursor_pos as u32);
-        (cursor_pos, new_text)
-    }
+    const DEF_MARKER: &str = "$def$";
 
     fn extract_annotations(text: &str) -> Vec<TextRange> {
         let mut line_start_map = BTreeMap::new();
@@ -125,7 +242,7 @@ mod tests {
     #[track_caller]
     fn check(fixture: &str) {
         let analysis = Analysis::default();
-        let (offset, fixture) = extract_offset(fixture);
+        let (offset, fixture) = extract_cursor_offset(fixture);
         let annotations = extract_annotations(&fixture);
         let file = File::new(analysis.db(), "".into(), fixture.clone());
         let file_position = FilePosition { file, offset };
@@ -135,6 +252,43 @@ mod tests {
 
         let (_, focus) = analysis.goto_definition(file_position).expect("no definition found");
 
+        assert_eq!(focus, expected);
+    }
+
+    #[track_caller]
+    fn check_none(fixture: &str) {
+        let analysis = Analysis::default();
+        let (offset, fixture) = extract_cursor_offset(fixture);
+        let file = File::new(analysis.db(), "".into(), fixture);
+        let file_position = FilePosition { file, offset };
+
+        assert!(analysis.goto_definition(file_position).is_none());
+    }
+
+    fn extract_offset_and_expected_range(text: &str) -> (TextSize, TextRange, String) {
+        let mut text = text.to_owned();
+        let def_pos = text.find(DEF_MARKER).expect("Definition marker not found");
+        text.replace_range(def_pos..def_pos + DEF_MARKER.len(), "");
+
+        let ident_len = text[def_pos..]
+            .chars()
+            .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+            .count();
+        let expected =
+            TextRange::at(TextSize::from(def_pos as u32), TextSize::from(ident_len as u32));
+
+        let (cursor_pos, text) = extract_cursor_offset(&text);
+
+        (cursor_pos, expected, text)
+    }
+
+    #[track_caller]
+    fn check_def_marker(fixture: &str) {
+        let analysis = Analysis::default();
+        let (offset, expected, fixture) = extract_offset_and_expected_range(fixture);
+        let file = File::new(analysis.db(), "".into(), fixture);
+        let file_position = FilePosition { file, offset };
+        let (_, focus) = analysis.goto_definition(file_position).expect("no definition found");
         assert_eq!(focus, expected);
     }
 
@@ -274,6 +428,127 @@ fun main() {
             $0x
         }
     }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enum_variant_qualified() {
+        check(
+            r#"
+enum Color {
+    Red,
+  //^^^
+}
+
+fun main() {
+    Color.$0Red
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enum_variant_without_prefix() {
+        check(
+            r#"
+enum Color {
+    Red,
+  //^^^
+}
+
+fun main() {
+    .R$0ed
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enum_variant_without_prefix_ambiguous_no_definition() {
+        check_none(
+            r#"
+enum Color {
+    Red,
+}
+
+enum Light {
+    Red,
+}
+
+fun main() {
+    .R$0ed
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn struct_type_annotation() {
+        check_def_marker(
+            r#"
+struct $def$Point {
+    x: int,
+    y: int,
+}
+
+fun main() {
+    val p: P$0oint = Point { x: 1, y: 2 }
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn enum_type_annotation() {
+        check_def_marker(
+            r#"
+enum $def$Color {
+    Red,
+}
+
+fun paint(color: C$0olor) {}
+"#,
+        );
+    }
+
+    #[test]
+    fn top_level_type_reference() {
+        check_def_marker(
+            r#"
+struct $def$Point {
+    x: int,
+}
+
+struct Wrapper {
+    value: P$0oint,
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn type_used_as_value() {
+        check_def_marker(
+            r#"
+struct $def$Point {
+    x: int,
+}
+
+fun main() {
+    P$0oint
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn builtin_type_no_definition() {
+        check_none(
+            r#"
+fun main() {
+    val x: i$0nt = 1
 }
 "#,
         );

@@ -14,8 +14,9 @@ pub(crate) fn stmt(p: &mut Parser) -> bool {
             if p.at(COLON) {
                 types::ascription(p);
             }
-            p.expect(EQ);
-            expr(p);
+            if p.eat(EQ) {
+                expr(p);
+            }
             m.complete(p, VAL_STMT);
         }
         RETURN_KW => {
@@ -43,16 +44,22 @@ pub(crate) fn stmt(p: &mut Parser) -> bool {
 }
 
 pub(crate) fn expr(p: &mut Parser) -> Option<CompletedMarker> {
-    let mut lhs = unary_expr(p)?;
+    let head = unary_expr(p)?;
 
-    while p.peek_kind() == BINARY_OPERATOR {
-        let m = lhs.precede(p);
-        p.advance();
-        expr(p);
-        lhs = m.complete(p, BINARY_EXPR);
+    if p.peek_kind() != BINARY_OPERATOR {
+        return Some(head);
     }
 
-    lhs.into()
+    let m = head.precede(p);
+
+    while p.peek_kind() == BINARY_OPERATOR {
+        p.advance();
+        if unary_expr(p).is_none() {
+            break;
+        }
+    }
+
+    Some(m.complete(p, BIN_OP_SEQ))
 }
 
 pub(crate) fn block(p: &mut Parser<'_>) {
@@ -166,12 +173,61 @@ fn postfix_expr(p: &mut Parser) -> Option<CompletedMarker> {
                 m.complete(p, ARG_LIST);
                 head.precede(p).complete(p, CALL_EXPR)
             }
+            LEFT_BRACE
+                if p.next_token_on_same_line()
+                    && head.kind() == PATH_EXPR
+                    && looks_like_struct_expr_field_list(p, true) =>
+            {
+                struct_expr_field_list(p);
+                head.precede(p).complete(p, STRUCT_EXPR)
+            }
+
+            DOT if p.next_token_on_same_line() => {
+                p.advance();
+                let name = p.start();
+                p.expect(NAME);
+                name.complete(p, NAME_REF);
+                head.precede(p).complete(p, FIELD_EXPR)
+            }
 
             _ => break,
         }
     }
 
     head.into()
+}
+
+fn struct_expr_field_list(p: &mut Parser) {
+    debug_assert_eq!(p.peek_kind(), LEFT_BRACE);
+    let m = p.start();
+    p.advance();
+
+    while !matches!(p.peek_kind(), RIGHT_BRACE | EOF) {
+        if p.at(COMMA) {
+            let err = p.start();
+            p.error("expected field");
+            p.advance();
+            err.complete(p, ERROR);
+            continue;
+        }
+
+        let field = p.start();
+        name(p, &SyntaxSet::new([COLON, COMMA, RIGHT_BRACE]));
+        p.expect(COLON);
+        expr(p);
+        field.complete(p, STRUCT_EXPR_FIELD);
+
+        if !p.eat(COMMA) {
+            if p.at(NAME) {
+                p.expect(COMMA);
+            } else {
+                break;
+            }
+        }
+    }
+
+    p.expect(RIGHT_BRACE);
+    m.complete(p, STRUCT_EXPR_FIELD_LIST);
 }
 
 fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
@@ -247,10 +303,16 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
         DOT => {
             let m = p.start();
             p.advance();
+            let name = p.start();
             p.expect(NAME);
+            name.complete(p, NAME_REF);
             m.complete(p, FIELD_EXPR).into()
         }
         LEFT_BRACE => {
+            if looks_like_struct_expr_field_list(p, false) {
+                return anonymous_struct_expr(p);
+            }
+
             let closure = p.start();
             p.advance();
 
@@ -287,4 +349,49 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
             None
         }
     }
+}
+
+fn anonymous_struct_expr(p: &mut Parser) -> Option<CompletedMarker> {
+    let m = p.start();
+    struct_expr_field_list(p);
+    Some(m.complete(p, STRUCT_EXPR))
+}
+
+fn looks_like_struct_expr_field_list(p: &mut Parser, allow_empty: bool) -> bool {
+    let mut is_struct = false;
+    p.try_parse(|lookahead| {
+        is_struct = try_parse_struct_expr_field_list_lookahead(lookahead, allow_empty);
+        false
+    });
+    is_struct
+}
+
+fn try_parse_struct_expr_field_list_lookahead(p: &mut Parser, allow_empty: bool) -> bool {
+    if !p.eat(LEFT_BRACE) {
+        return false;
+    }
+    if p.eat(RIGHT_BRACE) {
+        return allow_empty;
+    }
+    if !p.at(NAME) {
+        return false;
+    }
+
+    loop {
+        if !p.eat(NAME) || !p.eat(COLON) {
+            return false;
+        }
+        if expr(p).is_none() {
+            return false;
+        }
+        if p.eat(COMMA) {
+            if p.at(RIGHT_BRACE) {
+                break;
+            }
+            continue;
+        }
+        break;
+    }
+
+    p.eat(RIGHT_BRACE)
 }

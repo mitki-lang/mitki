@@ -7,15 +7,9 @@ MODULE
       LEFT_PAREN: "("
   ERROR
     RIGHT_BRACE: "}"
-  ERROR
     RIGHT_PAREN: ")"
-  ERROR
     LEFT_BRACE: "{"
-  ERROR
     RIGHT_BRACE: "}"
 
 Errors:
   expected parameter name
-  expected an item
-  expected an item
-  expected an item

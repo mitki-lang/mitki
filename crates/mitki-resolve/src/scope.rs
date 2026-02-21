@@ -100,6 +100,12 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
     fn add_type(&mut self, ty: TyId, scope: Key<ScopeData<'db>>) {
         if ty != TyId::ZERO {
             self.scopes.scope_by_type.insert(ty, scope);
+            let nodes = self.function.node_store();
+            if let Some(tuple_id) = nodes.as_type_tuple(ty) {
+                for item in nodes.type_tuple(tuple_id) {
+                    self.add_type(item, scope);
+                }
+            }
         }
     }
 
@@ -113,12 +119,26 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
                 let var_id = nodes.as_local_var(node).expect("LocalVar node mismatch");
                 let var = nodes.local_var(var_id);
                 self.add_type(var.ty, *scope);
-                self.build_node_scopes(var.initializer.into(), scope);
+                if var.initializer != ExprId::ZERO {
+                    self.build_node_scopes(var.initializer.into(), scope);
+                }
 
                 *scope = self.scope(*scope);
                 self.add_binding(var.name, *scope);
             }
-            NodeKind::Call => {}
+            NodeKind::Call => {
+                let (callee, args) = nodes.call(nodes.as_call(node).expect("Call node mismatch"));
+                self.build_node_scopes(callee.into(), scope);
+                for arg in args.iter() {
+                    self.build_node_scopes(arg.into(), scope);
+                }
+            }
+            NodeKind::Field => {
+                let (expr, _) = nodes.field(nodes.as_field(node).expect("Field node mismatch"));
+                if expr != ExprId::ZERO {
+                    self.build_node_scopes(expr.into(), scope);
+                }
+            }
             NodeKind::Binary => {
                 let binary = nodes.binary(nodes.as_binary(node).expect("Binary node mismatch"));
                 self.build_node_scopes(binary.lhs.into(), scope);
@@ -149,6 +169,19 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
                 self.add_bindings(params.iter(), closure_scope);
                 if body != ExprId::ZERO {
                     self.build_node_scopes(body.into(), &mut closure_scope);
+                }
+            }
+            NodeKind::Tuple => {
+                let tuple = nodes.tuple(nodes.as_tuple(node).expect("Tuple node mismatch"));
+                for item in tuple.iter() {
+                    self.build_node_scopes(item.into(), scope);
+                }
+            }
+            NodeKind::StructExpr => {
+                let struct_expr = nodes
+                    .struct_expr(nodes.as_struct_expr(node).expect("StructExpr node mismatch"));
+                for item in struct_expr.iter() {
+                    self.build_node_scopes(item.into(), scope);
                 }
             }
             NodeKind::Block => {

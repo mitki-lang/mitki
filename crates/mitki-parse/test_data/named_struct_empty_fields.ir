@@ -1,0 +1,20 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      STRUCT_EXPR
+        PATH_EXPR
+          NAME_REF
+            NAME: "Point"
+        STRUCT_EXPR_FIELD_LIST
+          LEFT_BRACE: "{"
+          RIGHT_BRACE: "}"
+      RIGHT_BRACE: "}"
+
+Errors:

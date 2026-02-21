@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use expect_test::expect_file;
 use mitki_tokenizer::Tokenizer;
 use mitki_yellow::SyntaxKind;
-use salsa::DatabaseImpl;
 
 use crate::grammar;
 use crate::parser::Parser;
@@ -44,10 +43,9 @@ impl TestCase {
 #[test]
 fn parse() {
     let test_cases = TestCase::list();
-    let db = DatabaseImpl::new();
 
     for case in test_cases {
-        let mut parser = Parser::new(&db, &case.text);
+        let mut parser = Parser::new(&case.text);
         grammar::items::module(&mut parser);
         let (tree, diagnostics) = parser.debug_tree();
         let diagnostics =

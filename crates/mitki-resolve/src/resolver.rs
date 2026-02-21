@@ -18,8 +18,9 @@ fn builtin_scope(db: &dyn Database) -> FxHashMap<Symbol<'_>, Ty<'_>> {
     ])
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Resolver<'db> {
+    db: &'db dyn Database,
     item_scope: &'db ItemScope<'db>,
     expr_scopes: &'db ExprScopes<'db>,
     scopes: Vec<Scope<'db>>,
@@ -31,6 +32,7 @@ impl<'db> Resolver<'db> {
         let file = function.file(db);
 
         Self {
+            db,
             item_scope: file.item_scope(db),
             expr_scopes: function.expr_scopes(db),
             scopes: Vec::new(),
@@ -95,6 +97,10 @@ impl<'db> Resolver<'db> {
             return Resolution::Function(item).into();
         }
 
+        if let Some(ty) = self.item_scope.get_type(&path) {
+            return Resolution::Type(ty).into();
+        }
+
         if let Some(&ty) = self.builtin_scope.get(&path) {
             return Resolution::Type(ty).into();
         }
@@ -111,7 +117,26 @@ impl<'db> Resolver<'db> {
         let mut scopes: Vec<_> = expr_scopes.chain(scope).collect::<Vec<_>>().into_iter().collect();
         scopes.reverse();
 
-        Resolver { item_scope, scopes, expr_scopes, builtin_scope: builtin_scope(db) }
+        Resolver { db, item_scope, scopes, expr_scopes, builtin_scope: builtin_scope(db) }
+    }
+
+    pub fn resolve_enum_variant(&self, variant: Symbol<'db>) -> Option<Ty<'db>> {
+        let mut resolved = None;
+
+        for (_, &ty) in self.item_scope.types() {
+            let TyKind::Enum { variants, .. } = ty.kind(self.db) else {
+                continue;
+            };
+
+            if variants.iter().any(|(name, _)| *name == variant) {
+                if resolved.is_some() {
+                    return None;
+                }
+                resolved = Some(ty);
+            }
+        }
+
+        resolved
     }
 }
 
