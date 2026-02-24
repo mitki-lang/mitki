@@ -1,16 +1,19 @@
 use mitki_hir::hir::*;
-use mitki_span::Symbol;
+use mitki_span::{Symbol, SymbolDatabase};
 
-#[salsa::db]
-#[derive(Clone, Default)]
-struct TestDb {
-    storage: salsa::Storage<Self>,
+#[picante::db(interned(mitki_span::SymbolData), db_trait(TestDatabase))]
+struct TestDb {}
+
+impl Default for TestDb {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-#[salsa::db]
-impl salsa::Database for TestDb {}
-
-fn sym<'db>(db: &'db TestDb, text: &str) -> Symbol<'db> {
+fn sym<'db, DB>(db: &'db DB, text: &str) -> Symbol<'db>
+where
+    DB: SymbolDatabase,
+{
     Symbol::new(db, text)
 }
 

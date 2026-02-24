@@ -1,28 +1,30 @@
 use mitki_hir::hir::{ExprId, Function, NodeKind, NodeStore, StmtId, TyId};
-use mitki_hir::ty::{Ty, TyKind};
+use mitki_hir::ty::{Ty, TyKind, TypeDatabase};
 use mitki_lower::hir::HasFunction as _;
-use mitki_lower::item::scope::FunctionLocation;
+use mitki_lower::item::scope::{FunctionLocation, ItemScopeDb};
 use mitki_resolve::{Resolution, Resolver};
 use mitki_span::Symbol;
 use rustc_hash::{FxHashMap, FxHashSet};
-use salsa::Database;
-use salsa::plumbing::{AsId as _, FromId as _};
 
 pub trait Inferable<'db> {
-    fn infer(self, db: &'db dyn Database) -> &'db Inference<'db>;
+    fn infer<DB>(self, db: &'db DB) -> Inference<'db>
+    where
+        DB: ItemScopeDb;
 }
 
-#[salsa::tracked]
 impl<'db> Inferable<'db> for FunctionLocation<'db> {
-    #[salsa::tracked(returns(ref))]
-    fn infer(self, db: &'db dyn Database) -> Inference<'db> {
-        let function = self.hir_function(db).function(db);
+    fn infer<DB>(self, db: &'db DB) -> Inference<'db>
+    where
+        DB: ItemScopeDb,
+    {
+        let hir = self.hir_function(db);
+        let function = hir.function();
         let resolver = Resolver::new(db, self);
         Typer::new(db, function, resolver).build()
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct Inference<'db> {
     type_of_node: FxHashMap<ExprId, Ty<'db>>,
     diagnostics: Vec<Diagnostic<'db>>,
@@ -38,7 +40,7 @@ impl<'db> Inference<'db> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Diagnostic<'db> {
     kind: DiagnosticKind<'db>,
     context: Option<ExprId>,
@@ -58,7 +60,7 @@ impl<'db> Diagnostic<'db> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum DiagnosticKind<'db> {
     UnresolvedIdent(ExprId),
     UnresolvedType(TyId, Symbol<'db>),
@@ -90,7 +92,7 @@ enum InferTy {
     Record(Vec<(u64, InferTy)>),
     Union(Vec<InferTy>),
     Inter(Vec<InferTy>),
-    /// A solved/interned type leaf, stored as raw salsa Id bits.
+    /// A solved/interned type leaf, stored as raw type bits.
     Known(u64),
     Unknown,
 }
@@ -144,10 +146,13 @@ impl Polarity {
     }
 }
 
-struct Typer<'func, 'db> {
-    db: &'db dyn Database,
+struct Typer<'func, 'db, DB>
+where
+    DB: ItemScopeDb,
+{
+    db: &'db DB,
     function: &'func Function<'db>,
-    resolver: Resolver<'db>,
+    resolver: Resolver<'db, DB>,
     vars: Vec<VarState>,
     env: FxHashMap<ExprId, Scheme>,
     binding_names: FxHashSet<ExprId>,
@@ -161,12 +166,15 @@ struct Typer<'func, 'db> {
     context: Vec<ExprId>,
 }
 
-impl<'db> Typer<'_, 'db> {
+impl<'db, DB> Typer<'_, 'db, DB>
+where
+    DB: ItemScopeDb,
+{
     fn new<'func>(
-        db: &'db dyn Database,
+        db: &'db DB,
         function: &'func Function<'db>,
-        resolver: Resolver<'db>,
-    ) -> Typer<'func, 'db> {
+        resolver: Resolver<'db, DB>,
+    ) -> Typer<'func, 'db, DB> {
         Typer {
             db,
             function,
@@ -220,15 +228,15 @@ impl<'db> Typer<'_, 'db> {
     }
 
     fn symbol_to_bits(sym: Symbol<'db>) -> u64 {
-        sym.as_id().as_bits()
+        sym.as_bits()
     }
 
     fn symbol_from_bits(bits: u64) -> Symbol<'db> {
-        Symbol::from_id(salsa::Id::from_bits(bits))
+        Symbol::from_bits(bits)
     }
 
     fn infer_ty_from_ty(ty: Ty<'db>) -> InferTy {
-        InferTy::Known(ty.as_id().as_bits())
+        InferTy::Known(ty.as_bits())
     }
 
     fn infer_ty_from_kind(&self, kind: TyKind<'db>) -> InferTy {
@@ -237,7 +245,7 @@ impl<'db> Typer<'_, 'db> {
 
     fn known_ty(ty: &InferTy) -> Option<Ty<'db>> {
         match ty {
-            InferTy::Known(bits) => Some(Ty::from_id(salsa::Id::from_bits(*bits))),
+            InferTy::Known(bits) => Some(Ty::from_bits(*bits)),
             _ => None,
         }
     }
@@ -456,7 +464,7 @@ impl<'db> Typer<'_, 'db> {
             ),
             TyKind::Function { inputs, output } => InferTy::Function(
                 inputs.iter().map(|&t| self.ty_to_infer_ty(t)).collect(),
-                Box::new(self.ty_to_infer_ty(*output)),
+                Box::new(self.ty_to_infer_ty(output)),
             ),
             TyKind::Union(items) => {
                 Self::mk_union_many(items.iter().map(|&t| self.ty_to_infer_ty(t)))
@@ -518,10 +526,10 @@ impl<'db> Typer<'_, 'db> {
             Resolution::Function(function) => {
                 let resolver = Resolver::new(self.db, function);
                 let signature = function.signature(self.db);
-                let sig_nodes = signature.nodes(self.db);
-                let params = signature.params(self.db);
-                let ret_type = signature.ret_type(self.db);
-                let type_params = signature.type_params(self.db);
+                let sig_nodes = signature.nodes();
+                let params = signature.params();
+                let ret_type = signature.ret_type();
+                let type_params = signature.type_params();
 
                 let type_param_vars: FxHashMap<Symbol<'db>, InferTy> =
                     type_params.iter().map(|&name| (name, self.fresh_var(lvl))).collect();
@@ -671,7 +679,7 @@ impl<'db> Typer<'_, 'db> {
                     |(_, ty)| ty.clone(),
                 ),
             InferTy::Known(bits) => {
-                let ty = Ty::from_id(salsa::Id::from_bits(bits));
+                let ty = Ty::from_bits(bits);
                 if let TyKind::Struct { fields, .. } = ty.kind(self.db) {
                     if let Some((_, field_ty)) = fields.iter().find(|(name, _)| *name == field_name)
                     {
@@ -714,7 +722,7 @@ impl<'db> Typer<'_, 'db> {
                     stack.extend(self.vars[var].upper_bounds.iter().cloned());
                 }
                 InferTy::Known(bits) => {
-                    let ty = Ty::from_id(salsa::Id::from_bits(bits));
+                    let ty = Ty::from_bits(bits);
                     if matches!(ty.kind(self.db), TyKind::Enum { .. }) {
                         candidates.insert(bits);
                     }
@@ -757,7 +765,7 @@ impl<'db> Typer<'_, 'db> {
         let mut narrowed = Vec::new();
 
         for candidate_bits in &candidates {
-            let enum_ty = Ty::from_id(salsa::Id::from_bits(*candidate_bits));
+            let enum_ty = Ty::from_bits(*candidate_bits);
             let Some(variant_ty) = self.enum_variant_infer_ty(enum_ty, constraint.variant) else {
                 continue;
             };
@@ -850,7 +858,7 @@ impl<'db> Typer<'_, 'db> {
         next_present_var: &mut u32,
     ) -> Ty<'db> {
         match ty {
-            InferTy::Known(bits) => Ty::from_id(salsa::Id::from_bits(*bits)),
+            InferTy::Known(bits) => Ty::from_bits(*bits),
             InferTy::Function(inputs, output) => {
                 let inputs = inputs
                     .iter()
@@ -1064,7 +1072,7 @@ impl<'db> Typer<'_, 'db> {
         &mut self,
         ty: TyId,
         sig_nodes: &NodeStore<'db>,
-        resolver: &Resolver<'db>,
+        resolver: &Resolver<'db, DB>,
         type_param_vars: &FxHashMap<Symbol<'db>, InferTy>,
         lvl: usize,
     ) -> InferTy {
@@ -1254,7 +1262,7 @@ impl<'db> Typer<'_, 'db> {
                     this.constrain_top(ty, &expected).is_ok()
                 };
 
-                match op_sym.text(self.db) {
+                match op_sym.text(self.db).as_ref() {
                     "+" | "-" | "*" | "/" | "%" => {
                         if matches!(lhs_ty, InferTy::Unknown) || matches!(rhs_ty, InferTy::Unknown)
                         {
@@ -1352,7 +1360,7 @@ impl<'db> Typer<'_, 'db> {
                 if matches!(expr_ty, InferTy::Unknown) {
                     InferTy::Unknown
                 } else {
-                    match op_sym.text(self.db) {
+                    match op_sym.text(self.db).as_ref() {
                         "!" => {
                             let bool_ty = self.bool_infer_ty();
                             if self.constrain_top(&expr_ty, &bool_ty).is_ok() {
@@ -1623,13 +1631,13 @@ impl<'db> Typer<'_, 'db> {
                     }
 
                     for (field_name, _) in fields {
-                        if !seen_fields.contains(field_name) {
-                            self.emit(DiagnosticKind::MissingStructField(node, *field_name));
+                        if !seen_fields.contains(&field_name) {
+                            self.emit(DiagnosticKind::MissingStructField(node, field_name));
                         }
                     }
 
                     self.node_types.insert(name_id, self.ty_to_infer_ty(ty));
-                    InferTy::Known(ty.as_id().as_bits())
+                    InferTy::Known(ty.as_bits())
                 }
             }
             _ => InferTy::Unknown,
@@ -1679,7 +1687,7 @@ impl<'db> Typer<'_, 'db> {
         let InferTy::Known(bits) = ty else {
             return false;
         };
-        let nominal = Ty::from_id(salsa::Id::from_bits(*bits));
+        let nominal = Ty::from_bits(*bits);
         matches!(nominal.kind(self.db), TyKind::Enum { .. })
     }
 
@@ -1922,7 +1930,7 @@ impl<'db> Typer<'_, 'db> {
                 Ok(())
             }
             (InferTy::Known(bits), InferTy::Record(r_fields)) => {
-                let nominal = Ty::from_id(salsa::Id::from_bits(*bits));
+                let nominal = Ty::from_bits(*bits);
                 let TyKind::Struct { fields, .. } = nominal.kind(self.db) else {
                     return Err(());
                 };
@@ -1939,7 +1947,7 @@ impl<'db> Typer<'_, 'db> {
                 Ok(())
             }
             (InferTy::Record(l_fields), InferTy::Known(bits)) => {
-                let nominal = Ty::from_id(salsa::Id::from_bits(*bits));
+                let nominal = Ty::from_bits(*bits);
                 let TyKind::Struct { fields, .. } = nominal.kind(self.db) else {
                     return Err(());
                 };
@@ -1949,13 +1957,13 @@ impl<'db> Typer<'_, 'db> {
                 }
 
                 for (field_name, field_ty) in fields {
-                    let field_name_bits = Self::symbol_to_bits(*field_name);
+                    let field_name_bits = Self::symbol_to_bits(field_name);
                     let Some((_, l_ty)) =
                         l_fields.iter().find(|(name_bits, _)| *name_bits == field_name_bits)
                     else {
                         return Err(());
                     };
-                    let r_ty = self.ty_to_infer_ty(*field_ty);
+                    let r_ty = self.ty_to_infer_ty(field_ty);
                     self.constrain(l_ty, &r_ty, cache)?;
                 }
                 Ok(())
@@ -2158,7 +2166,7 @@ fn stmt_as_expr(nodes: &NodeStore<'_>, stmt: StmtId) -> Option<ExprId> {
     }
 }
 
-fn simplify<'db>(db: &'db dyn Database, ty: Ty<'db>) -> Ty<'db> {
+fn simplify<'db>(db: &'db impl TypeDatabase, ty: Ty<'db>) -> Ty<'db> {
     let mut polarities: FxHashMap<u32, (bool, bool)> = FxHashMap::default();
     let mut rec_vars: FxHashSet<u32> = FxHashSet::default();
     collect_polarities(
@@ -2180,7 +2188,7 @@ fn simplify<'db>(db: &'db dyn Database, ty: Ty<'db>) -> Ty<'db> {
 }
 
 fn collect_polarities(
-    db: &dyn Database,
+    db: &impl TypeDatabase,
     ty: Ty<'_>,
     polarity: Polarity,
     polarities: &mut FxHashMap<u32, (bool, bool)>,
@@ -2189,7 +2197,7 @@ fn collect_polarities(
 ) {
     match ty.kind(db) {
         TyKind::Var(id) => {
-            let entry = polarities.entry(*id).or_insert((false, false));
+            let entry = polarities.entry(id).or_insert((false, false));
             match polarity {
                 Polarity::Positive => entry.0 = true,
                 Polarity::Negative => entry.1 = true,
@@ -2197,58 +2205,58 @@ fn collect_polarities(
         }
         TyKind::Function { inputs, output } => {
             for input in inputs {
-                collect_polarities(db, *input, polarity.flip(), polarities, rec_vars, seen);
+                collect_polarities(db, input, polarity.flip(), polarities, rec_vars, seen);
             }
-            collect_polarities(db, *output, polarity, polarities, rec_vars, seen);
+            collect_polarities(db, output, polarity, polarities, rec_vars, seen);
         }
         TyKind::Tuple(items) => {
             for item in items {
-                collect_polarities(db, *item, polarity, polarities, rec_vars, seen);
+                collect_polarities(db, item, polarity, polarities, rec_vars, seen);
             }
         }
         TyKind::Record(fields) => {
             for (_, field_ty) in fields {
-                collect_polarities(db, *field_ty, polarity, polarities, rec_vars, seen);
+                collect_polarities(db, field_ty, polarity, polarities, rec_vars, seen);
             }
         }
         TyKind::Union(items) | TyKind::Inter(items) => {
             for item in items {
-                collect_polarities(db, *item, polarity, polarities, rec_vars, seen);
+                collect_polarities(db, item, polarity, polarities, rec_vars, seen);
             }
         }
         TyKind::Rec(id, body) => {
-            rec_vars.insert(*id);
-            if !seen.insert((*id, polarity)) {
+            rec_vars.insert(id);
+            if !seen.insert((id, polarity)) {
                 return;
             }
-            collect_polarities(db, *body, polarity, polarities, rec_vars, seen);
+            collect_polarities(db, body, polarity, polarities, rec_vars, seen);
         }
         _ => {}
     }
 }
 
-fn remove_vars<'db>(db: &'db dyn Database, ty: Ty<'db>, remove: &FxHashSet<u32>) -> Ty<'db> {
+fn remove_vars<'db>(db: &'db impl TypeDatabase, ty: Ty<'db>, remove: &FxHashSet<u32>) -> Ty<'db> {
     match ty.kind(db) {
-        TyKind::Var(id) if remove.contains(id) => Ty::new(db, TyKind::Unknown),
+        TyKind::Var(id) if remove.contains(&id) => Ty::new(db, TyKind::Unknown),
         TyKind::Function { inputs, output } => {
-            let inputs = inputs.iter().map(|&t| remove_vars(db, t, remove)).collect();
-            let output = remove_vars(db, *output, remove);
+            let inputs = inputs.into_iter().map(|t| remove_vars(db, t, remove)).collect();
+            let output = remove_vars(db, output, remove);
             Ty::new(db, TyKind::Function { inputs, output })
         }
         TyKind::Tuple(items) => {
-            let items = items.iter().map(|&t| remove_vars(db, t, remove)).collect();
+            let items = items.into_iter().map(|t| remove_vars(db, t, remove)).collect();
             Ty::new(db, TyKind::Tuple(items))
         }
         TyKind::Record(fields) => {
             let fields =
-                fields.iter().map(|(name, ty)| (*name, remove_vars(db, *ty, remove))).collect();
+                fields.into_iter().map(|(name, ty)| (name, remove_vars(db, ty, remove))).collect();
             Ty::new(db, TyKind::Record(fields))
         }
         TyKind::Union(items) => {
             let mut seen: FxHashSet<Ty<'db>> = FxHashSet::default();
             let mut reduced = Vec::new();
             for item in items {
-                let reduced_item = remove_vars(db, *item, remove);
+                let reduced_item = remove_vars(db, item, remove);
                 if matches!(reduced_item.kind(db), TyKind::Unknown) {
                     continue;
                 }
@@ -2266,7 +2274,7 @@ fn remove_vars<'db>(db: &'db dyn Database, ty: Ty<'db>, remove: &FxHashSet<u32>)
             let mut seen: FxHashSet<Ty<'db>> = FxHashSet::default();
             let mut reduced = Vec::new();
             for item in items {
-                let reduced_item = remove_vars(db, *item, remove);
+                let reduced_item = remove_vars(db, item, remove);
                 if matches!(reduced_item.kind(db), TyKind::Unknown) {
                     continue;
                 }
@@ -2281,11 +2289,11 @@ fn remove_vars<'db>(db: &'db dyn Database, ty: Ty<'db>, remove: &FxHashSet<u32>)
             }
         }
         TyKind::Rec(id, body) => {
-            if remove.contains(id) {
-                remove_vars(db, *body, remove)
+            if remove.contains(&id) {
+                remove_vars(db, body, remove)
             } else {
-                let body = remove_vars(db, *body, remove);
-                Ty::new(db, TyKind::Rec(*id, body))
+                let body = remove_vars(db, body, remove);
+                Ty::new(db, TyKind::Rec(id, body))
             }
         }
         _ => ty,

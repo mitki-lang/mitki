@@ -1,14 +1,12 @@
 use mitki_hir::hir::{ExprId, NameId, TyId};
 use mitki_hir::ty::{Ty, TyKind};
-use mitki_lower::item::scope::{FunctionLocation, HasItemScope as _, ItemScope};
+use mitki_lower::item::scope::{FunctionLocation, HasItemScope as _, ItemScope, ItemScopeDb};
 use mitki_span::{IntoSymbol as _, Symbol};
 use rustc_hash::FxHashMap;
-use salsa::Database;
 
 use crate::scope::{ExprScopes, HasExprScopes as _, Scope};
 
-#[salsa::tracked(returns(ref))]
-fn builtin_scope(db: &dyn Database) -> FxHashMap<Symbol<'_>, Ty<'_>> {
+fn builtin_scope<'db>(db: &'db impl mitki_parse::ParseDb) -> FxHashMap<Symbol<'db>, Ty<'db>> {
     FxHashMap::from_iter([
         ("bool".into_symbol(db), Ty::new(db, TyKind::Bool)),
         ("char".into_symbol(db), Ty::new(db, TyKind::Char)),
@@ -18,17 +16,22 @@ fn builtin_scope(db: &dyn Database) -> FxHashMap<Symbol<'_>, Ty<'_>> {
     ])
 }
 
-#[derive(Clone)]
-pub struct Resolver<'db> {
-    db: &'db dyn Database,
-    item_scope: &'db ItemScope<'db>,
-    expr_scopes: &'db ExprScopes<'db>,
+pub struct Resolver<'db, DB>
+where
+    DB: ItemScopeDb,
+{
+    db: &'db DB,
+    item_scope: ItemScope<'db>,
+    expr_scopes: ExprScopes<'db>,
     scopes: Vec<Scope<'db>>,
-    builtin_scope: &'db FxHashMap<Symbol<'db>, Ty<'db>>,
+    builtin_scope: FxHashMap<Symbol<'db>, Ty<'db>>,
 }
 
-impl<'db> Resolver<'db> {
-    pub fn new(db: &'db dyn Database, function: FunctionLocation<'db>) -> Self {
+impl<'db, DB> Resolver<'db, DB>
+where
+    DB: ItemScopeDb,
+{
+    pub fn new(db: &'db DB, function: FunctionLocation<'db>) -> Self {
         let file = function.file(db);
 
         Self {
@@ -109,9 +112,9 @@ impl<'db> Resolver<'db> {
     }
 
     pub fn for_scope(
-        db: &'db dyn Database,
-        item_scope: &'db ItemScope<'db>,
-        expr_scopes: &'db ExprScopes<'db>,
+        db: &'db DB,
+        item_scope: ItemScope<'db>,
+        expr_scopes: ExprScopes<'db>,
         scope: Option<Scope<'db>>,
     ) -> Self {
         let mut scopes: Vec<_> = expr_scopes.chain(scope).collect::<Vec<_>>().into_iter().collect();

@@ -12,5 +12,7 @@ workspace = true
 
 [dependencies]
 camino.workspace = true
+facet.workspace = true
 line-index = "0.1"
-salsa.workspace = true
+picante.workspace = true
+

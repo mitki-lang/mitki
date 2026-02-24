@@ -16,4 +16,5 @@ mitki-db.workspace = true
 mitki-errors.workspace = true
 mitki-inputs.workspace = true
 mitki-lsp-server.workspace = true
-salsa.workspace = true
+picante.workspace = true
+

@@ -4,7 +4,8 @@ use std::fmt::Display;
 
 /// All token and node kinds produced by the parser.
 #[allow(non_camel_case_types)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[repr(u16)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, facet::Facet)]
 pub enum SyntaxKind {
     LEFT_PAREN,
     RIGHT_PAREN,

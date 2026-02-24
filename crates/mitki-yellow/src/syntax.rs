@@ -32,18 +32,6 @@ impl fmt::Debug for SyntaxTree {
     }
 }
 
-unsafe impl salsa::Update for SyntaxTree {
-    unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {
-        let old_value = unsafe { &mut *old_pointer };
-        if old_value.text() == new_value.text() {
-            false
-        } else {
-            *old_value = new_value;
-            true
-        }
-    }
-}
-
 /// Token handle tied to the lifetime of the tree.
 #[derive(Clone, Copy)]
 pub struct SyntaxToken<'a> {
@@ -741,7 +729,7 @@ pub enum WalkEventWithTokens<'a> {
 }
 
 /// Stable identifier for a node by kind and non-trivia text range.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, salsa::Update)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct SyntaxNodePtr {
     /// Node kind used for lookup.
     pub kind: SyntaxKind,

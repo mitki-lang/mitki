@@ -20,7 +20,8 @@ impl super::Analysis {
     pub fn hover(&self, FilePosition { file, offset }: FilePosition) -> Option<HoverResult> {
         let db = self.db();
         let semantics = Semantics::new(db, file);
-        let root = file.parse(db).syntax_node();
+        let parsed = file.parse(db);
+        let root = parsed.syntax_node();
 
         let name_at_offset = find_name_at_offset(root, offset, |kind| {
             kind == SyntaxKind::NAME_REF || kind == SyntaxKind::IDENT
@@ -97,8 +98,9 @@ impl super::Analysis {
             .find_map(ast::Function::cast)
             .map(|function| semantics.function(function.syntax()))?;
         let inference = location.infer(db);
-        let function = location.hir_function(db).function(db);
-        let source_map = location.hir_function(db).source_map(db);
+        let hir = location.hir_function(db);
+        let function = hir.function();
+        let source_map = hir.source_map();
         let param_annotation_ty_text = |binding_expr: ExprId| {
             for &param in function.params() {
                 let (param_name, param_ty) = function.node_store().param(param);
@@ -140,7 +142,9 @@ impl super::Analysis {
                 })
             }
             Resolution::Function(func) => {
-                let function_syntax = func.source(db);
+                let parsed = func.file(db).parse(db);
+                let syntax = func.source_ptr(db).to_node(&parsed.syntax_node());
+                let function_syntax = ast::Function::cast(syntax).unwrap();
 
                 Some(HoverResult {
                     range: original_token.trimmed_range(),

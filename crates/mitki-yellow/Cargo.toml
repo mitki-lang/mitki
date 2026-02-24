@@ -11,5 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
-salsa.workspace = true
+facet.workspace = true
+picante.workspace = true
 text-size.workspace = true
+

@@ -3,14 +3,14 @@ use mitki_span::Symbol;
 use super::id::Raw;
 use super::schema::{HirId, IxId, NodeKind, SymId};
 
-#[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
+#[derive(Default, Debug, PartialEq, Eq, Clone)]
 pub struct NodeStore<'db> {
     pub(crate) nodes: Vec<Node>,
     pub(crate) symbols: Vec<Symbol<'db>>,
     pub(crate) node_ids: Vec<u32>,
 }
 
-#[derive(Debug, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct Node {
     pub(crate) kind: NodeKind,
     pub(crate) lhs: Raw,

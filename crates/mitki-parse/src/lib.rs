@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use mitki_errors::Diagnostic;
 use mitki_inputs::File;
 use mitki_yellow::ast::{self, Node as _};
@@ -8,7 +10,6 @@ mod parser;
 #[cfg(test)]
 mod tests;
 
-#[derive(salsa::Update)]
 pub struct Parsed {
     root: SyntaxTree,
     diagnostics: Vec<Diagnostic>,
@@ -42,17 +43,52 @@ impl Parsed {
     }
 }
 
-pub trait FileParse {
-    fn parse(self, db: &dyn salsa::Database) -> &Parsed;
+pub fn parse_text(text: &str) -> Parsed {
+    let mut parser = parser::Parser::new(text);
+    grammar::items::module(&mut parser);
+    let (root, diagnostics) = parser.build_tree();
+    Parsed { root, diagnostics }
 }
 
-#[salsa::tracked]
+#[picante::tracked]
+pub async fn parse_file<DB: mitki_inputs::FileDatabase>(
+    db: &DB,
+    file: File,
+) -> picante::PicanteResult<u64> {
+    let _text = file.text(db);
+    Ok(file.revision(db))
+}
+
+pub trait ParseExecutor {
+    fn block_on<F>(&self, future: F) -> F::Output
+    where
+        F: Future;
+}
+
+pub trait ParseDb:
+    ParseExecutor + HasParseFileQuery + mitki_inputs::FileDatabase + mitki_hir::ty::TypeDatabase
+{
+}
+
+impl<T> ParseDb for T where
+    T: ParseExecutor + HasParseFileQuery + mitki_inputs::FileDatabase + mitki_hir::ty::TypeDatabase
+{
+}
+
+pub trait FileParse {
+    fn parse<DB>(self, db: &DB) -> Parsed
+    where
+        DB: ParseDb;
+}
+
 impl FileParse for File {
-    #[salsa::tracked(returns(ref))]
-    fn parse(self, db: &dyn salsa::Database) -> Parsed {
-        let mut parser = parser::Parser::new(self.text(db));
-        grammar::items::module(&mut parser);
-        let (root, diagnostics) = parser.build_tree();
-        Parsed { root, diagnostics }
+    fn parse<DB>(self, db: &DB) -> Parsed
+    where
+        DB: ParseDb,
+    {
+        db.block_on(parse_file(db, self)).expect("failed to compute parse query");
+
+        let text = self.text(db);
+        parse_text(text.as_ref())
     }
 }

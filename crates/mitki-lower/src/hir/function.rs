@@ -3,7 +3,6 @@ use mitki_span::IntoSymbol as _;
 use mitki_yellow::ast::{self, HasName as _, Node as _};
 use mitki_yellow::{SyntaxElement, SyntaxNode, SyntaxNodePtr};
 use rustc_hash::FxHashMap;
-use salsa::Database;
 
 use super::FunctionWithSourceMap;
 
@@ -19,7 +18,7 @@ fn operator_precedence(op: &str) -> u8 {
     }
 }
 
-#[derive(Default, PartialEq, Eq, salsa::Update)]
+#[derive(Default, Debug, PartialEq, Eq, Clone)]
 pub struct FunctionSourceMap {
     node_map: FxHashMap<SyntaxNodePtr, ExprId>,
     node_map_back: FxHashMap<ExprId, SyntaxNodePtr>,
@@ -55,18 +54,27 @@ impl FunctionSourceMap {
     }
 }
 
-pub(crate) struct FunctionBuilder<'db> {
-    db: &'db dyn Database,
+pub(crate) struct FunctionBuilder<'db, DB>
+where
+    DB: mitki_parse::ParseDb,
+{
+    db: &'db DB,
     function: Function<'db>,
     source_map: FunctionSourceMap,
 }
 
-impl<'db> FunctionBuilder<'db> {
-    pub(crate) fn new(db: &'db dyn Database) -> Self {
+impl<'db, DB> FunctionBuilder<'db, DB>
+where
+    DB: mitki_parse::ParseDb,
+{
+    pub(crate) fn new(db: &'db DB) -> Self {
         Self { db, function: Function::default(), source_map: FunctionSourceMap::default() }
     }
 
-    pub(super) fn build(mut self, node: &ast::Function<'db>) -> FunctionWithSourceMap<'db> {
+    pub(super) fn build<'tree>(
+        mut self,
+        node: &ast::Function<'tree>,
+    ) -> FunctionWithSourceMap<'db> {
         let type_params: Vec<_> =
             node.type_params().map(|tp| tp.as_str().into_symbol(self.db)).collect();
         let params = self.build_params(node.params());
@@ -78,10 +86,10 @@ impl<'db> FunctionBuilder<'db> {
         self.function.set_ret_type(ret_type);
         self.function.set_body(body);
 
-        FunctionWithSourceMap::new(self.db, self.function, self.source_map)
+        FunctionWithSourceMap::new(self.function, self.source_map)
     }
 
-    fn build_params(&mut self, params: Option<ast::Params<'db>>) -> Vec<ParamId> {
+    fn build_params<'tree>(&mut self, params: Option<ast::Params<'tree>>) -> Vec<ParamId> {
         let Some(params) = params else {
             return Vec::new();
         };
@@ -99,7 +107,7 @@ impl<'db> FunctionBuilder<'db> {
             .collect()
     }
 
-    fn build_block(&mut self, block: Option<ast::Block<'db>>) -> ExprId {
+    fn build_block<'tree>(&mut self, block: Option<ast::Block<'tree>>) -> ExprId {
         let Some(block) = block else {
             return ExprId::ZERO;
         };
@@ -113,7 +121,7 @@ impl<'db> FunctionBuilder<'db> {
         expr
     }
 
-    fn build_stmt(&mut self, stmt: &ast::Stmt<'db>) -> StmtId {
+    fn build_stmt<'tree>(&mut self, stmt: &ast::Stmt<'tree>) -> StmtId {
         let db = self.db;
         match &stmt {
             ast::Stmt::Val(val) => {
@@ -148,7 +156,7 @@ impl<'db> FunctionBuilder<'db> {
         self.source_map.type_map_back.insert(ty, ptr);
     }
 
-    fn build_expr(&mut self, expr: Option<ast::Expr<'db>>) -> ExprId {
+    fn build_expr<'tree>(&mut self, expr: Option<ast::Expr<'tree>>) -> ExprId {
         let Some(expr) = expr else {
             return self.function.node_store_mut().alloc_error().into();
         };
@@ -247,9 +255,9 @@ impl<'db> FunctionBuilder<'db> {
         node
     }
 
-    fn build_bin_op_seq(&mut self, seq: &ast::BinOpSeq<'db>) -> ExprId {
+    fn build_bin_op_seq<'tree>(&mut self, seq: &ast::BinOpSeq<'tree>) -> ExprId {
         let mut operands: Vec<ExprId> = Vec::new();
-        let mut operators: Vec<&'db str> = Vec::new();
+        let mut operators: Vec<&'tree str> = Vec::new();
 
         for element in seq.elements() {
             match element {
@@ -271,7 +279,7 @@ impl<'db> FunctionBuilder<'db> {
     fn pratt_parse(
         &mut self,
         operands: &[ExprId],
-        operators: &[&'db str],
+        operators: &[&str],
         start: usize,
         end: usize,
     ) -> ExprId {
@@ -297,7 +305,7 @@ impl<'db> FunctionBuilder<'db> {
         self.function.node_store_mut().alloc_binary(lhs, op, rhs).into()
     }
 
-    fn build_literal(&mut self, literal: &ast::Literal<'db>) -> ExprId {
+    fn build_literal<'tree>(&mut self, literal: &ast::Literal<'tree>) -> ExprId {
         let db = self.db;
         match literal.kind() {
             ast::LiteralKind::Bool(true) => self.function.node_store_mut().alloc_true().into(),

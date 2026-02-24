@@ -2,7 +2,7 @@ use mitki_span::Symbol;
 
 use super::{ExprId, NodeStore, ParamId, TyId};
 
-#[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
+#[derive(Default, Debug, PartialEq, Eq, Clone)]
 pub struct Function<'db> {
     node_store: NodeStore<'db>,
 

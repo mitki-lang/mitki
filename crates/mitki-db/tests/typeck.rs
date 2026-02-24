@@ -51,7 +51,7 @@ fn check(fixture: &str) {
     let file = File::new(&db, "typeck.mtk".into(), fixture.to_owned());
 
     let diagnostics = check_file(&db, file);
-    let mut actual = collect_actual(&db, file, diagnostics);
+    let mut actual = collect_actual(&db, file, &diagnostics);
     let mut expected = parse_expectations(fixture);
 
     expected.sort_by_key(|diag| (diag.line, diag.message.clone()));

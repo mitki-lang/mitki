@@ -6,7 +6,6 @@ use mitki_parse::FileParse as _;
 use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::SyntaxNodePtr;
 use mitki_yellow::ast::{HasName as _, Node as _};
-use salsa::Database;
 
 use crate::ast_map::HasAstMap as _;
 
@@ -15,17 +14,21 @@ pub type Struct<'db> = Key<StructData<'db>>;
 pub type Enum<'db> = Key<EnumData<'db>>;
 
 pub trait HasItemTree {
-    fn item_tree(self, db: &dyn Database) -> &ItemTree<'_>;
+    fn item_tree<DB>(self, db: &DB) -> ItemTree<'_>
+    where
+        DB: mitki_parse::ParseDb;
 }
 
-#[salsa::tracked]
 impl HasItemTree for File {
-    #[salsa::tracked(returns(ref), no_eq)]
-    fn item_tree(self, db: &dyn Database) -> ItemTree<'_> {
+    fn item_tree<DB>(self, db: &DB) -> ItemTree<'_>
+    where
+        DB: mitki_parse::ParseDb,
+    {
         let mut item_tree = ItemTree::default();
         let ast_map = self.ast_map(db);
+        let parsed = self.parse(db);
 
-        for item in self.parse(db).tree().items() {
+        for item in parsed.tree().items() {
             let item = match item {
                 mitki_yellow::ast::Item::Function(func) => {
                     let id = ast_map.find_id(func.syntax());
@@ -60,7 +63,7 @@ impl HasItemTree for File {
     }
 }
 
-#[derive(Debug, Default, salsa::Update)]
+#[derive(Debug, Default)]
 pub struct ItemTree<'db> {
     items: Vec<Item<'db>>,
     functions: Arena<FunctionData<'db>>,
@@ -92,32 +95,26 @@ impl<'db> Index<Enum<'db>> for ItemTree<'db> {
     }
 }
 
-impl<'db> ItemTree<'db> {
-    pub(crate) fn items(&self) -> impl ExactSizeIterator<Item = Item<'db>> + '_ {
-        self.items.iter().copied()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Item<'db> {
     Function(Function<'db>),
     Struct(Struct<'db>),
     Enum(Enum<'db>),
 }
 
-#[derive(Debug, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FunctionData<'db> {
     pub id: Key<SyntaxNodePtr>,
     pub name: Symbol<'db>,
 }
 
-#[derive(Debug, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct StructData<'db> {
     pub id: Key<SyntaxNodePtr>,
     pub name: Symbol<'db>,
 }
 
-#[derive(Debug, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct EnumData<'db> {
     pub id: Key<SyntaxNodePtr>,
     pub name: Symbol<'db>,

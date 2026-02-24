@@ -4,25 +4,24 @@ use mitki_lower::hir::HasFunction as _;
 use mitki_lower::item::scope::FunctionLocation;
 use mitki_span::Symbol;
 use rustc_hash::FxHashMap;
-use salsa::Database;
 
 pub trait HasExprScopes<'db> {
-    fn expr_scopes(self, db: &'db dyn Database) -> &'db ExprScopes<'db>;
+    fn expr_scopes<DB>(self, db: &'db DB) -> ExprScopes<'db>
+    where
+        DB: mitki_parse::ParseDb;
 }
 
-#[salsa::tracked]
 impl<'db> HasExprScopes<'db> for FunctionLocation<'db> {
-    #[salsa::tracked(returns(ref))]
-    fn expr_scopes(self, db: &'db dyn Database) -> ExprScopes<'db> {
-        ExprScopesBuilder {
-            function: self.hir_function(db).function(db),
-            scopes: ExprScopes::default(),
-        }
-        .build()
+    fn expr_scopes<DB>(self, db: &'db DB) -> ExprScopes<'db>
+    where
+        DB: mitki_parse::ParseDb,
+    {
+        let hir = self.hir_function(db);
+        ExprScopesBuilder { function: hir.function(), scopes: ExprScopes::default() }.build()
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct ExprScopes<'db> {
     scopes: Arena<ScopeData<'db>>,
     scope_entries: Arena<ScopeEntry<'db>>,
@@ -52,7 +51,7 @@ impl<'db> ExprScopes<'db> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct ScopeEntry<'db> {
     pub(crate) name: Symbol<'db>,
     pub(crate) binding: NameId,
@@ -60,7 +59,7 @@ pub(crate) struct ScopeEntry<'db> {
 
 pub type Scope<'db> = Key<ScopeData<'db>>;
 
-#[derive(Debug, PartialEq, Eq, salsa::Update)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ScopeData<'db> {
     parent: Option<Scope<'db>>,
     entries: Range<ScopeEntry<'db>>,

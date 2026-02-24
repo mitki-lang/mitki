@@ -13,7 +13,9 @@ workspace = true
 [dependencies]
 mitki-hir.workspace = true
 mitki-lower.workspace = true
+mitki-parse.workspace = true
 mitki-resolve.workspace = true
 mitki-span.workspace = true
 rustc-hash.workspace = true
-salsa.workspace = true
+picante.workspace = true
+

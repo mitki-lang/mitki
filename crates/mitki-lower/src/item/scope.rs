@@ -1,68 +1,162 @@
+use std::marker::PhantomData;
+
 use mitki_hir::hir::{NodeStore, ParamId, TyId};
 use mitki_hir::ty::{Ty, TyKind};
 use mitki_inputs::File;
+use mitki_parse::FileParse as _;
 use mitki_span::{IntoSymbol as _, Symbol};
-use mitki_yellow::SyntaxNodePtr;
 use mitki_yellow::ast::{self, HasName as _, Node as _};
-use salsa::Database;
-
-use super::tree::{Item, ItemTree};
-use crate::ast_map::HasAstMap as _;
-use crate::item::tree::{Enum, Function, HasItemTree as _, Struct};
-
-type FxIndexMap<K, V> =
-    indexmap::IndexMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
+use mitki_yellow::{SyntaxKind, SyntaxNodePtr};
+use text_size::{TextRange, TextSize};
 
 pub trait HasItemScope {
-    fn item_scope(self, db: &dyn Database) -> &ItemScope<'_>;
+    fn item_scope<DB>(self, db: &DB) -> ItemScope<'_>
+    where
+        DB: ItemScopeDb;
 }
 
-#[salsa::tracked]
+pub trait ItemScopeDb: mitki_parse::ParseDb + HasItemScopeCachedQuery {}
+
+impl<T> ItemScopeDb for T where T: mitki_parse::ParseDb + HasItemScopeCachedQuery {}
+
+#[rustfmt::skip]
+#[picante::tracked]
+pub async fn item_scope_cached<DB: mitki_inputs::FileDatabase + mitki_parse::HasParseFileQuery + mitki_hir::ty::TypeDatabase>(
+    db: &DB,
+    file: File,
+) -> picante::PicanteResult<ItemScope<'static>> {
+    mitki_parse::parse_file(db, file).await?;
+    let text = file.text(db);
+    let parsed = mitki_parse::parse_text(text.as_ref());
+    Ok(erase_item_scope(build_item_scope(db, file, &parsed)))
+}
+
 impl HasItemScope for File {
-    #[salsa::tracked(returns(ref))]
-    fn item_scope(self, db: &dyn Database) -> ItemScope<'_> {
-        ItemScopeBuilder { db, item_tree: self.item_tree(db), scope: ItemScope::default() }
-            .build(self)
+    fn item_scope<DB>(self, db: &DB) -> ItemScope<'_>
+    where
+        DB: ItemScopeDb,
+    {
+        let scope = <DB as mitki_parse::ParseExecutor>::block_on(db, item_scope_cached(db, self))
+            .expect("failed to compute item scope");
+        unerase_item_scope(scope)
     }
 }
 
-#[derive(salsa::Update, Debug, PartialEq, Eq, Clone, Copy)]
+fn build_item_scope<'db, DB>(
+    db: &'db DB,
+    file: File,
+    parsed: &mitki_parse::Parsed,
+) -> ItemScope<'db>
+where
+    DB: mitki_hir::ty::TypeDatabase,
+{
+    ItemScopeBuilder { db, scope: ItemScope::default() }.build(file, parsed)
+}
+
+fn erase_item_scope(scope: ItemScope<'_>) -> ItemScope<'static> {
+    // SAFETY: ItemScope stores copyable handle types with phantom lifetimes only.
+    unsafe { std::mem::transmute(scope) }
+}
+
+fn unerase_item_scope<'db>(scope: ItemScope<'static>) -> ItemScope<'db> {
+    // SAFETY: ItemScope stores no borrowed data and can be viewed at any db
+    // lifetime.
+    unsafe { std::mem::transmute(scope) }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, facet::Facet)]
+struct SourcePtrData {
+    kind: SyntaxKind,
+    start: u32,
+    end: u32,
+}
+
+impl SourcePtrData {
+    fn from_ptr(ptr: SyntaxNodePtr) -> Self {
+        Self { kind: ptr.kind, start: ptr.range.start().into(), end: ptr.range.end().into() }
+    }
+
+    fn to_ptr(self) -> SyntaxNodePtr {
+        SyntaxNodePtr {
+            kind: self.kind,
+            range: TextRange::new(TextSize::from(self.start), TextSize::from(self.end)),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, facet::Facet)]
 pub enum Declaration<'db> {
     Function(FunctionLocation<'db>),
     Struct(StructLocation<'db>),
     Enum(EnumLocation<'db>),
 }
 
-#[salsa::tracked(debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, facet::Facet)]
 pub struct FunctionLocation<'db> {
-    pub file: File,
-    pub index: Function<'db>,
+    file: File,
+    source: SourcePtrData,
+    _marker: PhantomData<&'db ()>,
 }
 
-#[salsa::tracked(debug)]
-pub struct StructLocation<'db> {
-    pub file: File,
-    pub index: Struct<'db>,
-}
-
-#[salsa::tracked(debug)]
-pub struct EnumLocation<'db> {
-    pub file: File,
-    pub index: Enum<'db>,
-}
-
-#[salsa::tracked]
 impl<'db> FunctionLocation<'db> {
-    #[salsa::tracked(returns(ref))]
-    pub fn signature(self, db: &'db dyn Database) -> Signature<'db> {
-        let mut node_store = NodeStore::default();
-        let func = self.source(db);
+    pub fn new(file: File, source_ptr: SyntaxNodePtr) -> Self {
+        Self { file, source: SourcePtrData::from_ptr(source_ptr), _marker: PhantomData }
+    }
 
-        // Lower type parameters
+    pub fn file(self, _: &'db impl picante::HasRuntime) -> File {
+        self.file
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, facet::Facet)]
+pub struct StructLocation<'db> {
+    file: File,
+    source: SourcePtrData,
+    _marker: PhantomData<&'db ()>,
+}
+
+impl<'db> StructLocation<'db> {
+    pub fn new(file: File, source_ptr: SyntaxNodePtr) -> Self {
+        Self { file, source: SourcePtrData::from_ptr(source_ptr), _marker: PhantomData }
+    }
+
+    pub fn file(self, _: &'db impl picante::HasRuntime) -> File {
+        self.file
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, facet::Facet)]
+pub struct EnumLocation<'db> {
+    file: File,
+    source: SourcePtrData,
+    _marker: PhantomData<&'db ()>,
+}
+
+impl<'db> EnumLocation<'db> {
+    pub fn new(file: File, source_ptr: SyntaxNodePtr) -> Self {
+        Self { file, source: SourcePtrData::from_ptr(source_ptr), _marker: PhantomData }
+    }
+
+    pub fn file(self, _: &'db impl picante::HasRuntime) -> File {
+        self.file
+    }
+}
+
+impl<'db> FunctionLocation<'db> {
+    pub fn signature<DB>(self, db: &'db DB) -> Signature<'db>
+    where
+        DB: mitki_parse::ParseDb,
+    {
+        let mut node_store = NodeStore::default();
+        let file = self.file(db);
+        let parsed = file.parse(db);
+        let syntax = self.source_ptr(db).to_node(&parsed.syntax_node());
+        let func = ast::Function::cast(syntax).unwrap();
+
         let type_params: Vec<Symbol<'db>> =
             func.type_params().map(|tp| tp.as_str().into_symbol(db)).collect();
 
-        // Lower parameters
         let params = func.params().map_or_else(Vec::new, |param_list| {
             param_list
                 .iter()
@@ -77,19 +171,18 @@ impl<'db> FunctionLocation<'db> {
                 .collect()
         });
 
-        // Lower return type
         let ret_type = func
             .ret_type()
             .and_then(|r| r.ty())
             .and_then(|ty| lower_type_ref(db, &mut node_store, ty))
             .unwrap_or(TyId::ZERO);
 
-        Signature::new(db, type_params, params, ret_type, node_store)
+        Signature::new(type_params, params, ret_type, node_store)
     }
 }
 
 fn lower_type_ref<'db>(
-    db: &'db dyn Database,
+    db: &'db impl mitki_parse::ParseDb,
     node_store: &mut NodeStore<'db>,
     ty: ast::Type,
 ) -> Option<TyId> {
@@ -161,159 +254,188 @@ fn lower_type_ref<'db>(
 }
 
 impl<'db> FunctionLocation<'db> {
-    pub fn source(self, db: &'db dyn Database) -> ast::Function<'db> {
-        let file = self.file(db);
-        let item_tree = file.item_tree(db);
-        let ast_map = file.ast_map(db);
-        let index = self.index(db);
-
-        let item = item_tree[index].id;
-        let syntax = source_syntax(db, file, ast_map.find_node(item));
-        ast::Function::cast(syntax).unwrap()
+    pub fn source_ptr<DB>(self, _: &'db DB) -> SyntaxNodePtr
+    where
+        DB: mitki_parse::ParseDb,
+    {
+        self.source.to_ptr()
     }
 }
 
 impl<'db> StructLocation<'db> {
-    pub fn source(self, db: &'db dyn Database) -> ast::StructDef<'db> {
-        let file = self.file(db);
-        let item_tree = file.item_tree(db);
-        let ast_map = file.ast_map(db);
-        let index = self.index(db);
-
-        let item = item_tree[index].id;
-        let syntax = source_syntax(db, file, ast_map.find_node(item));
-        ast::StructDef::cast(syntax).unwrap()
+    pub fn source_ptr<DB>(self, _: &'db DB) -> SyntaxNodePtr
+    where
+        DB: mitki_parse::ParseDb,
+    {
+        self.source.to_ptr()
     }
 }
 
 impl<'db> EnumLocation<'db> {
-    pub fn source(self, db: &'db dyn Database) -> ast::EnumDef<'db> {
-        let file = self.file(db);
-        let item_tree = file.item_tree(db);
-        let ast_map = file.ast_map(db);
-        let index = self.index(db);
-
-        let item = item_tree[index].id;
-        let syntax = source_syntax(db, file, ast_map.find_node(item));
-        ast::EnumDef::cast(syntax).unwrap()
+    pub fn source_ptr<DB>(self, _: &'db DB) -> SyntaxNodePtr
+    where
+        DB: mitki_parse::ParseDb,
+    {
+        self.source.to_ptr()
     }
 }
 
-fn source_syntax<'db>(
-    db: &'db dyn Database,
-    file: File,
-    ptr: &SyntaxNodePtr,
-) -> mitki_yellow::SyntaxNode<'db> {
-    use mitki_parse::FileParse as _;
-
-    ptr.to_node(&file.parse(db).syntax_node())
-}
-
-#[salsa::tracked]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Signature<'db> {
-    #[tracked]
-    #[returns(deref)]
-    pub type_params: Vec<Symbol<'db>>,
-    #[tracked]
-    #[returns(deref)]
-    pub params: Vec<ParamId>,
-    #[tracked]
-    pub ret_type: TyId,
-    #[tracked]
-    #[returns(ref)]
-    pub nodes: NodeStore<'db>,
+    type_params: Vec<Symbol<'db>>,
+    params: Vec<ParamId>,
+    ret_type: TyId,
+    nodes: NodeStore<'db>,
 }
 
-#[derive(Debug, Default, PartialEq, Eq, salsa::Update)]
+impl<'db> Signature<'db> {
+    pub fn new(
+        type_params: Vec<Symbol<'db>>,
+        params: Vec<ParamId>,
+        ret_type: TyId,
+        nodes: NodeStore<'db>,
+    ) -> Self {
+        Self { type_params, params, ret_type, nodes }
+    }
+
+    pub fn type_params(&self) -> &[Symbol<'db>] {
+        &self.type_params
+    }
+
+    pub fn params(&self) -> &[ParamId] {
+        &self.params
+    }
+
+    pub fn ret_type(&self) -> TyId {
+        self.ret_type
+    }
+
+    pub fn nodes(&self) -> &NodeStore<'db> {
+        &self.nodes
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq, Clone, facet::Facet)]
 pub struct ItemScope<'db> {
-    values: FxIndexMap<Symbol<'db>, FunctionLocation<'db>>,
-    types: FxIndexMap<Symbol<'db>, Ty<'db>>,
+    values: Vec<(Symbol<'db>, FunctionLocation<'db>)>,
+    types: Vec<(Symbol<'db>, Ty<'db>)>,
     declarations: Vec<Declaration<'db>>,
 }
 
 impl<'db> ItemScope<'db> {
     pub fn get(&self, name: &Symbol<'db>) -> Option<FunctionLocation<'db>> {
-        self.values.get(name).copied()
+        self.values.iter().find_map(|(key, value)| (key == name).then_some(*value))
     }
 
     pub fn get_type(&self, name: &Symbol<'db>) -> Option<Ty<'db>> {
-        self.types.get(name).copied()
+        self.types.iter().find_map(|(key, value)| (key == name).then_some(*value))
     }
 
     pub fn types(&self) -> impl Iterator<Item = (&Symbol<'db>, &Ty<'db>)> {
-        self.types.iter()
+        self.types.iter().map(|(name, ty)| (name, ty))
     }
 
     pub fn declarations(&self) -> &[Declaration<'db>] {
         &self.declarations
     }
+
+    fn insert_value(&mut self, name: Symbol<'db>, location: FunctionLocation<'db>) {
+        if let Some((_, value)) = self.values.iter_mut().find(|(key, _)| *key == name) {
+            *value = location;
+            return;
+        }
+
+        self.values.push((name, location));
+    }
+
+    fn insert_type(&mut self, name: Symbol<'db>, ty: Ty<'db>) {
+        if let Some((_, value)) = self.types.iter_mut().find(|(key, _)| *key == name) {
+            *value = ty;
+            return;
+        }
+
+        self.types.push((name, ty));
+    }
 }
 
-struct ItemScopeBuilder<'db> {
-    db: &'db dyn Database,
-    item_tree: &'db ItemTree<'db>,
+struct ItemScopeBuilder<'db, DB>
+where
+    DB: mitki_hir::ty::TypeDatabase,
+{
+    db: &'db DB,
     scope: ItemScope<'db>,
 }
 
-impl<'db> ItemScopeBuilder<'db> {
-    fn build(mut self, file: File) -> ItemScope<'db> {
-        for item in self.item_tree.items() {
+impl<'db, DB> ItemScopeBuilder<'db, DB>
+where
+    DB: mitki_hir::ty::TypeDatabase,
+{
+    fn build(mut self, file: File, parsed: &mitki_parse::Parsed) -> ItemScope<'db> {
+        for item in parsed.tree().items() {
             match item {
-                Item::Function(index) => {
-                    let func = &self.item_tree[index];
-                    let func_loc = FunctionLocation::new(self.db, file, index);
+                ast::Item::Function(function) => {
+                    let Some(name) = function.name().map(|name| name.as_str().into_symbol(self.db))
+                    else {
+                        continue;
+                    };
+                    let loc = FunctionLocation::new(file, SyntaxNodePtr::new(function.syntax()));
 
-                    self.scope.declarations.push(Declaration::Function(func_loc));
-                    self.scope.values.insert(func.name, func_loc);
+                    self.scope.declarations.push(Declaration::Function(loc));
+                    self.scope.insert_value(name, loc);
                 }
-                Item::Struct(index) => {
-                    let data = &self.item_tree[index];
-                    let loc = StructLocation::new(self.db, file, index);
-                    self.scope.declarations.push(Declaration::Struct(loc));
+                ast::Item::Struct(struct_def) => {
+                    let Some(name) =
+                        struct_def.name().map(|name| name.as_str().into_symbol(self.db))
+                    else {
+                        continue;
+                    };
 
-                    let source = loc.source(self.db);
-                    let fields: Vec<(Symbol<'db>, Ty<'db>)> = source
+                    let loc = StructLocation::new(file, SyntaxNodePtr::new(struct_def.syntax()));
+                    self.scope.declarations.push(Declaration::Struct(loc));
+                    let fields: Vec<(Symbol<'db>, Ty<'db>)> = struct_def
                         .field_list()
                         .map(|fl| {
                             fl.fields()
                                 .filter_map(|f| {
-                                    let name = f.name()?.as_str().into_symbol(self.db);
+                                    let field_name = f.name()?.as_str().into_symbol(self.db);
                                     let ty = self.resolve_ast_type(f.ty()?);
-                                    Some((name, ty))
+                                    Some((field_name, ty))
                                 })
                                 .collect()
                         })
                         .unwrap_or_default();
 
-                    let ty = Ty::new(self.db, TyKind::Struct { name: data.name, fields });
-                    self.scope.types.insert(data.name, ty);
+                    let ty = Ty::new(self.db, TyKind::Struct { name, fields });
+                    self.scope.insert_type(name, ty);
                 }
-                Item::Enum(index) => {
-                    let data = &self.item_tree[index];
-                    let loc = EnumLocation::new(self.db, file, index);
-                    self.scope.declarations.push(Declaration::Enum(loc));
+                ast::Item::Enum(enum_def) => {
+                    let Some(name) = enum_def.name().map(|name| name.as_str().into_symbol(self.db))
+                    else {
+                        continue;
+                    };
 
-                    let source = loc.source(self.db);
-                    let variants: Vec<(Symbol<'db>, Vec<Ty<'db>>)> = source
+                    let loc = EnumLocation::new(file, SyntaxNodePtr::new(enum_def.syntax()));
+                    self.scope.declarations.push(Declaration::Enum(loc));
+                    let variants: Vec<(Symbol<'db>, Vec<Ty<'db>>)> = enum_def
                         .variant_list()
                         .map(|vl| {
                             vl.variants()
                                 .filter_map(|v| {
-                                    let name = v.name()?.as_str().into_symbol(self.db);
+                                    let variant_name = v.name()?.as_str().into_symbol(self.db);
                                     let types = v
                                         .field_types()
                                         .map(|tt| {
                                             tt.types().map(|t| self.resolve_ast_type(t)).collect()
                                         })
                                         .unwrap_or_default();
-                                    Some((name, types))
+                                    Some((variant_name, types))
                                 })
                                 .collect()
                         })
                         .unwrap_or_default();
 
-                    let ty = Ty::new(self.db, TyKind::Enum { name: data.name, variants });
-                    self.scope.types.insert(data.name, ty);
+                    let ty = Ty::new(self.db, TyKind::Enum { name, variants });
+                    self.scope.insert_type(name, ty);
                 }
             }
         }
@@ -334,8 +456,7 @@ impl<'db> ItemScopeBuilder<'db> {
                     .expect("path should have at least one token");
                 let name = token.text_trimmed().into_symbol(self.db);
 
-                // Check builtins
-                match name.text(self.db) {
+                match name.text(self.db).as_ref() {
                     "bool" => Ty::new(self.db, TyKind::Bool),
                     "int" => Ty::new(self.db, TyKind::Int),
                     "float" => Ty::new(self.db, TyKind::Float),
@@ -344,8 +465,8 @@ impl<'db> ItemScopeBuilder<'db> {
                     _ => self
                         .scope
                         .types
-                        .get(&name)
-                        .copied()
+                        .iter()
+                        .find_map(|(ty_name, ty)| (*ty_name == name).then_some(*ty))
                         .unwrap_or(Ty::new(self.db, TyKind::Unknown)),
                 }
             }
@@ -401,19 +522,45 @@ impl<'db> ItemScopeBuilder<'db> {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
+    use std::sync::LazyLock;
+
     use mitki_inputs::File;
-    use mitki_yellow::ast::HasName as _;
+    use mitki_parse::FileParse as _;
+    use mitki_yellow::ast::{self, HasName as _, Node as _};
 
-    use super::{Declaration, HasItemScope};
+    use super::{Declaration, HasItemScope as _};
 
-    #[salsa::db]
-    #[derive(Default)]
-    struct TestDb {
-        storage: salsa::Storage<Self>,
+    #[picante::db(
+        inputs(mitki_inputs::SourceFile),
+        interned(mitki_span::SymbolData, mitki_hir::ty::TyData),
+        tracked(mitki_parse::parse_file, super::item_scope_cached),
+        db_trait(TestDatabase)
+    )]
+    struct TestDb {}
+
+    impl Default for TestDb {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
-    #[salsa::db]
-    impl salsa::Database for TestDb {}
+    static TEST_EXECUTOR: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .expect("failed to build test parse runtime")
+    });
+
+    impl mitki_parse::ParseExecutor for TestDb {
+        fn block_on<F>(&self, future: F) -> F::Output
+        where
+            F: Future,
+        {
+            TEST_EXECUTOR.block_on(future)
+        }
+    }
 
     #[test]
     fn source_methods_resolve_each_declaration_kind() {
@@ -443,17 +590,23 @@ enum Color {
         for declaration in scope.declarations() {
             match *declaration {
                 Declaration::Function(location) => {
-                    let source = location.source(&db);
+                    let parsed = file.parse(&db);
+                    let syntax = location.source_ptr(&db).to_node(&parsed.syntax_node());
+                    let source = ast::Function::cast(syntax).unwrap();
                     assert_eq!(source.name().unwrap().as_str(), "main");
                     saw_function = true;
                 }
                 Declaration::Struct(location) => {
-                    let source = location.source(&db);
+                    let parsed = file.parse(&db);
+                    let syntax = location.source_ptr(&db).to_node(&parsed.syntax_node());
+                    let source = ast::StructDef::cast(syntax).unwrap();
                     assert_eq!(source.name().unwrap().as_str(), "Point");
                     saw_struct = true;
                 }
                 Declaration::Enum(location) => {
-                    let source = location.source(&db);
+                    let parsed = file.parse(&db);
+                    let syntax = location.source_ptr(&db).to_node(&parsed.syntax_node());
+                    let source = ast::EnumDef::cast(syntax).unwrap();
                     assert_eq!(source.name().unwrap().as_str(), "Color");
                     saw_enum = true;
                 }

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, salsa::Update)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Id<Tag> {
     raw: u32,
     _tag: PhantomData<Tag>,
@@ -33,7 +33,7 @@ impl<Tag> Id<Tag> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, salsa::Update)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub(crate) struct Raw(pub(crate) u32);
 
 impl Raw {

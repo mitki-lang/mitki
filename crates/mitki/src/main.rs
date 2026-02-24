@@ -25,14 +25,14 @@ fn main() -> anyhow::Result<()> {
                 .with_context(|| format!("failed to read `{path}`"))?;
 
             let file = mitki_inputs::File::new(&db, path, text);
-            let path = file.path(&db).as_str();
+            let path = file.path(&db);
             let text = file.text(&db);
 
             let mut stderr = std::io::stderr().lock();
             let renderer = mitki_errors::Renderer::styled();
 
             for diagnostic in mitki_db::check_file(&db, file) {
-                writeln!(stderr, "{}", diagnostic.render(&renderer, path, text))?;
+                writeln!(stderr, "{}", diagnostic.render(&renderer, path.as_str(), text.as_ref()))?;
             }
 
             Ok(())

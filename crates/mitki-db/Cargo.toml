@@ -13,7 +13,14 @@ workspace = true
 [dependencies]
 mitki-analysis.workspace = true
 mitki-errors.workspace = true
-salsa.workspace = true
+mitki-hir.workspace = true
+mitki-inputs.workspace = true
+mitki-lower.workspace = true
+mitki-parse.workspace = true
+mitki-span.workspace = true
+picante.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
-mitki-inputs.workspace = true
+facet.workspace = true
+

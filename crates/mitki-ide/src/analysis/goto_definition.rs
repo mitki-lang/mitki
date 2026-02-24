@@ -1,7 +1,7 @@
 use mitki_analysis::Semantics;
 use mitki_hir::ty::{Ty, TyKind};
 use mitki_lower::hir::HasFunction as _;
-use mitki_lower::item::scope::{Declaration, HasItemScope as _};
+use mitki_lower::item::scope::{Declaration, HasItemScope as _, ItemScopeDb};
 use mitki_parse::FileParse as _;
 use mitki_resolve::Resolution;
 use mitki_span::IntoSymbol as _;
@@ -18,7 +18,8 @@ impl super::Analysis {
     ) -> Option<(TextRange, TextRange)> {
         let db = self.db();
         let semantics = Semantics::new(db, file);
-        let root = file.parse(db).syntax_node();
+        let parsed = file.parse(db);
+        let root = parsed.syntax_node();
 
         let name_at_offset = find_name_at_offset(root, offset, |kind| {
             kind == SyntaxKind::NAME_REF || kind == SyntaxKind::PATH_TYPE
@@ -37,7 +38,8 @@ impl super::Analysis {
 
             let mut type_guard = None;
             if name_node.kind() == SyntaxKind::PATH_TYPE {
-                let source_map = location.hir_function(db).source_map(db);
+                let hir = location.hir_function(db);
+                let source_map = hir.source_map();
                 if let Some(ty_id) = source_map.syntax_type(&name_node) {
                     type_guard = Some(resolver.scopes_for_type(ty_id));
                 }
@@ -54,13 +56,16 @@ impl super::Analysis {
 
             match resolution? {
                 Resolution::Local(path) => {
-                    let source_map = location.hir_function(db).source_map(db);
+                    let hir = location.hir_function(db);
+                    let source_map = hir.source_map();
                     let range = source_map.node_syntax(path.into()).range;
 
                     Some((original_token.trimmed_range(), range))
                 }
                 Resolution::Function(function_location) => {
-                    let function = function_location.source(db);
+                    let parsed = function_location.file(db).parse(db);
+                    let syntax = function_location.source_ptr(db).to_node(&parsed.syntax_node());
+                    let function = ast::Function::cast(syntax).unwrap();
                     let function_name_range = function.name().unwrap().text_range();
 
                     Some((original_token.trimmed_range(), function_name_range))
@@ -77,13 +82,16 @@ impl super::Analysis {
     }
 }
 
-fn enum_variant_target(
-    db: &dyn salsa::Database,
+fn enum_variant_target<DB>(
+    db: &DB,
     file: mitki_inputs::File,
-    resolver: &mitki_resolve::Resolver<'_>,
+    resolver: &mitki_resolve::Resolver<'_, DB>,
     name_ref: &mitki_yellow::SyntaxNode,
     variant_name: mitki_span::Symbol<'_>,
-) -> Option<TextRange> {
+) -> Option<TextRange>
+where
+    DB: ItemScopeDb,
+{
     let field_expr = name_ref.ancestors().find_map(ast::FieldExpr::cast)?;
     let field_name = field_expr.name()?;
     if field_name.syntax().text_range() != name_ref.text_range() {
@@ -106,18 +114,21 @@ fn enum_variant_target(
     enum_variant_definition_range(db, file, enum_ty, variant_name)
 }
 
-fn enum_variant_definition_range(
-    db: &dyn salsa::Database,
+fn enum_variant_definition_range<DB>(
+    db: &DB,
     file: mitki_inputs::File,
     enum_ty: Ty<'_>,
     variant_name: mitki_span::Symbol<'_>,
-) -> Option<TextRange> {
+) -> Option<TextRange>
+where
+    DB: ItemScopeDb,
+{
     let TyKind::Enum { name, .. } = enum_ty.kind(db) else {
         return None;
     };
 
-    let enum_decl = file
-        .item_scope(db)
+    let scope = file.item_scope(db);
+    let enum_decl = scope
         .declarations()
         .iter()
         .filter_map(|decl| match decl {
@@ -125,13 +136,16 @@ fn enum_variant_definition_range(
             _ => None,
         })
         .find(|enum_decl| {
-            enum_decl
-                .source(db)
-                .name()
-                .is_some_and(|enum_name| enum_name.as_str().into_symbol(db) == *name)
+            let parsed = enum_decl.file(db).parse(db);
+            let syntax = enum_decl.source_ptr(db).to_node(&parsed.syntax_node());
+            let source = ast::EnumDef::cast(syntax).unwrap();
+            source.name().is_some_and(|enum_name| enum_name.as_str().into_symbol(db) == name)
         })?;
 
-    let variants = enum_decl.source(db).variant_list()?;
+    let parsed = enum_decl.file(db).parse(db);
+    let syntax = enum_decl.source_ptr(db).to_node(&parsed.syntax_node());
+    let source = ast::EnumDef::cast(syntax).unwrap();
+    let variants = source.variant_list()?;
     for variant in variants.variants() {
         let Some(name_node) = variant.name() else {
             continue;
@@ -144,20 +158,22 @@ fn enum_variant_definition_range(
     None
 }
 
-fn type_definition_range(
-    db: &dyn salsa::Database,
-    file: mitki_inputs::File,
-    ty: Ty<'_>,
-) -> Option<TextRange> {
+fn type_definition_range<DB>(db: &DB, file: mitki_inputs::File, ty: Ty<'_>) -> Option<TextRange>
+where
+    DB: ItemScopeDb,
+{
     let ty_name = match ty.kind(db) {
-        TyKind::Struct { name, .. } | TyKind::Enum { name, .. } => *name,
+        TyKind::Struct { name, .. } | TyKind::Enum { name, .. } => name,
         _ => return None,
     };
 
-    for declaration in file.item_scope(db).declarations() {
+    let scope = file.item_scope(db);
+    for declaration in scope.declarations() {
         match declaration {
             Declaration::Struct(struct_decl) => {
-                let source = struct_decl.source(db);
+                let parsed = struct_decl.file(db).parse(db);
+                let syntax = struct_decl.source_ptr(db).to_node(&parsed.syntax_node());
+                let source = ast::StructDef::cast(syntax).unwrap();
                 let Some(name_node) = source.name() else {
                     continue;
                 };
@@ -166,7 +182,9 @@ fn type_definition_range(
                 }
             }
             Declaration::Enum(enum_decl) => {
-                let source = enum_decl.source(db);
+                let parsed = enum_decl.file(db).parse(db);
+                let syntax = enum_decl.source_ptr(db).to_node(&parsed.syntax_node());
+                let source = ast::EnumDef::cast(syntax).unwrap();
                 let Some(name_node) = source.name() else {
                     continue;
                 };

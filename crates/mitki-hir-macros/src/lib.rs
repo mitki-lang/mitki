@@ -189,22 +189,22 @@ impl Schema {
 
         let tag_defs = {
             let mut defs = Vec::new();
-            defs.push(quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, salsa::Update)] pub(crate) struct HirTag; });
+            defs.push(quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)] pub(crate) struct HirTag; });
             defs.push(quote! { pub(crate) type HirId = crate::hir::id::Id<HirTag>; });
-            defs.push(quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, salsa::Update)] pub(crate) struct SymTag; });
+            defs.push(quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)] pub(crate) struct SymTag; });
             defs.push(quote! { pub(crate) type SymId = crate::hir::id::Id<SymTag>; });
-            defs.push(quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, salsa::Update)] pub(crate) struct IxTag; });
+            defs.push(quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)] pub(crate) struct IxTag; });
             defs.push(quote! { pub(crate) type IxId = crate::hir::id::Id<IxTag>; });
             for cat in categories {
                 let tag = format_ident!("{}Tag", cat);
                 let id = format_ident!("{}Id", cat);
-                defs.push(quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, salsa::Update)] pub struct #tag; });
+                defs.push(quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)] pub struct #tag; });
                 defs.push(quote! { pub type #id = crate::hir::id::Id<#tag>; });
             }
             for node in &node_names {
                 let tag = format_ident!("{}Tag", node);
                 let id = format_ident!("{}Id", node);
-                defs.push(quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, salsa::Update)] pub struct #tag; });
+                defs.push(quote! { #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)] pub struct #tag; });
                 defs.push(quote! { pub type #id = crate::hir::id::Id<#tag>; });
             }
             quote! { #(#defs)* }

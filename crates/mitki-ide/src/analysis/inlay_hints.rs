@@ -19,8 +19,9 @@ impl super::Analysis {
         for declaration in file.item_scope(db).declarations() {
             match declaration {
                 Declaration::Function(func) => {
-                    let source_map = func.hir_function(db).source_map(db);
-                    let function = func.hir_function(db).function(db);
+                    let hir = func.hir_function(db);
+                    let source_map = hir.source_map();
+                    let function = hir.function();
                     let nodes = function.node_store();
                     let inference = func.infer(db);
 
@@ -54,7 +55,7 @@ impl super::Analysis {
                             db,
                             nodes,
                             source_map,
-                            inference,
+                            &inference,
                             function.body(),
                             range,
                             &mut hints,
@@ -70,15 +71,17 @@ impl super::Analysis {
     }
 }
 
-fn collect_binding_hints<'db>(
-    db: &'db dyn salsa::Database,
+fn collect_binding_hints<'db, DB>(
+    db: &'db DB,
     nodes: &mitki_hir::hir::NodeStore<'db>,
     source_map: &mitki_lower::hir::FunctionSourceMap,
     inference: &mitki_typeck::infer::Inference<'db>,
     expr: ExprId,
     range: TextRange,
     hints: &mut Vec<InlayHint>,
-) {
+) where
+    DB: mitki_parse::ParseDb,
+{
     match nodes.node_kind(expr) {
         NodeKind::Block => {
             let Some(block_id) = nodes.as_block(expr) else { return };

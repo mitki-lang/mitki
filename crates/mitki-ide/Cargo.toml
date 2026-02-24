@@ -21,5 +21,6 @@ mitki-resolve.workspace = true
 mitki-span.workspace = true
 mitki-typeck.workspace = true
 mitki-yellow.workspace = true
-salsa.workspace = true
+picante.workspace = true
 text-size.workspace = true
+

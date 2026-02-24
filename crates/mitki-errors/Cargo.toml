@@ -12,5 +12,6 @@ workspace = true
 
 [dependencies]
 annotate-snippets = "0.11"
-salsa.workspace = true
+picante.workspace = true
 text-size.workspace = true
+

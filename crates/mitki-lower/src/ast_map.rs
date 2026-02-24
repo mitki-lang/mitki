@@ -3,17 +3,20 @@ use mitki_hir::arena::{Arena, Key};
 use mitki_inputs::File;
 use mitki_parse::FileParse as _;
 use mitki_yellow::{SyntaxKind, SyntaxNode, SyntaxNodePtr};
-use salsa::Database;
 
 pub trait HasAstMap {
-    fn ast_map(self, db: &dyn Database) -> &AstMap;
+    fn ast_map<DB>(self, db: &DB) -> AstMap
+    where
+        DB: mitki_parse::ParseDb;
 }
 
-#[salsa::tracked]
 impl HasAstMap for File {
-    #[salsa::tracked(returns(ref), no_eq)]
-    fn ast_map(self, db: &dyn Database) -> AstMap {
-        AstMap::from_root(&self.parse(db).syntax_node())
+    fn ast_map<DB>(self, db: &DB) -> AstMap
+    where
+        DB: mitki_parse::ParseDb,
+    {
+        let parsed = self.parse(db);
+        AstMap::from_root(&parsed.syntax_node())
     }
 }
 

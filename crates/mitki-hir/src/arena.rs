@@ -4,12 +4,6 @@ use std::ops::{Index, IndexMut};
 #[derive(Debug)]
 pub struct Key<T>(u32, PhantomData<T>);
 
-unsafe impl<T> salsa::Update for Key<T> {
-    unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {
-        unsafe { salsa::Update::maybe_update(&mut (*old_pointer).0, new_value.0) }
-    }
-}
-
 impl<T> std::hash::Hash for Key<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);
@@ -48,7 +42,7 @@ impl<T> From<u32> for Key<T> {
     }
 }
 
-#[derive(Debug, salsa::Update)]
+#[derive(Debug)]
 pub struct Range<T> {
     pub start: Key<T>,
     pub end: Key<T>,
@@ -110,12 +104,6 @@ impl<T> Extend<T> for Arena<T> {
 impl<T> Default for Arena<T> {
     fn default() -> Self {
         Self { items: Default::default() }
-    }
-}
-
-unsafe impl<T: salsa::Update> salsa::Update for Arena<T> {
-    unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {
-        unsafe { salsa::Update::maybe_update(&mut (*old_pointer).items, new_value.items) }
     }
 }
 

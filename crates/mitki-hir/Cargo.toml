@@ -11,9 +11,11 @@ doctest = false
 workspace = true
 
 [dependencies]
+facet.workspace = true
 mitki-span.workspace = true
 mitki-hir-macros = { path = "../mitki-hir-macros" }
-salsa.workspace = true
+picante.workspace = true
 
 [dev-dependencies]
 trybuild = "1"
+

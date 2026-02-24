@@ -4,7 +4,6 @@ use std::fs;
 use anyhow::Result;
 use lsp_types::notification::Notification as _;
 use mitki_inputs::File;
-use salsa::Setter as _;
 use text_size::{TextRange, TextSize};
 
 use super::notifications::NotificationDispatcher;
@@ -34,10 +33,10 @@ fn handle_goto_definition(
     match server.analysis.goto_definition(file_position) {
         Some((origin_selection_range, target_range)) => {
             Ok(Some(lsp_types::GotoDefinitionResponse::Link(vec![lsp_types::LocationLink {
-                origin_selection_range: to_lsp_range(line_index, origin_selection_range).into(),
+                origin_selection_range: to_lsp_range(&line_index, origin_selection_range).into(),
                 target_uri: params.text_document_position_params.text_document.uri.clone(),
-                target_range: to_lsp_range(line_index, target_range),
-                target_selection_range: to_lsp_range(line_index, target_range),
+                target_range: to_lsp_range(&line_index, target_range),
+                target_selection_range: to_lsp_range(&line_index, target_range),
             }])))
         }
         None => Ok(None),
@@ -58,7 +57,7 @@ fn handle_hover(
                 kind: lsp_types::MarkupKind::Markdown,
                 value: result.contents,
             }),
-            range: Some(to_lsp_range(line_index, result.range)),
+            range: Some(to_lsp_range(&line_index, result.range)),
         })),
         None => Ok(None),
     }
@@ -111,8 +110,8 @@ fn handle_inlay_hint(
     let file = server.file(&params.text_document.uri);
     let line_index = file.line_index(server.analysis.db());
 
-    let start = position_to_offset(line_index, params.range.start);
-    let end = position_to_offset(line_index, params.range.end);
+    let start = position_to_offset(&line_index, params.range.start);
+    let end = position_to_offset(&line_index, params.range.end);
     let range = TextRange::new(start, end);
 
     let hints = server
@@ -214,7 +213,7 @@ fn diagnostics_for_file(server: &Server, file: File) -> Vec<lsp_types::Diagnosti
         .iter()
         .map(|diagnostic: &mitki_db::Diagnostic| {
             lsp_types::Diagnostic::new(
-                to_lsp_range(line_index, diagnostic.range()),
+                to_lsp_range(&line_index, diagnostic.range()),
                 Some(match diagnostic.level() {
                     mitki_db::Level::Error => lsp_types::DiagnosticSeverity::ERROR,
                     mitki_db::Level::Warning => lsp_types::DiagnosticSeverity::WARNING,
