@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::sync::Arc;
 
 use mitki_errors::Diagnostic;
 use mitki_inputs::File;
@@ -10,8 +11,11 @@ mod parser;
 #[cfg(test)]
 mod tests;
 
+#[derive(facet::Facet)]
 pub struct Parsed {
+    #[facet(opaque)]
     root: SyntaxTree,
+    #[facet(opaque)]
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -59,36 +63,39 @@ pub async fn parse_file<DB: mitki_inputs::FileDatabase>(
     Ok(file.revision(db))
 }
 
-pub trait ParseExecutor {
-    fn block_on<F>(&self, future: F) -> F::Output
-    where
-        F: Future;
+#[picante::tracked]
+pub async fn parse<DB: mitki_inputs::FileDatabase + HasParseFileQuery>(
+    db: &DB,
+    file: File,
+) -> picante::PicanteResult<Arc<Parsed>> {
+    parse_file(db, file).await?;
+
+    let text = file.text(db);
+    Ok(Arc::new(parse_text(text.as_ref())))
 }
 
 pub trait ParseDb:
-    ParseExecutor + HasParseFileQuery + mitki_inputs::FileDatabase + mitki_hir::ty::TypeDatabase
+    HasParseFileQuery + HasParseQuery + mitki_inputs::FileDatabase + mitki_hir::ty::TypeDatabase
 {
 }
 
 impl<T> ParseDb for T where
-    T: ParseExecutor + HasParseFileQuery + mitki_inputs::FileDatabase + mitki_hir::ty::TypeDatabase
+    T: HasParseFileQuery + HasParseQuery + mitki_inputs::FileDatabase + mitki_hir::ty::TypeDatabase
 {
 }
 
 pub trait FileParse {
-    fn parse<DB>(self, db: &DB) -> Parsed
+    fn parse<DB>(self, db: &DB) -> impl Future<Output = Arc<Parsed>> + Send
     where
-        DB: ParseDb;
+        DB: ParseDb + Sync;
 }
 
 impl FileParse for File {
-    fn parse<DB>(self, db: &DB) -> Parsed
+    #[allow(clippy::manual_async_fn)]
+    fn parse<DB>(self, db: &DB) -> impl Future<Output = Arc<Parsed>> + Send
     where
-        DB: ParseDb,
+        DB: ParseDb + Sync,
     {
-        db.block_on(parse_file(db, self)).expect("failed to compute parse query");
-
-        let text = self.text(db);
-        parse_text(text.as_ref())
+        async move { parse(db, self).await.expect("failed to compute parse query") }
     }
 }

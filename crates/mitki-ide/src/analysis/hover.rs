@@ -17,10 +17,10 @@ pub struct HoverResult {
 }
 
 impl super::Analysis {
-    pub fn hover(&self, FilePosition { file, offset }: FilePosition) -> Option<HoverResult> {
+    pub async fn hover(&self, FilePosition { file, offset }: FilePosition) -> Option<HoverResult> {
         let db = self.db();
-        let semantics = Semantics::new(db, file);
-        let parsed = file.parse(db);
+        let semantics = Semantics::new(db, file).await;
+        let parsed = file.parse(db).await;
         let root = parsed.syntax_node();
 
         let name_at_offset = find_name_at_offset(root, offset, |kind| {
@@ -97,8 +97,8 @@ impl super::Analysis {
             .ancestors()
             .find_map(ast::Function::cast)
             .map(|function| semantics.function(function.syntax()))?;
-        let inference = location.infer(db);
-        let hir = location.hir_function(db);
+        let inference = location.infer(db).await;
+        let hir = location.hir_function(db).await;
         let function = hir.function();
         let source_map = hir.source_map();
         let param_annotation_ty_text = |binding_expr: ExprId| {
@@ -128,7 +128,7 @@ impl super::Analysis {
             return None;
         }
 
-        let resolver = semantics.resolver(db, location, &name_node);
+        let resolver = semantics.resolver(db, location, &name_node).await;
         let resolution = resolver.resolve_path(name)?;
 
         match resolution {
@@ -142,7 +142,7 @@ impl super::Analysis {
                 })
             }
             Resolution::Function(func) => {
-                let parsed = func.file(db).parse(db);
+                let parsed = func.file(db).parse(db).await;
                 let syntax = func.source_ptr(db).to_node(&parsed.syntax_node());
                 let function_syntax = ast::Function::cast(syntax).unwrap();
 
@@ -165,25 +165,24 @@ mod tests {
 
     use crate::{Analysis, FilePosition, extract_cursor_offset};
 
-    #[track_caller]
-    fn check(fixture: &str, expected: &str) {
+    async fn check(fixture: &str, expected: &str) {
         let analysis = Analysis::default();
         let (offset, fixture) = extract_cursor_offset(fixture);
         let file = File::new(analysis.db(), "".into(), fixture);
-        let result = analysis.hover(FilePosition { file, offset }).expect("expected hover result");
+        let result =
+            analysis.hover(FilePosition { file, offset }).await.expect("expected hover result");
         assert_eq!(result.contents, expected);
     }
 
-    #[track_caller]
-    fn check_no_hover(fixture: &str) {
+    async fn check_no_hover(fixture: &str) {
         let analysis = Analysis::default();
         let (offset, fixture) = extract_cursor_offset(fixture);
         let file = File::new(analysis.db(), "".into(), fixture);
-        assert!(analysis.hover(FilePosition { file, offset }).is_none());
+        assert!(analysis.hover(FilePosition { file, offset }).await.is_none());
     }
 
-    #[test]
-    fn local_variable() {
+    #[tokio::test]
+    async fn local_variable() {
         check(
             r#"
 fun main() {
@@ -192,11 +191,12 @@ fun main() {
 }
 "#,
             "```mitki\nval x: int\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn parameter() {
+    #[tokio::test]
+    async fn parameter() {
         check(
             r#"
 fun foo(x: int) {
@@ -204,11 +204,12 @@ fun foo(x: int) {
 }
 "#,
             "```mitki\nval x: int\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn parameter_declaration() {
+    #[tokio::test]
+    async fn parameter_declaration() {
         check(
             r#"
 fun foo($0x: int) {
@@ -216,11 +217,12 @@ fun foo($0x: int) {
 }
 "#,
             "```mitki\nval x: int\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn generic_parameter_reference() {
+    #[tokio::test]
+    async fn generic_parameter_reference() {
         check(
             r#"
 fun hello[A](id: A): A {
@@ -228,11 +230,12 @@ fun hello[A](id: A): A {
 }
 "#,
             "```mitki\nval id: A\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn function_call() {
+    #[tokio::test]
+    async fn function_call() {
         check(
             r#"
 fun add(x: int, y: int): int { x + y }
@@ -242,11 +245,12 @@ fun main() {
 }
 "#,
             "```mitki\nfun add: fun(int, int) -> int\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn generic_function_call_declared_signature() {
+    #[tokio::test]
+    async fn generic_function_call_declared_signature() {
         check(
             r#"
 enum Color {
@@ -262,11 +266,12 @@ fun main() {
 }
 "#,
             "```mitki\nfun hello: fun(A) -> A\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn function_declaration_name() {
+    #[tokio::test]
+    async fn function_declaration_name() {
         check(
             r#"
 fun $0hello[A](id: A): A {
@@ -274,11 +279,12 @@ fun $0hello[A](id: A): A {
 }
 "#,
             "```mitki\nfun hello: fun(A) -> A\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn struct_declaration_name() {
+    #[tokio::test]
+    async fn struct_declaration_name() {
         check(
             r#"
 struct $0Point {
@@ -287,11 +293,12 @@ struct $0Point {
 }
 "#,
             "```mitki\ntype Point\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn enum_declaration_name() {
+    #[tokio::test]
+    async fn enum_declaration_name() {
         check(
             r#"
 enum $0Color {
@@ -299,11 +306,12 @@ enum $0Color {
 }
 "#,
             "```mitki\ntype Color\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn function_no_params() {
+    #[tokio::test]
+    async fn function_no_params() {
         check(
             r#"
 fun noop() {}
@@ -313,22 +321,24 @@ fun main() {
 }
 "#,
             "```mitki\nfun noop: fun() -> ()\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn builtin_type_in_annotation() {
+    #[tokio::test]
+    async fn builtin_type_in_annotation() {
         check_no_hover(
             r#"
 fun main() {
     val x: $0int = 42
 }
 "#,
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn type_used_as_value() {
+    #[tokio::test]
+    async fn type_used_as_value() {
         check(
             r#"
 fun main() {
@@ -336,11 +346,12 @@ fun main() {
 }
 "#,
             "```mitki\ntype int\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn struct_type_used_as_value() {
+    #[tokio::test]
+    async fn struct_type_used_as_value() {
         check(
             r#"
 struct Point {
@@ -353,11 +364,12 @@ fun main() {
 }
 "#,
             "```mitki\ntype Point\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn bool_variable() {
+    #[tokio::test]
+    async fn bool_variable() {
         check(
             r#"
 fun main() {
@@ -366,11 +378,12 @@ fun main() {
 }
 "#,
             "```mitki\nval flag: bool\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn closure_param_unknown() {
+    #[tokio::test]
+    async fn closure_param_unknown() {
         check(
             r#"
 fun main() {
@@ -380,31 +393,34 @@ fun main() {
 }
 "#,
             "```mitki\nval x: {unknown}\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn no_hover_on_keyword() {
+    #[tokio::test]
+    async fn no_hover_on_keyword() {
         check_no_hover(
             r#"
 $0fun main() {}
 "#,
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn no_hover_on_literal() {
+    #[tokio::test]
+    async fn no_hover_on_literal() {
         check_no_hover(
             r#"
 fun main() {
     $042
 }
 "#,
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn string_variable() {
+    #[tokio::test]
+    async fn string_variable() {
         check(
             r#"
 fun main() {
@@ -413,11 +429,12 @@ fun main() {
 }
 "#,
             "```mitki\nval s: str\n```",
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn float_variable() {
+    #[tokio::test]
+    async fn float_variable() {
         check(
             r#"
 fun main() {
@@ -426,6 +443,7 @@ fun main() {
 }
 "#,
             "```mitki\nval f: float\n```",
-        );
+        )
+        .await;
     }
 }

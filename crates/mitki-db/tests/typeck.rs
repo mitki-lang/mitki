@@ -32,8 +32,12 @@ fn parse_expectations(fixture: &str) -> Vec<ExpectedDiag> {
     expected
 }
 
-fn collect_actual(db: &RootDatabase, file: File, diagnostics: &[Diagnostic]) -> Vec<ActualDiag> {
-    let line_index = file.line_index(db);
+async fn collect_actual(
+    db: &RootDatabase,
+    file: File,
+    diagnostics: &[Diagnostic],
+) -> Vec<ActualDiag> {
+    let line_index = file.line_index(db).await;
     let mut actual = diagnostics
         .iter()
         .map(|diag| {
@@ -45,13 +49,12 @@ fn collect_actual(db: &RootDatabase, file: File, diagnostics: &[Diagnostic]) -> 
     actual
 }
 
-#[track_caller]
-fn check(fixture: &str) {
+async fn check(fixture: &str) {
     let db = RootDatabase::default();
     let file = File::new(&db, "typeck.mtk".into(), fixture.to_owned());
 
-    let diagnostics = check_file(&db, file);
-    let mut actual = collect_actual(&db, file, &diagnostics);
+    let diagnostics = check_file(&db, file).await.expect("failed to compute diagnostics");
+    let mut actual = collect_actual(&db, file, &diagnostics).await;
     let mut expected = parse_expectations(fixture);
 
     expected.sort_by_key(|diag| (diag.line, diag.message.clone()));
@@ -79,62 +82,67 @@ fn check(fixture: &str) {
     assert!(actual.is_empty(), "unexpected diagnostics:\n{actual:#?}");
 }
 
-#[test]
-fn unresolved_identifier() {
+#[tokio::test]
+async fn unresolved_identifier() {
     check(
         r#"
 fun main() {
     x //~ ERROR Unresolved identifier
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn unknown_type_annotation() {
+#[tokio::test]
+async fn unknown_type_annotation() {
     check(
         r#"
 fun main() {
     val x: Nope = 1 //~ ERROR Unknown type `Nope`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn unknown_type_is_error() {
+#[tokio::test]
+async fn unknown_type_is_error() {
     check(
         r#"
 fun main() {
     val f = { x in x + x } //~ ERROR cannot infer type
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn missing_parameter_type_is_type_error() {
+#[tokio::test]
+async fn missing_parameter_type_is_type_error() {
     check(
         r#"
 fun main(x) { //~ ERROR Parameter type annotation is required
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn missing_parameter_type_still_allows_inference_from_usage() {
+#[tokio::test]
+async fn missing_parameter_type_still_allows_inference_from_usage() {
     check(
         r#"
 fun main(x) { //~ ERROR Inferred `int`
     val y: int = x
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn missing_parameter_type_in_callee_signature_still_infers_from_call() {
+#[tokio::test]
+async fn missing_parameter_type_in_callee_signature_still_infers_from_call() {
     check(
         r#"
 fun id(x) { //~ ERROR Parameter type annotation is required
@@ -144,22 +152,24 @@ fun main() {
     id(42)
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn mismatched_annotation() {
+#[tokio::test]
+async fn mismatched_annotation() {
     check(
         r#"
 fun main() {
     val x: int = true //~ ERROR expected `int`, found `bool`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn if_condition_must_be_bool() {
+#[tokio::test]
+async fn if_condition_must_be_bool() {
     check(
         r#"
 fun main() {
@@ -167,33 +177,36 @@ fun main() {
     }
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn type_used_as_value() {
+#[tokio::test]
+async fn type_used_as_value() {
     check(
         r#"
 fun main() {
     int //~ ERROR expected value, found type `int`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn binary_operator_type_mismatch() {
+#[tokio::test]
+async fn binary_operator_type_mismatch() {
     check(
         r#"
 fun main() {
     1 + true //~ ERROR cannot apply `+` to `int` and `bool`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn if_branch_type_mismatch() {
+#[tokio::test]
+async fn if_branch_type_mismatch() {
     check(
         r#"
 fun main() {
@@ -204,11 +217,12 @@ fun main() {
     }
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn if_missing_else_in_value_position() {
+#[tokio::test]
+async fn if_missing_else_in_value_position() {
     check(
         r#"
 fun main() {
@@ -217,11 +231,12 @@ fun main() {
     }
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn call_arity_mismatch() {
+#[tokio::test]
+async fn call_arity_mismatch() {
     check(
         r#"
 fun add(x: int) {}
@@ -230,66 +245,72 @@ fun main() {
     add(1, 2) //~ ERROR expected 1 argument(s), found 2
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn prefix_operator_type_mismatch() {
+#[tokio::test]
+async fn prefix_operator_type_mismatch() {
     check(
         r#"
 fun main() {
     -true //~ ERROR cannot apply `-` to `bool`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn postfix_operator_type_mismatch() {
+#[tokio::test]
+async fn postfix_operator_type_mismatch() {
     check(
         r#"
 fun main() {
     1! //~ ERROR cannot apply postfix `!` to `int`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn call_non_function() {
+#[tokio::test]
+async fn call_non_function() {
     check(
         r#"
 fun main() {
     1() //~ ERROR expected function, found `int`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn val_without_initializer() {
+#[tokio::test]
+async fn val_without_initializer() {
     check(
         r#"
 fun main() {
     val x //~ ERROR missing initializer
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn tuple_arity_mismatch() {
+#[tokio::test]
+async fn tuple_arity_mismatch() {
     check(
         r#"
 fun main() {
     val x: (int, bool) = (1,) //~ ERROR expected 2 element(s), found 1
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn call_arity_too_few() {
+#[tokio::test]
+async fn call_arity_too_few() {
     check(
         r#"
 fun add(x: int, y: int) {}
@@ -298,35 +319,38 @@ fun main() {
     add(1) //~ ERROR expected 2 argument(s), found 1
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn prefix_operator_type_mismatch_string() {
+#[tokio::test]
+async fn prefix_operator_type_mismatch_string() {
     check(
         r#"
 fun main() {
     -"a" //~ ERROR cannot apply `-` to `str`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn postfix_operator_type_mismatch_bool() {
+#[tokio::test]
+async fn postfix_operator_type_mismatch_bool() {
     check(
         r#"
 fun main() {
     true! //~ ERROR cannot apply postfix `!` to `bool`
 }
 "#,
-    );
+    )
+    .await;
 }
 
 // === Well-typed programs (no diagnostics expected) ===
 
-#[test]
-fn no_error_int_arithmetic() {
+#[tokio::test]
+async fn no_error_int_arithmetic() {
     check(
         r#"
 fun main() {
@@ -337,11 +361,12 @@ fun main() {
     7 % 2;
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_float_arithmetic() {
+#[tokio::test]
+async fn no_error_float_arithmetic() {
     check(
         r#"
 fun main() {
@@ -351,11 +376,12 @@ fun main() {
     6.0 / 3.0;
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_comparison() {
+#[tokio::test]
+async fn no_error_comparison() {
     check(
         r#"
 fun main() {
@@ -367,11 +393,12 @@ fun main() {
     1 >= 2;
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_logical() {
+#[tokio::test]
+async fn no_error_logical() {
     check(
         r#"
 fun main() {
@@ -379,11 +406,12 @@ fun main() {
     true || false;
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_prefix_negate() {
+#[tokio::test]
+async fn no_error_prefix_negate() {
     check(
         r#"
 fun main() {
@@ -392,22 +420,24 @@ fun main() {
     !true;
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_if_else_matching_branches() {
+#[tokio::test]
+async fn no_error_if_else_matching_branches() {
     check(
         r#"
 fun main(): int {
     if true { 1 } else { 2 }
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_function_call() {
+#[tokio::test]
+async fn no_error_function_call() {
     check(
         r#"
 fun add(x: int, y: int): int { x + y }
@@ -416,11 +446,12 @@ fun main() {
     add(1, 2);
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_val_binding() {
+#[tokio::test]
+async fn no_error_val_binding() {
     check(
         r#"
 fun main() {
@@ -429,22 +460,24 @@ fun main() {
     x + y;
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_closure_literal() {
+#[tokio::test]
+async fn no_error_closure_literal() {
     check(
         r#"
 fun main() {
     val f = { x in x }
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_nested_if() {
+#[tokio::test]
+async fn no_error_nested_if() {
     check(
         r#"
 fun main(): int {
@@ -455,66 +488,72 @@ fun main(): int {
     }
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_empty_function() {
+#[tokio::test]
+async fn no_error_empty_function() {
     check(
         r#"
 fun noop() {}
 "#,
-    );
+    )
+    .await;
 }
 
 // === Additional error tests ===
 
-#[test]
-fn binary_float_int_mismatch() {
+#[tokio::test]
+async fn binary_float_int_mismatch() {
     check(
         r#"
 fun main() {
     1.0 + 1 //~ ERROR cannot apply `+` to `float` and `int`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn binary_logical_non_bool() {
+#[tokio::test]
+async fn binary_logical_non_bool() {
     check(
         r#"
 fun main() {
     1 && 2 //~ ERROR cannot apply `&&` to `int` and `int`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn prefix_negate_string() {
+#[tokio::test]
+async fn prefix_negate_string() {
     check(
         r#"
 fun main() {
     !"hello" //~ ERROR cannot apply `!` to `str`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn return_type_mismatch() {
+#[tokio::test]
+async fn return_type_mismatch() {
     check(
         r#"
 fun foo(): int {
     true //~ ERROR expected `int`, found `bool`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn multiple_errors() {
+#[tokio::test]
+async fn multiple_errors() {
     check(
         r#"
 fun main() {
@@ -522,11 +561,12 @@ fun main() {
     y; //~ ERROR Unresolved identifier
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn call_wrong_arg_type() {
+#[tokio::test]
+async fn call_wrong_arg_type() {
     check(
         r#"
 fun foo(x: int) {}
@@ -535,44 +575,48 @@ fun main() {
     foo(true) //~ ERROR expected `int`, found `bool`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn annotation_bool_given_int() {
+#[tokio::test]
+async fn annotation_bool_given_int() {
     check(
         r#"
 fun main() {
     val x: bool = 1 //~ ERROR expected `bool`, found `int`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn comparison_type_mismatch() {
+#[tokio::test]
+async fn comparison_type_mismatch() {
     check(
         r#"
 fun main() {
     1 == true //~ ERROR cannot apply `==` to `int` and `bool`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn if_condition_string() {
+#[tokio::test]
+async fn if_condition_string() {
     check(
         r#"
 fun main() {
     if "hello" {} //~ ERROR expected `bool`, found `str`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn call_too_many_args_zero_params() {
+#[tokio::test]
+async fn call_too_many_args_zero_params() {
     check(
         r#"
 fun noop() {}
@@ -581,11 +625,12 @@ fun main() {
     noop(1) //~ ERROR expected 0 argument(s), found 1
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn call_wrong_arg_count_two_params() {
+#[tokio::test]
+async fn call_wrong_arg_count_two_params() {
     check(
         r#"
 fun add(x: int, y: int): int { x + y }
@@ -594,11 +639,12 @@ fun main() {
     add(1, 2, 3); //~ ERROR expected 2 argument(s), found 3
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_generic_identity() {
+#[tokio::test]
+async fn no_error_generic_identity() {
     check(
         r#"
 fun id[T](x: T): T { x }
@@ -608,11 +654,12 @@ fun main() {
     id("hello");
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_generic_two_params() {
+#[tokio::test]
+async fn no_error_generic_two_params() {
     check(
         r#"
 fun pair[A, B](a: A, b: B): (A, B) { (a, b) }
@@ -621,11 +668,12 @@ fun main() {
     pair(1, true);
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_let_polymorphism_identity() {
+#[tokio::test]
+async fn no_error_let_polymorphism_identity() {
     check(
         r#"
 fun main() {
@@ -634,11 +682,12 @@ fun main() {
     val b: bool = id(true)
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn let_polymorphism_does_not_leak_outer_var() {
+#[tokio::test]
+async fn let_polymorphism_does_not_leak_outer_var() {
     check(
         r#"
 fun main() {
@@ -649,11 +698,12 @@ fun main() {
     val t: (int, bool) = bad(0) //~ ERROR expected `(int, bool)`, found `(int, int)`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn generic_wrong_return_type() {
+#[tokio::test]
+async fn generic_wrong_return_type() {
     check(
         r#"
 fun id[T](x: T): T { x }
@@ -662,13 +712,14 @@ fun main() {
     val x: int = id(true) //~ ERROR expected `int`, found `bool`
 }
 "#,
-    );
+    )
+    .await;
 }
 
 // === Struct and enum tests ===
 
-#[test]
-fn struct_type_used_as_type_annotation() {
+#[tokio::test]
+async fn struct_type_used_as_type_annotation() {
     check(
         r#"
 struct Point {
@@ -678,11 +729,12 @@ struct Point {
 
 fun origin(): Point { origin() }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn struct_type_used_as_value_is_error() {
+#[tokio::test]
+async fn struct_type_used_as_value_is_error() {
     check(
         r#"
 struct Point {
@@ -694,11 +746,12 @@ fun main() {
     Point //~ ERROR expected value, found type `Point`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_type_used_as_type_annotation() {
+#[tokio::test]
+async fn enum_type_used_as_type_annotation() {
     check(
         r#"
 enum Color {
@@ -709,11 +762,12 @@ enum Color {
 
 fun paint(): Color { paint() }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_type_used_as_value_is_error() {
+#[tokio::test]
+async fn enum_type_used_as_value_is_error() {
     check(
         r#"
 enum Color {
@@ -726,11 +780,12 @@ fun main() {
     Color //~ ERROR expected value, found type `Color`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn struct_type_mismatch() {
+#[tokio::test]
+async fn struct_type_mismatch() {
     check(
         r#"
 struct Point {
@@ -744,11 +799,12 @@ fun main() {
     val x: int = make_point() //~ ERROR expected `int`, found `Point`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_type_mismatch() {
+#[tokio::test]
+async fn enum_type_mismatch() {
     check(
         r#"
 enum Color {
@@ -763,13 +819,14 @@ fun main() {
     val x: int = make_color() //~ ERROR expected `int`, found `Color`
 }
 "#,
-    );
+    )
+    .await;
 }
 
 // === Struct expression tests ===
 
-#[test]
-fn no_error_struct_expr() {
+#[tokio::test]
+async fn no_error_struct_expr() {
     check(
         r#"
 struct Point {
@@ -781,11 +838,12 @@ fun main(): Point {
     Point { x: 1, y: 2 }
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn struct_expr_field_type_mismatch() {
+#[tokio::test]
+async fn struct_expr_field_type_mismatch() {
     check(
         r#"
 struct Point {
@@ -797,11 +855,12 @@ fun main(): Point {
     Point { x: true, y: 2 } //~ ERROR expected `int`, found `bool`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn struct_expr_missing_field() {
+#[tokio::test]
+async fn struct_expr_missing_field() {
     check(
         r#"
 struct Point {
@@ -813,11 +872,12 @@ fun main(): Point {
     Point { x: 1 } //~ ERROR missing field `y`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn struct_expr_unknown_field() {
+#[tokio::test]
+async fn struct_expr_unknown_field() {
     check(
         r#"
 struct Point {
@@ -829,11 +889,12 @@ fun main(): Point {
     Point { x: 1, y: 2, z: 3 } //~ ERROR unknown field `z`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn struct_expr_not_a_struct() {
+#[tokio::test]
+async fn struct_expr_not_a_struct() {
     check(
         r#"
 enum Color {
@@ -846,11 +907,12 @@ fun main() {
     Color { x: 1 } //~ ERROR `Color` is not a struct
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_struct_field_projection() {
+#[tokio::test]
+async fn no_error_struct_field_projection() {
     check(
         r#"
 struct Point {
@@ -863,11 +925,12 @@ fun main() {
     val x: int = p.x;
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn struct_field_projection_unknown_field() {
+#[tokio::test]
+async fn struct_field_projection_unknown_field() {
     check(
         r#"
 struct Point {
@@ -880,22 +943,24 @@ fun main() {
     p.z //~ ERROR unknown field `z`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn struct_field_projection_not_a_struct() {
+#[tokio::test]
+async fn struct_field_projection_not_a_struct() {
     check(
         r#"
 fun main() {
     true.x //~ ERROR `bool` is not a struct
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_access_as_value() {
+#[tokio::test]
+async fn enum_variant_access_as_value() {
     check(
         r#"
 enum Color {
@@ -910,11 +975,12 @@ fun main() {
     takes_color(c);
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_constructor_call() {
+#[tokio::test]
+async fn enum_variant_constructor_call() {
     check(
         r#"
 enum Option {
@@ -931,11 +997,12 @@ fun main() {
     takes_option(y);
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_unknown_variant_is_error() {
+#[tokio::test]
+async fn enum_unknown_variant_is_error() {
     check(
         r#"
 enum Color {
@@ -946,11 +1013,12 @@ fun main() {
     Color.Blue //~ ERROR Unresolved identifier
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_access_without_type_prefix() {
+#[tokio::test]
+async fn enum_variant_access_without_type_prefix() {
     check(
         r#"
 enum Color {
@@ -964,11 +1032,12 @@ fun main() {
     takes_color(n);
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_access_without_type_prefix_ambiguous_is_error() {
+#[tokio::test]
+async fn enum_variant_access_without_type_prefix_ambiguous_is_error() {
     check(
         r#"
 enum Color {
@@ -983,11 +1052,12 @@ fun main() {
     .Red //~ ERROR Unresolved identifier
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_constructor_without_type_prefix() {
+#[tokio::test]
+async fn enum_variant_constructor_without_type_prefix() {
     check(
         r#"
 enum Option {
@@ -1004,11 +1074,12 @@ fun main() {
     takes_option(y);
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_without_type_prefix_not_emitted_too_early() {
+#[tokio::test]
+async fn enum_variant_without_type_prefix_not_emitted_too_early() {
     check(
         r#"
 enum Color {
@@ -1021,11 +1092,12 @@ fun main() {
     val c: Color = id(.Red);
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_without_type_prefix_disambiguated_by_annotation() {
+#[tokio::test]
+async fn enum_variant_without_type_prefix_disambiguated_by_annotation() {
     check(
         r#"
 enum Color {
@@ -1043,11 +1115,12 @@ fun main() {
     takes_color(c);
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_access_without_type_prefix_without_context_is_error() {
+#[tokio::test]
+async fn enum_variant_access_without_type_prefix_without_context_is_error() {
     check(
         r#"
 enum Color {
@@ -1058,11 +1131,12 @@ fun main() {
     .Red //~ ERROR Unresolved identifier
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_constructor_without_type_prefix_without_context_is_error() {
+#[tokio::test]
+async fn enum_variant_constructor_without_type_prefix_without_context_is_error() {
     check(
         r#"
 enum Option {
@@ -1074,11 +1148,12 @@ fun main() {
     .Some(1) //~ ERROR Unresolved identifier
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_without_type_prefix_conflicting_uses_reports_error() {
+#[tokio::test]
+async fn enum_variant_without_type_prefix_conflicting_uses_reports_error() {
     check(
         r#"
 enum Color {
@@ -1091,11 +1166,12 @@ fun main() {
     val q: int = n; //~ ERROR expected `int`, found `Color`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_without_type_prefix_conflicting_uses_order_independent() {
+#[tokio::test]
+async fn enum_variant_without_type_prefix_conflicting_uses_order_independent() {
     check(
         r#"
 enum Color {
@@ -1108,11 +1184,12 @@ fun main() {
     val b: Color = n;
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_constructor_without_type_prefix_conflicting_uses_reports_error() {
+#[tokio::test]
+async fn enum_variant_constructor_without_type_prefix_conflicting_uses_reports_error() {
     check(
         r#"
 enum Option {
@@ -1126,11 +1203,12 @@ fun main() {
     val bad: int = n; //~ ERROR expected `int`, found `Option`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn enum_variant_without_type_prefix_with_wrong_expected_type_is_error() {
+#[tokio::test]
+async fn enum_variant_without_type_prefix_with_wrong_expected_type_is_error() {
     check(
         r#"
 enum Color {
@@ -1141,11 +1219,12 @@ fun main() {
     val q: int = .Red //~ ERROR Unresolved identifier
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn malformed_function_body_does_not_panic_diagnostic_mapping() {
+#[tokio::test]
+async fn malformed_function_body_does_not_panic_diagnostic_mapping() {
     let db = RootDatabase::default();
     let file = File::new(
         &db,
@@ -1158,15 +1237,15 @@ fun main() {
         .to_owned(),
     );
 
-    let diagnostics = check_file(&db, file);
+    let diagnostics = check_file(&db, file).await.expect("failed to compute diagnostics");
     assert!(
         !diagnostics.is_empty(),
         "expected at least one diagnostic for malformed function body"
     );
 }
 
-#[test]
-fn malformed_field_expr_does_not_panic() {
+#[tokio::test]
+async fn malformed_field_expr_does_not_panic() {
     let db = RootDatabase::default();
     let file = File::new(
         &db,
@@ -1179,15 +1258,15 @@ fun main() {
         .to_owned(),
     );
 
-    let diagnostics = check_file(&db, file);
+    let diagnostics = check_file(&db, file).await.expect("failed to compute diagnostics");
     assert!(
         !diagnostics.is_empty(),
         "expected at least one diagnostic for malformed field expression"
     );
 }
 
-#[test]
-fn no_error_anonymous_record_literal_and_field_access() {
+#[tokio::test]
+async fn no_error_anonymous_record_literal_and_field_access() {
     check(
         r#"
 fun main() {
@@ -1196,11 +1275,12 @@ fun main() {
     val y: bool = obj.y;
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn anonymous_record_unknown_field_is_error() {
+#[tokio::test]
+async fn anonymous_record_unknown_field_is_error() {
     check(
         r#"
 fun main() {
@@ -1208,11 +1288,12 @@ fun main() {
     obj.y //~ ERROR unknown field `y`
 }
 "#,
-    );
+    )
+    .await;
 }
 
-#[test]
-fn no_error_if_with_anonymous_records() {
+#[tokio::test]
+async fn no_error_if_with_anonymous_records() {
     check(
         r#"
 fun main() {
@@ -1222,5 +1303,6 @@ fun main() {
     val x: int = c.x;
 }
 "#,
-    );
+    )
+    .await;
 }

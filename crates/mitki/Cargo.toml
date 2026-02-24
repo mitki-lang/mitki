@@ -17,4 +17,4 @@ mitki-errors.workspace = true
 mitki-inputs.workspace = true
 mitki-lsp-server.workspace = true
 picante.workspace = true
-
+tokio.workspace = true

@@ -12,18 +12,18 @@ pub struct InlayHint {
 }
 
 impl super::Analysis {
-    pub fn inlay_hints(&self, file: File, range: TextRange) -> Vec<InlayHint> {
+    pub async fn inlay_hints(&self, file: File, range: TextRange) -> Vec<InlayHint> {
         let db = self.db();
         let mut hints = Vec::new();
 
-        for declaration in file.item_scope(db).declarations() {
+        for declaration in file.item_scope(db).await.declarations() {
             match declaration {
                 Declaration::Function(func) => {
-                    let hir = func.hir_function(db);
+                    let hir = func.hir_function(db).await;
                     let source_map = hir.source_map();
                     let function = hir.function();
                     let nodes = function.node_store();
-                    let inference = func.infer(db);
+                    let inference = func.infer(db).await;
 
                     // Hints for function parameters without type annotations.
                     for &param in function.params() {
@@ -55,7 +55,7 @@ impl super::Analysis {
                             db,
                             nodes,
                             source_map,
-                            &inference,
+                            inference.as_ref(),
                             function.body(),
                             range,
                             &mut hints,
@@ -71,11 +71,11 @@ impl super::Analysis {
     }
 }
 
-fn collect_binding_hints<'db, DB>(
-    db: &'db DB,
-    nodes: &mitki_hir::hir::NodeStore<'db>,
+fn collect_binding_hints<DB>(
+    db: &DB,
+    nodes: &mitki_hir::hir::NodeStore,
     source_map: &mitki_lower::hir::FunctionSourceMap,
-    inference: &mitki_typeck::infer::Inference<'db>,
+    inference: &mitki_typeck::infer::Inference,
     expr: ExprId,
     range: TextRange,
     hints: &mut Vec<InlayHint>,
@@ -185,17 +185,16 @@ mod tests {
         TextRange::new(TextSize::from(0), TextSize::from(u32::MAX))
     }
 
-    #[track_caller]
-    fn check(fixture: &str, expected: &[&str]) {
+    async fn check(fixture: &str, expected: &[&str]) {
         let analysis = Analysis::default();
         let file = File::new(analysis.db(), "".into(), fixture.to_owned());
-        let hints = analysis.inlay_hints(file, whole_file_range());
+        let hints = analysis.inlay_hints(file, whole_file_range()).await;
         let labels: Vec<&str> = hints.iter().map(|h| h.label.as_str()).collect();
         assert_eq!(labels, expected);
     }
 
-    #[test]
-    fn local_variable_int() {
+    #[tokio::test]
+    async fn local_variable_int() {
         check(
             r#"
 fun main() {
@@ -203,11 +202,12 @@ fun main() {
 }
 "#,
             &[": int"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn local_variable_string() {
+    #[tokio::test]
+    async fn local_variable_string() {
         check(
             r#"
 fun main() {
@@ -215,11 +215,12 @@ fun main() {
 }
 "#,
             &[": str"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn local_variable_float() {
+    #[tokio::test]
+    async fn local_variable_float() {
         check(
             r#"
 fun main() {
@@ -227,11 +228,12 @@ fun main() {
 }
 "#,
             &[": float"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn local_variable_bool() {
+    #[tokio::test]
+    async fn local_variable_bool() {
         check(
             r#"
 fun main() {
@@ -239,11 +241,12 @@ fun main() {
 }
 "#,
             &[": bool"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn no_hint_with_type_annotation() {
+    #[tokio::test]
+    async fn no_hint_with_type_annotation() {
         check(
             r#"
 fun main() {
@@ -251,11 +254,12 @@ fun main() {
 }
 "#,
             &[],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn multiple_bindings() {
+    #[tokio::test]
+    async fn multiple_bindings() {
         check(
             r#"
 fun main() {
@@ -265,11 +269,12 @@ fun main() {
 }
 "#,
             &[": int", ": int", ": int"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn mixed_annotated_and_inferred() {
+    #[tokio::test]
+    async fn mixed_annotated_and_inferred() {
         check(
             r#"
 fun main() {
@@ -279,11 +284,12 @@ fun main() {
 }
 "#,
             &[": str"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn parameter_without_type() {
+    #[tokio::test]
+    async fn parameter_without_type() {
         check(
             r#"
 fun foo(x) {
@@ -291,11 +297,12 @@ fun foo(x) {
 }
 "#,
             &[],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn parameter_with_type_no_hint() {
+    #[tokio::test]
+    async fn parameter_with_type_no_hint() {
         check(
             r#"
 fun foo(x: int) {
@@ -303,21 +310,23 @@ fun foo(x: int) {
 }
 "#,
             &[],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn empty_function() {
+    #[tokio::test]
+    async fn empty_function() {
         check(
             r#"
 fun main() {}
 "#,
             &[],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn binding_in_if_branch() {
+    #[tokio::test]
+    async fn binding_in_if_branch() {
         check(
             r#"
 fun main() {
@@ -329,11 +338,12 @@ fun main() {
 }
 "#,
             &[": int", ": int"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn nested_blocks() {
+    #[tokio::test]
+    async fn nested_blocks() {
         check(
             r#"
 fun main() {
@@ -344,11 +354,12 @@ fun main() {
 }
 "#,
             &[": int", ": int"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn function_call_binding() {
+    #[tokio::test]
+    async fn function_call_binding() {
         check(
             r#"
 fun add(x: int, y: int): int { x + y }
@@ -358,11 +369,12 @@ fun main() {
 }
 "#,
             &[": int"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn multiple_functions() {
+    #[tokio::test]
+    async fn multiple_functions() {
         check(
             r#"
 fun foo() {
@@ -374,11 +386,12 @@ fun bar() {
 }
 "#,
             &[": int", ": str"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn hints_sorted_by_offset() {
+    #[tokio::test]
+    async fn hints_sorted_by_offset() {
         check(
             r#"
 fun main() {
@@ -388,11 +401,12 @@ fun main() {
 }
 "#,
             &[": int", ": str", ": bool"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn range_filter() {
+    #[tokio::test]
+    async fn range_filter() {
         let fixture = r#"
 fun main() {
     val x = 1
@@ -403,12 +417,12 @@ fun main() {
         let file = File::new(analysis.db(), "".into(), fixture.to_owned());
         // Use an empty range at the beginning — should produce no hints.
         let hints =
-            analysis.inlay_hints(file, TextRange::new(TextSize::from(0), TextSize::from(0)));
+            analysis.inlay_hints(file, TextRange::new(TextSize::from(0), TextSize::from(0))).await;
         assert!(hints.is_empty());
     }
 
-    #[test]
-    fn struct_no_hints() {
+    #[tokio::test]
+    async fn struct_no_hints() {
         check(
             r#"
 struct Point {
@@ -417,11 +431,12 @@ struct Point {
 }
 "#,
             &[],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn local_variable_enum_variant_without_type_prefix() {
+    #[tokio::test]
+    async fn local_variable_enum_variant_without_type_prefix() {
         check(
             r#"
 enum Color {
@@ -433,11 +448,12 @@ fun main() {
 }
 "#,
             &[],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn local_variable_enum_variant_constructor_without_type_prefix() {
+    #[tokio::test]
+    async fn local_variable_enum_variant_constructor_without_type_prefix() {
         check(
             r#"
 enum Option {
@@ -450,11 +466,12 @@ fun main() {
 }
 "#,
             &[],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn local_variable_enum_variant_constructor_without_type_prefix_with_usage() {
+    #[tokio::test]
+    async fn local_variable_enum_variant_constructor_without_type_prefix_with_usage() {
         check(
             r#"
 enum Option {
@@ -470,11 +487,12 @@ fun main() {
 }
 "#,
             &[": Option"],
-        );
+        )
+        .await;
     }
 
-    #[test]
-    fn local_variable_if_unit_not_duplicated() {
+    #[tokio::test]
+    async fn local_variable_if_unit_not_duplicated() {
         check(
             r#"
 fun main() {
@@ -482,6 +500,7 @@ fun main() {
 }
 "#,
             &[": ()"],
-        );
+        )
+        .await;
     }
 }

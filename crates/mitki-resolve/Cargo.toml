@@ -17,4 +17,4 @@ mitki-parse.workspace = true
 mitki-span.workspace = true
 rustc-hash = "2.0"
 picante.workspace = true
-
+facet.workspace = true

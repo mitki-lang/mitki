@@ -4,9 +4,9 @@ use super::id::Raw;
 use super::schema::{HirId, IxId, NodeKind, SymId};
 
 #[derive(Default, Debug, PartialEq, Eq, Clone)]
-pub struct NodeStore<'db> {
+pub struct NodeStore {
     pub(crate) nodes: Vec<Node>,
-    pub(crate) symbols: Vec<Symbol<'db>>,
+    pub(crate) symbols: Vec<Symbol>,
     pub(crate) node_ids: Vec<u32>,
 }
 
@@ -17,21 +17,21 @@ pub(crate) struct Node {
     pub(crate) rhs: Raw,
 }
 
-impl<'db> NodeStore<'db> {
+impl NodeStore {
     pub(crate) fn push_node(&mut self, kind: NodeKind, lhs: Raw, rhs: Raw) -> HirId {
         let index = self.nodes.len();
         self.nodes.push(Node { kind, lhs, rhs });
         HirId::new(index)
     }
 
-    pub(crate) fn intern_symbol(&mut self, symbol: Symbol<'db>) -> SymId {
+    pub(crate) fn intern_symbol(&mut self, symbol: Symbol) -> SymId {
         let index = self.symbols.len();
         self.symbols.push(symbol);
         SymId::new(index)
     }
 
     #[track_caller]
-    pub(crate) fn symbol(&self, symbol: SymId) -> Symbol<'db> {
+    pub(crate) fn symbol(&self, symbol: SymId) -> Symbol {
         self.symbols[symbol.get()]
     }
 

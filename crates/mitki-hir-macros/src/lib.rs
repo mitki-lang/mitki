@@ -639,7 +639,7 @@ impl Schema {
         };
 
         let node_store_impl = quote! {
-            impl<'db> crate::hir::store::NodeStore<'db> {
+            impl crate::hir::store::NodeStore {
                 #(#constructors)*
                 #(#accessors)*
                 #(#downcasts)*
@@ -689,8 +689,8 @@ fn list_wrapper_for(ty: &TypeSpec) -> Option<(Ident, proc_macro2::TokenStream)> 
 
 fn type_to_id(ty: &TypeSpec) -> proc_macro2::TokenStream {
     match ty {
-        TypeSpec::Symbol => quote! { mitki_span::Symbol<'db> },
-        TypeSpec::OptionSymbol => quote! { Option<mitki_span::Symbol<'db>> },
+        TypeSpec::Symbol => quote! { mitki_span::Symbol },
+        TypeSpec::OptionSymbol => quote! { Option<mitki_span::Symbol> },
         TypeSpec::Node(ident) => {
             let id = format_ident!("{}Id", ident);
             quote! { #id }
@@ -700,8 +700,8 @@ fn type_to_id(ty: &TypeSpec) -> proc_macro2::TokenStream {
 
 fn type_to_arg(ty: &TypeSpec) -> proc_macro2::TokenStream {
     match ty {
-        TypeSpec::Symbol => quote! { mitki_span::Symbol<'db> },
-        TypeSpec::OptionSymbol => quote! { Option<mitki_span::Symbol<'db>> },
+        TypeSpec::Symbol => quote! { mitki_span::Symbol },
+        TypeSpec::OptionSymbol => quote! { Option<mitki_span::Symbol> },
         TypeSpec::Node(ident) => {
             let id = format_ident!("{}Id", ident);
             quote! { #id }

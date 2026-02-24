@@ -3,25 +3,25 @@ use mitki_span::Symbol;
 use super::{ExprId, NodeStore, ParamId, TyId};
 
 #[derive(Default, Debug, PartialEq, Eq, Clone)]
-pub struct Function<'db> {
-    node_store: NodeStore<'db>,
+pub struct Function {
+    node_store: NodeStore,
 
-    type_params: Vec<Symbol<'db>>,
+    type_params: Vec<Symbol>,
     params: Vec<ParamId>,
     body: ExprId,
     ret_type: TyId,
 }
 
-impl<'db> Function<'db> {
-    pub fn node_store(&self) -> &NodeStore<'db> {
+impl Function {
+    pub fn node_store(&self) -> &NodeStore {
         &self.node_store
     }
 
-    pub fn node_store_mut(&mut self) -> &mut NodeStore<'db> {
+    pub fn node_store_mut(&mut self) -> &mut NodeStore {
         &mut self.node_store
     }
 
-    pub fn set_type_params(&mut self, type_params: Vec<Symbol<'db>>) {
+    pub fn set_type_params(&mut self, type_params: Vec<Symbol>) {
         self.type_params = type_params;
     }
 
@@ -37,7 +37,7 @@ impl<'db> Function<'db> {
         self.body = body;
     }
 
-    pub fn type_params(&self) -> &[Symbol<'db>] {
+    pub fn type_params(&self) -> &[Symbol] {
         &self.type_params
     }
 

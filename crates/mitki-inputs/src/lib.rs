@@ -1,13 +1,11 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
 
-pub use line_index::LineIndex;
+pub use line_index::LineCol;
 
 #[picante::input]
 pub struct SourceFile {
     #[key]
-    pub id: u32,
     pub path: String,
     pub text: String,
     pub revision: u64,
@@ -23,11 +21,29 @@ impl<T> FileDatabase for T where
 {
 }
 
-static NEXT_FILE_ID: AtomicU32 = AtomicU32::new(1);
+#[derive(Debug, Clone, PartialEq, Eq, facet::Facet)]
+pub struct LineIndex {
+    #[facet(opaque)]
+    inner: line_index::LineIndex,
+}
+
+impl LineIndex {
+    pub fn new(text: &str) -> Self {
+        Self { inner: line_index::LineIndex::new(text) }
+    }
+
+    pub fn line(&self, line: u32) -> Option<line_index::TextRange> {
+        self.inner.line(line)
+    }
+
+    pub fn line_col(&self, offset: line_index::TextSize) -> LineCol {
+        self.inner.line_col(offset)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, facet::Facet)]
 pub struct File {
-    id: u32,
+    source_file: SourceFile,
 }
 
 impl File {
@@ -35,36 +51,31 @@ impl File {
     where
         DB: FileDatabase,
     {
-        let id = NEXT_FILE_ID.fetch_add(1, Ordering::Relaxed);
-        SourceFile::new(db, id, path.into_string(), text, 0)
+        let source_file = SourceFile::new(db, path.into_string(), text, 0)
             .expect("failed to create source file input");
-        Self { id }
-    }
-
-    pub fn id(self) -> u32 {
-        self.id
+        Self { source_file }
     }
 
     pub fn revision<DB>(self, db: &DB) -> u64
     where
         DB: FileDatabase,
     {
-        self.source_file(db).revision(db).expect("failed to read source file revision")
+        self.source_file.revision(db).expect("failed to read source file revision")
     }
 
     pub fn path<DB>(self, db: &DB) -> camino::Utf8PathBuf
     where
         DB: FileDatabase,
     {
-        let path = self.source_file(db).path(db).expect("failed to read source file path");
-        camino::Utf8PathBuf::from(path)
+        let path = self.source_file.path(db).expect("failed to read source file path");
+        camino::Utf8PathBuf::from(path.as_str())
     }
 
     pub fn text<DB>(self, db: &DB) -> Arc<str>
     where
         DB: FileDatabase,
     {
-        let text = self.source_file(db).text(db).expect("failed to read source file text");
+        let text = self.source_file.text(db).expect("failed to read source file text");
         Arc::from(text)
     }
 
@@ -75,20 +86,21 @@ impl File {
         SetText { file: self, db, _marker: PhantomData }
     }
 
-    pub fn line_index<DB>(self, db: &DB) -> Arc<LineIndex>
+    pub async fn line_index<DB>(self, db: &DB) -> Arc<LineIndex>
     where
-        DB: FileDatabase,
+        DB: FileDatabase + HasLineIndexQuery,
     {
-        Arc::new(LineIndex::new(self.text(db).as_ref()))
+        line_index(db, self).await.expect("failed to compute line index")
     }
+}
 
-    fn source_file<DB>(self, db: &DB) -> SourceFile
-    where
-        DB: FileDatabase,
-    {
-        let id = db.source_file_keys().intern(self.id).expect("failed to intern source file id");
-        SourceFile(id)
-    }
+#[picante::tracked]
+pub async fn line_index<DB: FileDatabase>(
+    db: &DB,
+    file: File,
+) -> picante::PicanteResult<Arc<LineIndex>> {
+    let text = file.text(db);
+    Ok(Arc::new(LineIndex::new(text.as_ref())))
 }
 
 pub struct SetText<'db, DB>
@@ -105,7 +117,7 @@ where
     DB: FileDatabase,
 {
     pub fn to(self, text: String) {
-        let source_file = self.file.source_file(self.db);
+        let source_file = self.file.source_file;
         let current_text = source_file.text(self.db).expect("failed to read source file text");
         if current_text == text {
             return;
@@ -114,7 +126,7 @@ where
         let path = source_file.path(self.db).expect("failed to read source file path");
         let revision = source_file.revision(self.db).expect("failed to read source file revision");
 
-        SourceFile::new(self.db, self.file.id, path, text, revision + 1)
+        SourceFile::new(self.db, path.as_ref().to_owned(), text, revision + 1)
             .expect("failed to update source file input");
     }
 }

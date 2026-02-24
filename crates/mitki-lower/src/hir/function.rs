@@ -56,25 +56,22 @@ impl FunctionSourceMap {
 
 pub(crate) struct FunctionBuilder<'db, DB>
 where
-    DB: mitki_parse::ParseDb,
+    DB: mitki_hir::ty::TypeDatabase,
 {
     db: &'db DB,
-    function: Function<'db>,
+    function: Function,
     source_map: FunctionSourceMap,
 }
 
 impl<'db, DB> FunctionBuilder<'db, DB>
 where
-    DB: mitki_parse::ParseDb,
+    DB: mitki_hir::ty::TypeDatabase,
 {
     pub(crate) fn new(db: &'db DB) -> Self {
         Self { db, function: Function::default(), source_map: FunctionSourceMap::default() }
     }
 
-    pub(super) fn build<'tree>(
-        mut self,
-        node: &ast::Function<'tree>,
-    ) -> FunctionWithSourceMap<'db> {
+    pub(super) fn build<'tree>(mut self, node: &ast::Function<'tree>) -> FunctionWithSourceMap {
         let type_params: Vec<_> =
             node.type_params().map(|tp| tp.as_str().into_symbol(self.db)).collect();
         let params = self.build_params(node.params());

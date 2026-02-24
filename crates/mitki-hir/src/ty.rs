@@ -1,60 +1,56 @@
-use std::marker::PhantomData;
-
 use mitki_span::{Symbol, SymbolDatabase};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, facet::Facet)]
-pub struct Ty<'db> {
+pub struct Ty {
     id: picante::InternId,
-    _marker: PhantomData<&'db ()>,
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, facet::Facet)]
-pub enum TyKind<'db> {
+pub enum TyKind {
     Bool,
     Float,
     Int,
     String,
     Char,
-    Tuple(Vec<Ty<'db>>),
-    Record(Vec<(Symbol<'db>, Ty<'db>)>),
+    Tuple(Vec<Ty>),
+    Record(Vec<(Symbol, Ty)>),
     Unknown,
-    Function { inputs: Vec<Ty<'db>>, output: Ty<'db> },
+    Function { inputs: Vec<Ty>, output: Ty },
     Var(u32),
-    Union(Vec<Ty<'db>>),
-    Inter(Vec<Ty<'db>>),
-    Rec(u32, Ty<'db>),
-    Struct { name: Symbol<'db>, fields: Vec<(Symbol<'db>, Ty<'db>)> },
-    Enum { name: Symbol<'db>, variants: Vec<(Symbol<'db>, Vec<Ty<'db>>)> },
+    Union(Vec<Ty>),
+    Inter(Vec<Ty>),
+    Rec(u32, Ty),
+    Struct { name: Symbol, fields: Vec<(Symbol, Ty)> },
+    Enum { name: Symbol, variants: Vec<(Symbol, Vec<Ty>)> },
 }
 
 #[picante::interned]
 pub struct TyData {
-    pub kind: TyKind<'static>,
+    pub kind: TyKind,
 }
 
 pub trait TypeDatabase: picante::HasRuntime + HasTyDataIngredient + SymbolDatabase {}
 
 impl<T> TypeDatabase for T where T: picante::HasRuntime + HasTyDataIngredient + SymbolDatabase {}
 
-impl<'db> Ty<'db> {
-    pub fn new<DB>(db: &DB, kind: TyKind<'db>) -> Self
+impl Ty {
+    pub fn new<DB>(db: &DB, kind: TyKind) -> Self
     where
         DB: TypeDatabase,
     {
-        let data = TyData::new(db, erase_kind(kind)).expect("failed to intern type");
-        Self { id: data.0, _marker: PhantomData }
+        let data = TyData::new(db, kind).expect("failed to intern type");
+        Self { id: data.0 }
     }
 
-    pub fn kind<DB>(self, db: &DB) -> TyKind<'db>
+    pub fn kind<DB>(self, db: &DB) -> TyKind
     where
         DB: TypeDatabase,
     {
-        let kind = TyData(self.id).kind(db).expect("failed to load type");
-        unerase_kind(kind)
+        TyData(self.id).kind(db).expect("failed to load type")
     }
 
-    pub fn display<DB>(self, db: &'db DB) -> TyDisplay<'db, DB>
+    pub fn display<DB>(self, db: &DB) -> TyDisplay<'_, DB>
     where
         DB: TypeDatabase,
     {
@@ -68,16 +64,16 @@ impl<'db> Ty<'db> {
     pub fn from_bits(bits: u64) -> Self {
         let id = bits.checked_sub(1).expect("invalid type bits");
         let id = u32::try_from(id).expect("type bits overflow");
-        Self { id: picante::InternId(id), _marker: PhantomData }
+        Self { id: picante::InternId(id) }
     }
 }
 
-pub struct TyDisplay<'db, DB>
+pub struct TyDisplay<'a, DB>
 where
     DB: TypeDatabase,
 {
-    ty_kind: TyKind<'db>,
-    db: &'db DB,
+    ty_kind: TyKind,
+    db: &'a DB,
 }
 
 impl<DB> std::fmt::Display for TyDisplay<'_, DB>
@@ -134,10 +130,10 @@ fn write_var(f: &mut std::fmt::Formatter<'_>, id: u32) -> std::fmt::Result {
     if id >= 26 { write!(f, "{c}{}", id / 26) } else { write!(f, "{c}") }
 }
 
-fn write_joined<'db, DB>(
+fn write_joined<'a, DB>(
     f: &mut std::fmt::Formatter<'_>,
-    db: &'db DB,
-    iter: impl ExactSizeIterator<Item = &'db Ty<'db>>,
+    db: &DB,
+    iter: impl ExactSizeIterator<Item = &'a Ty>,
     sep: &str,
 ) -> std::fmt::Result
 where
@@ -152,15 +148,4 @@ where
         write!(f, "{}", e.display(db))?;
     }
     Ok(())
-}
-
-fn erase_kind(kind: TyKind<'_>) -> TyKind<'static> {
-    // SAFETY: TyKind is composed of copyable handles with phantom lifetimes only.
-    unsafe { std::mem::transmute(kind) }
-}
-
-fn unerase_kind<'db>(kind: TyKind<'static>) -> TyKind<'db> {
-    // SAFETY: TyKind stores no borrowed data and can be viewed at any database
-    // lifetime.
-    unsafe { std::mem::transmute(kind) }
 }

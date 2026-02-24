@@ -5,7 +5,6 @@ use codspeed_criterion_compat::{
 };
 use mitki_db::RootDatabase;
 use mitki_inputs::File;
-use mitki_parse::FileParse as _;
 
 fn benchmark_parser(c: &mut Criterion) {
     let db = RootDatabase::default();
@@ -48,7 +47,8 @@ fn benchmark_parser(c: &mut Criterion) {
             &file,
             |b, &file| {
                 b.iter(|| {
-                    let module = file.parse(&db);
+                    let text = file.text(&db);
+                    let module = mitki_parse::parse_text(text.as_ref());
                     black_box(module);
                 });
             },

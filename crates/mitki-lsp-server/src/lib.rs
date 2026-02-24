@@ -1,8 +1,7 @@
 mod api;
-mod notifications;
-mod requests;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::Result;
 use mitki_ide::{Analysis, FilePosition};
@@ -103,14 +102,14 @@ impl Server {
         self.connection.sender.send(response.into()).unwrap();
     }
 
-    pub fn run(mut self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
         let receiver = self.connection.receiver.clone();
         for message in &receiver {
             match message {
-                lsp_server::Message::Request(request) => api::request(&mut self, request),
+                lsp_server::Message::Request(request) => api::request(&mut self, request).await,
                 lsp_server::Message::Response(_response) => {}
                 lsp_server::Message::Notification(notification) => {
-                    api::notification(&mut self, notification)
+                    api::notification(&mut self, notification).await
                 }
             }
         }
@@ -139,15 +138,16 @@ where
     }
 }
 
-fn file_position(server: &Server, tdpp: &lsp_types::TextDocumentPositionParams) -> FilePosition {
+async fn file_position(
+    server: &Server,
+    tdpp: &lsp_types::TextDocumentPositionParams,
+) -> (FilePosition, Arc<mitki_inputs::LineIndex>) {
     let file = server.file(&tdpp.text_document.uri);
-    let offset = {
-        let line_index = file.line_index(server.analysis.db());
-        let line_range = line_index.line(tdpp.position.line).unwrap();
-        let col = TextSize::from(tdpp.position.character);
-        let clamped_len = col.min(line_range.len());
-        line_range.start() + clamped_len
-    };
+    let line_index = file.line_index(server.analysis.db()).await;
+    let line_range = line_index.line(tdpp.position.line).unwrap();
+    let col = TextSize::from(tdpp.position.character);
+    let clamped_len = col.min(line_range.len());
+    let offset = line_range.start() + clamped_len;
 
-    FilePosition { file, offset }
+    (FilePosition { file, offset }, line_index)
 }

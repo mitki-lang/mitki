@@ -1,86 +1,108 @@
+use std::future::Future;
+use std::sync::Arc;
+
 use mitki_hir::arena::{Arena, Key, Range};
 use mitki_hir::hir::{ExprId, Function, NameId, NodeKind, ParamId, StmtId, TyId};
-use mitki_lower::hir::HasFunction as _;
 use mitki_lower::item::scope::FunctionLocation;
 use mitki_span::Symbol;
 use rustc_hash::FxHashMap;
 
-pub trait HasExprScopes<'db> {
-    fn expr_scopes<DB>(self, db: &'db DB) -> ExprScopes<'db>
-    where
-        DB: mitki_parse::ParseDb;
+pub trait ExprScopesDb: mitki_lower::hir::HirFunctionDb + HasExprScopesQuery {}
+
+impl<T> ExprScopesDb for T where T: mitki_lower::hir::HirFunctionDb + HasExprScopesQuery {}
+
+#[rustfmt::skip]
+#[picante::tracked]
+pub async fn expr_scopes<DB: mitki_lower::hir::HasHirFunctionQuery>(
+    db: &DB,
+    function: FunctionLocation,
+) -> picante::PicanteResult<Arc<ExprScopes>> {
+    let hir = mitki_lower::hir::hir_function(db, function).await?;
+    let scopes =
+        ExprScopesBuilder { function: hir.function(), scopes: ExprScopes::default() }.build();
+    Ok(Arc::new(scopes))
 }
 
-impl<'db> HasExprScopes<'db> for FunctionLocation<'db> {
-    fn expr_scopes<DB>(self, db: &'db DB) -> ExprScopes<'db>
+pub trait HasExprScopes {
+    fn expr_scopes<DB>(self, db: &DB) -> impl Future<Output = Arc<ExprScopes>> + Send
     where
-        DB: mitki_parse::ParseDb,
+        DB: ExprScopesDb + Sync;
+}
+
+impl HasExprScopes for FunctionLocation {
+    #[allow(clippy::manual_async_fn)]
+    fn expr_scopes<DB>(self, db: &DB) -> impl Future<Output = Arc<ExprScopes>> + Send
+    where
+        DB: ExprScopesDb + Sync,
     {
-        let hir = self.hir_function(db);
-        ExprScopesBuilder { function: hir.function(), scopes: ExprScopes::default() }.build()
+        async move { expr_scopes(db, self).await.expect("failed to compute expr scopes") }
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct ExprScopes<'db> {
-    scopes: Arena<ScopeData<'db>>,
-    scope_entries: Arena<ScopeEntry<'db>>,
-    scope_by_node: FxHashMap<StmtId, Scope<'db>>,
-    scope_by_type: FxHashMap<TyId, Scope<'db>>,
+#[derive(Debug, Default, PartialEq, Eq, facet::Facet)]
+pub struct ExprScopes {
+    #[facet(opaque)]
+    scopes: Arena<ScopeData>,
+    #[facet(opaque)]
+    scope_entries: Arena<ScopeEntry>,
+    #[facet(opaque)]
+    scope_by_node: FxHashMap<StmtId, Scope>,
+    #[facet(opaque)]
+    scope_by_type: FxHashMap<TyId, Scope>,
 }
 
-impl<'db> ExprScopes<'db> {
-    pub fn scope_by_node(&self, node: StmtId) -> Option<Scope<'db>> {
+impl ExprScopes {
+    pub fn scope_by_node(&self, node: StmtId) -> Option<Scope> {
         self.scope_by_node.get(&node).copied()
     }
 
-    pub(crate) fn chain(&self, scope: Option<Scope<'db>>) -> impl Iterator<Item = Scope<'db>> + '_ {
+    pub(crate) fn chain(&self, scope: Option<Scope>) -> impl Iterator<Item = Scope> + '_ {
         std::iter::successors(scope, move |&scope| self.scopes[scope].parent)
     }
 
-    pub(crate) fn entries(&self, scope: Scope<'db>) -> &[ScopeEntry<'db>] {
+    pub(crate) fn entries(&self, scope: Scope) -> &[ScopeEntry] {
         &self.scope_entries[self.scopes[scope].entries]
     }
 
-    pub(crate) fn scope_for(&self, expr: ExprId) -> Option<Scope<'db>> {
+    pub(crate) fn scope_for(&self, expr: ExprId) -> Option<Scope> {
         self.scope_by_node.get(&expr.into()).copied()
     }
 
-    pub(crate) fn scope_for_ty(&self, ty: TyId) -> Option<Scope<'db>> {
+    pub(crate) fn scope_for_ty(&self, ty: TyId) -> Option<Scope> {
         self.scope_by_type.get(&ty).copied()
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct ScopeEntry<'db> {
-    pub(crate) name: Symbol<'db>,
+pub(crate) struct ScopeEntry {
+    pub(crate) name: Symbol,
     pub(crate) binding: NameId,
 }
 
-pub type Scope<'db> = Key<ScopeData<'db>>;
+pub type Scope = Key<ScopeData>;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ScopeData<'db> {
-    parent: Option<Scope<'db>>,
-    entries: Range<ScopeEntry<'db>>,
+pub struct ScopeData {
+    parent: Option<Scope>,
+    entries: Range<ScopeEntry>,
 }
 
-pub(crate) struct ExprScopesBuilder<'func, 'db> {
-    function: &'func Function<'db>,
-    scopes: ExprScopes<'db>,
+pub(crate) struct ExprScopesBuilder<'func> {
+    function: &'func Function,
+    scopes: ExprScopes,
 }
 
-fn empty_entries<'db>(idx: usize) -> Range<ScopeEntry<'db>> {
+fn empty_entries(idx: usize) -> Range<ScopeEntry> {
     let idx = Key::new(idx as u32);
     Range::new(idx, idx)
 }
 
-impl<'db> ExprScopesBuilder<'_, 'db> {
-    fn root_scope(&mut self) -> Scope<'db> {
+impl ExprScopesBuilder<'_> {
+    fn root_scope(&mut self) -> Scope {
         self.scope(None)
     }
 
-    fn scope(&mut self, parent: impl Into<Option<Scope<'db>>>) -> Scope<'db> {
+    fn scope(&mut self, parent: impl Into<Option<Scope>>) -> Scope {
         self.scopes.scopes.alloc(ScopeData {
             parent: parent.into(),
             entries: empty_entries(self.scopes.scope_entries.len()),
@@ -88,7 +110,7 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
     }
 
     #[track_caller]
-    fn add_binding(&mut self, name: NameId, scope: Key<ScopeData<'db>>) {
+    fn add_binding(&mut self, name: NameId, scope: Key<ScopeData>) {
         let symbol = self.function.node_store().name(name);
         let entry = self.scopes.scope_entries.alloc(ScopeEntry { name: symbol, binding: name });
         self.scopes.scopes[scope].entries =
@@ -96,7 +118,7 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
     }
 
     #[track_caller]
-    fn add_type(&mut self, ty: TyId, scope: Key<ScopeData<'db>>) {
+    fn add_type(&mut self, ty: TyId, scope: Key<ScopeData>) {
         if ty != TyId::ZERO {
             self.scopes.scope_by_type.insert(ty, scope);
             let nodes = self.function.node_store();
@@ -109,7 +131,7 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
     }
 
     #[track_caller]
-    fn build_node_scopes(&mut self, node: StmtId, scope: &mut Scope<'db>) {
+    fn build_node_scopes(&mut self, node: StmtId, scope: &mut Scope) {
         let nodes = self.function.node_store();
         self.scopes.scope_by_node.insert(node, *scope);
 
@@ -200,7 +222,7 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
         }
     }
 
-    fn build(mut self) -> ExprScopes<'db> {
+    fn build(mut self) -> ExprScopes {
         let mut scope = self.root_scope();
 
         self.add_bindings(self.function.params().iter().copied(), scope);
@@ -213,7 +235,7 @@ impl<'db> ExprScopesBuilder<'_, 'db> {
     }
 
     #[track_caller]
-    fn add_bindings(&mut self, params: impl IntoIterator<Item = ParamId>, scope: Scope<'db>) {
+    fn add_bindings(&mut self, params: impl IntoIterator<Item = ParamId>, scope: Scope) {
         let nodes = self.function.node_store();
         for param in params {
             let (name, ty_id) = nodes.param(param);

@@ -11,7 +11,8 @@ enum Options {
     Lsp,
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main(flavor = "multi_thread")]
+async fn main() -> anyhow::Result<()> {
     use clap::Parser as _;
 
     match Options::parse() {
@@ -31,12 +32,14 @@ fn main() -> anyhow::Result<()> {
             let mut stderr = std::io::stderr().lock();
             let renderer = mitki_errors::Renderer::styled();
 
-            for diagnostic in mitki_db::check_file(&db, file) {
+            for diagnostic in
+                mitki_db::check_file(&db, file).await.expect("failed to compute diagnostics").iter()
+            {
                 writeln!(stderr, "{}", diagnostic.render(&renderer, path.as_str(), text.as_ref()))?;
             }
 
             Ok(())
         }
-        Options::Lsp => mitki_lsp_server::Server::new()?.run(),
+        Options::Lsp => mitki_lsp_server::Server::new()?.run().await,
     }
 }

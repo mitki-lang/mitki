@@ -1,26 +1,30 @@
 pub mod semantics;
 
+use std::sync::Arc;
+
 use mitki_errors::Diagnostic;
 use mitki_lower::item::scope::Declaration;
-use mitki_parse::FileParse as _;
 pub use semantics::Semantics;
 
-pub fn check_file<DB>(db: &DB, file: mitki_inputs::File) -> Vec<Diagnostic>
-where
-    DB: mitki_lower::item::scope::ItemScopeDb,
-{
+pub trait CheckFileDb: mitki_typeck::infer::InferDb + HasCheckFileQuery {}
+
+impl<T> CheckFileDb for T where T: mitki_typeck::infer::InferDb + HasCheckFileQuery {}
+
+#[picante::tracked]
+pub async fn check_file<DB: CheckFileDb>(
+    db: &DB,
+    file: mitki_inputs::File,
+) -> picante::PicanteResult<Arc<Vec<Diagnostic>>> {
     use mitki_hir::ty::TyKind;
-    use mitki_lower::hir::HasFunction as _;
-    use mitki_lower::item::scope::HasItemScope as _;
     use mitki_typeck::infer;
-    use mitki_typeck::infer::Inferable as _;
 
-    let mut diagnostics = file.parse(db).diagnostics().to_owned();
+    let mut diagnostics = mitki_parse::parse(db, file).await?.diagnostics().to_owned();
+    let item_scope = mitki_lower::item::scope::item_scope(db, file).await?;
 
-    for declaration in file.item_scope(db).declarations() {
-        match declaration {
+    for declaration in item_scope.declarations() {
+        match *declaration {
             Declaration::Function(func) => {
-                let hir = func.hir_function(db);
+                let hir = mitki_lower::hir::hir_function(db, func).await?;
                 let source_map = hir.source_map();
                 let function = hir.function();
                 let nodes = function.node_store();
@@ -42,7 +46,7 @@ where
                     _ => "expression",
                 };
 
-                let inference = func.infer(db);
+                let inference = infer::infer(db, func).await?;
 
                 for diagnostic in inference.diagnostics() {
                     let (message, range) = match diagnostic.kind() {
@@ -164,5 +168,5 @@ where
         }
     }
 
-    diagnostics
+    Ok(Arc::new(diagnostics))
 }

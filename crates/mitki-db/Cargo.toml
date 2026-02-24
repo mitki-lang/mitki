@@ -17,10 +17,11 @@ mitki-hir.workspace = true
 mitki-inputs.workspace = true
 mitki-lower.workspace = true
 mitki-parse.workspace = true
+mitki-resolve.workspace = true
 mitki-span.workspace = true
+mitki-typeck.workspace = true
 picante.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
 facet.workspace = true
-

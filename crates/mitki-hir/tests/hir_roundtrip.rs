@@ -1,7 +1,7 @@
 use mitki_hir::hir::*;
 use mitki_span::{Symbol, SymbolDatabase};
 
-#[picante::db(interned(mitki_span::SymbolData), db_trait(TestDatabase))]
+#[picante::db(interned(mitki_span::Symbol), db_trait(TestDatabase))]
 struct TestDb {}
 
 impl Default for TestDb {
@@ -10,11 +10,11 @@ impl Default for TestDb {
     }
 }
 
-fn sym<'db, DB>(db: &'db DB, text: &str) -> Symbol<'db>
+fn sym<DB>(db: &DB, text: &str) -> Symbol
 where
     DB: SymbolDatabase,
 {
-    Symbol::new(db, text)
+    Symbol::intern(db, text)
 }
 
 #[test]

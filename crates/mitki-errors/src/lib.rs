@@ -4,10 +4,13 @@ use annotate_snippets::Snippet;
 pub use annotate_snippets::{Level, Renderer};
 pub use text_size::TextRange;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, facet::Facet)]
 pub struct Diagnostic {
+    #[facet(opaque)]
     level: Level,
+    #[facet(opaque)]
     message: String,
+    #[facet(opaque)]
     range: TextRange,
 }
 

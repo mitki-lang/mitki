@@ -1,28 +1,45 @@
+use std::future::Future;
+use std::sync::Arc;
+
 use hashbrown::HashTable;
 use mitki_hir::arena::{Arena, Key};
 use mitki_inputs::File;
-use mitki_parse::FileParse as _;
 use mitki_yellow::{SyntaxKind, SyntaxNode, SyntaxNodePtr};
 
 pub trait HasAstMap {
-    fn ast_map<DB>(self, db: &DB) -> AstMap
+    fn ast_map<DB>(self, db: &DB) -> impl Future<Output = Arc<AstMap>> + Send
     where
-        DB: mitki_parse::ParseDb;
+        DB: AstMapDb + Sync;
 }
 
 impl HasAstMap for File {
-    fn ast_map<DB>(self, db: &DB) -> AstMap
+    #[allow(clippy::manual_async_fn)]
+    fn ast_map<DB>(self, db: &DB) -> impl Future<Output = Arc<AstMap>> + Send
     where
-        DB: mitki_parse::ParseDb,
+        DB: AstMapDb + Sync,
     {
-        let parsed = self.parse(db);
-        AstMap::from_root(&parsed.syntax_node())
+        async move { ast_map(db, self).await.expect("failed to compute ast map") }
     }
 }
 
-#[derive(Debug)]
+pub trait AstMapDb: mitki_parse::ParseDb + HasAstMapQuery {}
+
+impl<T> AstMapDb for T where T: mitki_parse::ParseDb + HasAstMapQuery {}
+
+#[picante::tracked]
+pub async fn ast_map<DB: mitki_parse::HasParseQuery>(
+    db: &DB,
+    file: File,
+) -> picante::PicanteResult<Arc<AstMap>> {
+    let parsed = mitki_parse::parse(db, file).await?;
+    Ok(Arc::new(AstMap::from_root(&parsed.syntax_node())))
+}
+
+#[derive(Debug, facet::Facet)]
 pub struct AstMap {
+    #[facet(opaque)]
     arena: Arena<SyntaxNodePtr>,
+    #[facet(opaque)]
     map: HashTable<Key<SyntaxNodePtr>>,
 }
 

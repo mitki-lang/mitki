@@ -868,12 +868,14 @@ dependencies = [
  "mitki-inputs",
  "mitki-lsp-server",
  "picante",
+ "tokio",
 ]
 
 [[package]]
 name = "mitki-analysis"
 version = "0.1.0"
 dependencies = [
+ "facet",
  "mitki-errors",
  "mitki-hir",
  "mitki-inputs",
@@ -898,6 +900,7 @@ dependencies = [
  "mitki-parse",
  "mitki-tokenizer",
  "text-size",
+ "tokio",
 ]
 
 [[package]]
@@ -911,7 +914,9 @@ dependencies = [
  "mitki-inputs",
  "mitki-lower",
  "mitki-parse",
+ "mitki-resolve",
  "mitki-span",
+ "mitki-typeck",
  "picante",
  "tokio",
 ]
@@ -921,6 +926,7 @@ name = "mitki-errors"
 version = "0.1.0"
 dependencies = [
  "annotate-snippets",
+ "facet",
  "picante",
  "text-size",
 ]
@@ -961,6 +967,7 @@ dependencies = [
  "mitki-yellow",
  "picante",
  "text-size",
+ "tokio",
 ]
 
 [[package]]
@@ -1027,6 +1034,7 @@ dependencies = [
 name = "mitki-resolve"
 version = "0.1.0"
 dependencies = [
+ "facet",
  "mitki-hir",
  "mitki-lower",
  "mitki-parse",
@@ -1058,6 +1066,7 @@ dependencies = [
 name = "mitki-typeck"
 version = "0.1.0"
 dependencies = [
+ "facet",
  "mitki-hir",
  "mitki-lower",
  "mitki-parse",
@@ -1488,6 +1497,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72a2903cd7736441aac9df9d7688bd0ce48edccaadf181c3b90be801e81d3d86"
 dependencies = [
  "pin-project-lite",
+ "tokio-macros",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

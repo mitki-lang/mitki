@@ -6,6 +6,10 @@ use mitki_inputs::File;
 
 fn benchmark_goto_definition(c: &mut Criterion) {
     let analysis = Analysis::default();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("failed to build benchmark runtime");
 
     let fixture = r#"
         fun init() {
@@ -56,16 +60,15 @@ fn benchmark_goto_definition(c: &mut Criterion) {
         }
     "#;
     let (offset, fixture_text) = extract_cursor_offset(fixture);
-
-    let file = File::new(analysis.db(), "goto_complex_test".into(), fixture_text.clone());
+    let file = File::new(analysis.db(), "goto_complex_test".into(), fixture_text);
     let file_position = FilePosition { file, offset };
 
     c.bench_function("goto_definition_complex", |b| {
         b.iter(|| {
-            if let Some((_def, focus)) = analysis.goto_definition(file_position) {
+            if let Some((_def, focus)) = runtime.block_on(analysis.goto_definition(file_position)) {
                 black_box(focus);
             } else {
-                panic!("goto_definition returned an error");
+                panic!("goto_definition returned no definition");
             }
         })
     });

@@ -1,23 +1,23 @@
 use mitki_inputs::File;
 use mitki_lower::hir::HasFunction as _;
-use mitki_lower::item::scope::{Declaration, FunctionLocation, HasItemScope as _, ItemScopeDb};
-use mitki_resolve::Resolver;
+use mitki_lower::item::scope::{Declaration, FunctionLocationData, HasItemScope as _, ItemScopeDb};
 use mitki_resolve::scope::HasExprScopes as _;
+use mitki_resolve::{Resolver, ResolverDb};
 use mitki_yellow::ast::Node as _;
 use mitki_yellow::{SyntaxNode, SyntaxNodePtr, ast};
 use rustc_hash::FxHashMap;
 
-pub struct Semantics<'db> {
-    source_map: SourceMap<'db>,
+pub struct Semantics {
+    source_map: SourceMap,
 }
 
-impl<'db> Semantics<'db> {
-    pub fn new<DB>(db: &'db DB, file: File) -> Self
+impl Semantics {
+    pub async fn new<DB>(db: &DB, file: File) -> Self
     where
         DB: ItemScopeDb,
     {
         let mut source_map = SourceMap { functions: FxHashMap::default() };
-        let item_scope = file.item_scope(db);
+        let item_scope = file.item_scope(db).await;
 
         for &declaration in item_scope.declarations() {
             match declaration {
@@ -32,32 +32,38 @@ impl<'db> Semantics<'db> {
         Self { source_map }
     }
 
-    pub fn function(&self, function: &SyntaxNode) -> FunctionLocation<'db> {
+    pub fn function(&self, function: &SyntaxNode) -> FunctionLocationData {
         self.source_map.functions[&SyntaxNodePtr::new(function)]
     }
 
-    pub fn resolver<DB>(
+    pub async fn resolver<'db, DB>(
         &self,
         db: &'db DB,
-        location: FunctionLocation<'db>,
-        current_node: &SyntaxNode,
+        location: FunctionLocationData,
+        current_node: &SyntaxNode<'_>,
     ) -> Resolver<'db, DB>
     where
-        DB: ItemScopeDb,
+        DB: ResolverDb,
     {
-        let hir = location.hir_function(db);
+        let hir = location.hir_function(db).await;
         let source_map = hir.source_map();
-        let scopes = location.expr_scopes(db);
+        let scopes = location.expr_scopes(db).await;
         let scope = current_node
             .ancestors()
             .filter_map(ast::Expr::cast)
             .find_map(|expr| source_map.syntax_expr(expr.syntax()))
             .and_then(|expr| scopes.scope_by_node(expr.into()));
 
-        Resolver::for_scope(db, location.file(db).item_scope(db), scopes, scope)
+        Resolver::for_scope(
+            db,
+            location.file(db).item_scope(db).await,
+            scopes,
+            mitki_resolve::builtin_scope_for(db).await,
+            scope,
+        )
     }
 }
 
-struct SourceMap<'db> {
-    functions: FxHashMap<SyntaxNodePtr, FunctionLocation<'db>>,
+struct SourceMap {
+    functions: FxHashMap<SyntaxNodePtr, FunctionLocationData>,
 }

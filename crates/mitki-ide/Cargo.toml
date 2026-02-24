@@ -24,3 +24,5 @@ mitki-yellow.workspace = true
 picante.workspace = true
 text-size.workspace = true
 
+[dev-dependencies]
+tokio.workspace = true

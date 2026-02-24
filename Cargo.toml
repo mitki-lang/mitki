@@ -55,4 +55,4 @@ mitki-yellow = { path = "crates/mitki-yellow" }
 picante = { git = "https://github.com/bearcove/picante", package = "picante" }
 rustc-hash = "2.0"
 text-size = "1.1"
-tokio = { version = "1", features = ["rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

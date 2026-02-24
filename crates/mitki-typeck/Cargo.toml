@@ -18,4 +18,4 @@ mitki-resolve.workspace = true
 mitki-span.workspace = true
 rustc-hash.workspace = true
 picante.workspace = true
-
+facet.workspace = true

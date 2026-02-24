@@ -1,57 +1,89 @@
+use std::future::Future;
+use std::sync::Arc;
+
 use mitki_hir::hir::{ExprId, Function, NodeKind, NodeStore, StmtId, TyId};
 use mitki_hir::ty::{Ty, TyKind, TypeDatabase};
-use mitki_lower::hir::HasFunction as _;
-use mitki_lower::item::scope::{FunctionLocation, ItemScopeDb};
+use mitki_lower::item::scope::{FunctionLocation, SignatureMap};
 use mitki_resolve::{Resolution, Resolver};
 use mitki_span::Symbol;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-pub trait Inferable<'db> {
-    fn infer<DB>(self, db: &'db DB) -> Inference<'db>
-    where
-        DB: ItemScopeDb;
+pub trait InferDb:
+    mitki_resolve::ResolverDb + mitki_lower::item::scope::HasSignatureMapQuery + HasInferQuery
+{
 }
 
-impl<'db> Inferable<'db> for FunctionLocation<'db> {
-    fn infer<DB>(self, db: &'db DB) -> Inference<'db>
+impl<T> InferDb for T where
+    T: mitki_resolve::ResolverDb + mitki_lower::item::scope::HasSignatureMapQuery + HasInferQuery
+{
+}
+
+#[rustfmt::skip]
+#[picante::tracked]
+pub async fn infer<DB: InferDb>(
+    db: &DB,
+    function: FunctionLocation,
+) -> picante::PicanteResult<Arc<Inference>> {
+    let hir = mitki_lower::hir::hir_function(db, function).await?;
+    let file = function.file(db);
+    let item_scope = mitki_lower::item::scope::item_scope(db, file).await?;
+    let expr_scopes = mitki_resolve::scope::expr_scopes(db, function).await?;
+    let builtin_scope = mitki_resolve::resolver::builtin_scope(db).await?;
+    let signatures = mitki_lower::item::scope::signature_map(db, file).await?;
+
+    let resolver =
+        Resolver::for_scope(db, item_scope.clone(), expr_scopes, Arc::clone(&builtin_scope), None);
+    let inference = Typer::new(db, hir.function(), resolver, item_scope, builtin_scope, signatures)
+        .build();
+    Ok(Arc::new(inference))
+}
+
+pub trait Inferable {
+    fn infer<DB>(self, db: &DB) -> impl Future<Output = Arc<Inference>> + Send
     where
-        DB: ItemScopeDb,
+        DB: InferDb + Sync;
+}
+
+impl Inferable for FunctionLocation {
+    #[allow(clippy::manual_async_fn)]
+    fn infer<DB>(self, db: &DB) -> impl Future<Output = Arc<Inference>> + Send
+    where
+        DB: InferDb + Sync,
     {
-        let hir = self.hir_function(db);
-        let function = hir.function();
-        let resolver = Resolver::new(db, self);
-        Typer::new(db, function, resolver).build()
+        async move { infer(db, self).await.expect("failed to compute inference") }
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct Inference<'db> {
-    type_of_node: FxHashMap<ExprId, Ty<'db>>,
-    diagnostics: Vec<Diagnostic<'db>>,
+#[derive(Debug, Default, PartialEq, Eq, facet::Facet)]
+pub struct Inference {
+    #[facet(opaque)]
+    type_of_node: FxHashMap<ExprId, Ty>,
+    #[facet(opaque)]
+    diagnostics: Vec<Diagnostic>,
 }
 
-impl<'db> Inference<'db> {
-    pub fn type_of_node(&self, node: ExprId) -> Option<Ty<'db>> {
+impl Inference {
+    pub fn type_of_node(&self, node: ExprId) -> Option<Ty> {
         self.type_of_node.get(&node).copied()
     }
 
-    pub fn diagnostics(&self) -> &[Diagnostic<'db>] {
+    pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Diagnostic<'db> {
-    kind: DiagnosticKind<'db>,
+pub struct Diagnostic {
+    kind: DiagnosticKind,
     context: Option<ExprId>,
 }
 
-impl<'db> Diagnostic<'db> {
-    fn new(kind: DiagnosticKind<'db>, context: Option<ExprId>) -> Self {
+impl Diagnostic {
+    fn new(kind: DiagnosticKind, context: Option<ExprId>) -> Self {
         Self { kind, context }
     }
 
-    pub fn kind(&self) -> &DiagnosticKind<'db> {
+    pub fn kind(&self) -> &DiagnosticKind {
         &self.kind
     }
 
@@ -61,25 +93,25 @@ impl<'db> Diagnostic<'db> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum DiagnosticKind<'db> {
+pub enum DiagnosticKind {
     UnresolvedIdent(ExprId),
-    UnresolvedType(TyId, Symbol<'db>),
-    TypeMismatch(ExprId, Ty<'db>, Ty<'db>),
+    UnresolvedType(TyId, Symbol),
+    TypeMismatch(ExprId, Ty, Ty),
     UnknownType(ExprId),
-    ExpectedValueFoundType(ExprId, Ty<'db>),
+    ExpectedValueFoundType(ExprId, Ty),
     CallArityMismatch(ExprId, usize, usize),
-    CallNonFunction(ExprId, Ty<'db>),
+    CallNonFunction(ExprId, Ty),
     ClosureArityMismatch(ExprId, usize, usize),
-    InvalidBinaryOp(ExprId, Symbol<'db>, Ty<'db>, Ty<'db>),
-    InvalidPrefixOp(ExprId, Symbol<'db>, Ty<'db>),
-    InvalidPostfixOp(ExprId, Symbol<'db>, Ty<'db>),
+    InvalidBinaryOp(ExprId, Symbol, Ty, Ty),
+    InvalidPrefixOp(ExprId, Symbol, Ty),
+    InvalidPostfixOp(ExprId, Symbol, Ty),
     MissingElseBranch(ExprId),
     MissingParameterType(ExprId),
     MissingInitializer(ExprId),
     TupleArityMismatch(ExprId, usize, usize),
-    MissingStructField(ExprId, Symbol<'db>),
-    UnknownStructField(ExprId, Symbol<'db>),
-    NotAStruct(ExprId, Ty<'db>),
+    MissingStructField(ExprId, Symbol),
+    UnknownStructField(ExprId, Symbol),
+    NotAStruct(ExprId, Ty),
 }
 
 type VarId = usize;
@@ -117,9 +149,9 @@ struct VarState {
 }
 
 #[derive(Debug, Clone)]
-struct VariantConstraint<'db> {
+struct VariantConstraint {
     enum_var: VarId,
-    variant: Symbol<'db>,
+    variant: Symbol,
     payload: Vec<(ExprId, InferTy)>,
     name_node: ExprId,
 }
@@ -148,37 +180,46 @@ impl Polarity {
 
 struct Typer<'func, 'db, DB>
 where
-    DB: ItemScopeDb,
+    DB: InferDb,
 {
     db: &'db DB,
-    function: &'func Function<'db>,
+    function: &'func Function,
     resolver: Resolver<'db, DB>,
+    item_scope: Arc<mitki_lower::item::scope::ItemScope>,
+    builtin_scope: Arc<FxHashMap<Symbol, Ty>>,
+    function_signatures: Arc<SignatureMap>,
     vars: Vec<VarState>,
     env: FxHashMap<ExprId, Scheme>,
     binding_names: FxHashSet<ExprId>,
-    type_param_env: FxHashMap<Symbol<'db>, InferTy>,
+    type_param_env: FxHashMap<Symbol, InferTy>,
     // Internal inference representation. Do not expose directly to users/LSP.
     node_types: FxHashMap<ExprId, InferTy>,
-    variant_constraints: Vec<VariantConstraint<'db>>,
+    variant_constraints: Vec<VariantConstraint>,
     deferred_coercions: Vec<DeferredCoercion>,
     missing_param_nodes: FxHashSet<ExprId>,
-    inference: Inference<'db>,
+    inference: Inference,
     context: Vec<ExprId>,
 }
 
 impl<'db, DB> Typer<'_, 'db, DB>
 where
-    DB: ItemScopeDb,
+    DB: InferDb,
 {
     fn new<'func>(
         db: &'db DB,
-        function: &'func Function<'db>,
+        function: &'func Function,
         resolver: Resolver<'db, DB>,
+        item_scope: Arc<mitki_lower::item::scope::ItemScope>,
+        builtin_scope: Arc<FxHashMap<Symbol, Ty>>,
+        function_signatures: Arc<SignatureMap>,
     ) -> Typer<'func, 'db, DB> {
         Typer {
             db,
             function,
             resolver,
+            item_scope,
+            builtin_scope,
+            function_signatures,
             vars: Vec::new(),
             env: FxHashMap::default(),
             binding_names: FxHashSet::default(),
@@ -227,23 +268,23 @@ where
         }
     }
 
-    fn symbol_to_bits(sym: Symbol<'db>) -> u64 {
+    fn symbol_to_bits(sym: Symbol) -> u64 {
         sym.as_bits()
     }
 
-    fn symbol_from_bits(bits: u64) -> Symbol<'db> {
+    fn symbol_from_bits(bits: u64) -> Symbol {
         Symbol::from_bits(bits)
     }
 
-    fn infer_ty_from_ty(ty: Ty<'db>) -> InferTy {
+    fn infer_ty_from_ty(ty: Ty) -> InferTy {
         InferTy::Known(ty.as_bits())
     }
 
-    fn infer_ty_from_kind(&self, kind: TyKind<'db>) -> InferTy {
+    fn infer_ty_from_kind(&self, kind: TyKind) -> InferTy {
         Self::infer_ty_from_ty(Ty::new(self.db, kind))
     }
 
-    fn known_ty(ty: &InferTy) -> Option<Ty<'db>> {
+    fn known_ty(ty: &InferTy) -> Option<Ty> {
         match ty {
             InferTy::Known(bits) => Some(Ty::from_bits(*bits)),
             _ => None,
@@ -357,12 +398,12 @@ where
         Self::mk_inter_many([lhs, rhs])
     }
 
-    fn emit(&mut self, kind: DiagnosticKind<'db>) {
+    fn emit(&mut self, kind: DiagnosticKind) {
         let context = self.context.last().copied();
         self.inference.diagnostics.push(Diagnostic::new(kind, context));
     }
 
-    fn diagnostic_node(kind: &DiagnosticKind<'db>) -> Option<ExprId> {
+    fn diagnostic_node(kind: &DiagnosticKind) -> Option<ExprId> {
         match kind {
             DiagnosticKind::UnresolvedIdent(node)
             | DiagnosticKind::TypeMismatch(node, _, _)
@@ -446,11 +487,11 @@ where
         )
     }
 
-    fn diagnostic_ty(&self, ty: &InferTy) -> Ty<'db> {
+    fn diagnostic_ty(&self, ty: &InferTy) -> Ty {
         self.present_type(ty, Polarity::Positive)
     }
 
-    fn ty_to_infer_ty(&self, ty: Ty<'db>) -> InferTy {
+    fn ty_to_infer_ty(&self, ty: Ty) -> InferTy {
         match ty.kind(self.db) {
             TyKind::Unknown => InferTy::Unknown,
             TyKind::Tuple(items) => {
@@ -476,7 +517,7 @@ where
         }
     }
 
-    fn enum_variant_infer_ty(&self, enum_ty: Ty<'db>, variant: Symbol<'db>) -> Option<InferTy> {
+    fn enum_variant_infer_ty(&self, enum_ty: Ty, variant: Symbol) -> Option<InferTy> {
         let TyKind::Enum { variants, .. } = enum_ty.kind(self.db) else {
             return None;
         };
@@ -492,11 +533,7 @@ where
         })
     }
 
-    fn resolve_path_in_node_scope(
-        &mut self,
-        node: ExprId,
-        path: Symbol<'db>,
-    ) -> Option<Resolution<'db>> {
+    fn resolve_path_in_node_scope(&mut self, node: ExprId, path: Symbol) -> Option<Resolution> {
         let guard = self.resolver.scopes_for_node(node);
         let resolution = self.resolver.resolve_path(path);
         self.resolver.reset(guard);
@@ -524,28 +561,29 @@ where
                 }
             }
             Resolution::Function(function) => {
-                let resolver = Resolver::new(self.db, function);
-                let signature = function.signature(self.db);
+                let Some(signature) = self.function_signatures.get(&function).cloned() else {
+                    return self.fresh_var(lvl);
+                };
                 let sig_nodes = signature.nodes();
                 let params = signature.params();
                 let ret_type = signature.ret_type();
                 let type_params = signature.type_params();
 
-                let type_param_vars: FxHashMap<Symbol<'db>, InferTy> =
+                let type_param_vars: FxHashMap<Symbol, InferTy> =
                     type_params.iter().map(|&name| (name, self.fresh_var(lvl))).collect();
 
                 let inputs: Vec<InferTy> = params
                     .iter()
                     .map(|&param| {
                         let (_, ty) = sig_nodes.param(param);
-                        self.resolve_sig_type(ty, sig_nodes, &resolver, &type_param_vars, lvl)
+                        self.resolve_sig_type(ty, sig_nodes, &type_param_vars, lvl)
                     })
                     .collect();
 
                 let output = if ret_type == TyId::ZERO {
                     InferTy::Tuple(Vec::new())
                 } else {
-                    self.resolve_sig_type(ret_type, sig_nodes, &resolver, &type_param_vars, lvl)
+                    self.resolve_sig_type(ret_type, sig_nodes, &type_param_vars, lvl)
                 };
 
                 InferTy::Function(inputs, Box::new(output))
@@ -559,7 +597,7 @@ where
 
     fn infer_bare_enum_variant(
         &mut self,
-        field_name: Symbol<'db>,
+        field_name: Symbol,
         field_name_expr: ExprId,
         lvl: usize,
     ) -> InferTy {
@@ -614,7 +652,7 @@ where
     fn infer_type_qualified_enum_variant(
         &mut self,
         field_expr: ExprId,
-        field_name: Symbol<'db>,
+        field_name: Symbol,
         field_name_expr: ExprId,
     ) -> Option<InferTy> {
         let nodes = self.function.node_store();
@@ -760,7 +798,7 @@ where
         self.variant_constraints.len() != total
     }
 
-    fn solve_variant_constraint(&mut self, constraint: &VariantConstraint<'db>) -> bool {
+    fn solve_variant_constraint(&mut self, constraint: &VariantConstraint) -> bool {
         let candidates = self.collect_enum_candidates(constraint.enum_var);
         let mut narrowed = Vec::new();
 
@@ -811,7 +849,7 @@ where
         true
     }
 
-    fn coalesce_type_raw(&self, ty: &InferTy, polarity: Polarity) -> Ty<'db> {
+    fn coalesce_type_raw(&self, ty: &InferTy, polarity: Polarity) -> Ty {
         let mut recursive: FxHashMap<(VarId, Polarity), u32> = FxHashMap::default();
         let mut in_process: FxHashSet<(VarId, Polarity)> = FxHashSet::default();
         // Keep presentation-time recursive binders disjoint from inference vars.
@@ -821,11 +859,11 @@ where
 
     // Presentation-only conversion: internal InferTy graph -> user-facing Ty plus
     // cleanup.
-    fn present_type(&self, ty: &InferTy, polarity: Polarity) -> Ty<'db> {
+    fn present_type(&self, ty: &InferTy, polarity: Polarity) -> Ty {
         simplify(self.db, self.coalesce_type_raw(ty, polarity))
     }
 
-    fn coalesce_type_for_missing_param(&self, ty: &InferTy) -> Ty<'db> {
+    fn coalesce_type_for_missing_param(&self, ty: &InferTy) -> Ty {
         let positive = self.present_type(ty, Polarity::Positive);
         if !matches!(positive.kind(self.db), TyKind::Unknown) {
             return positive;
@@ -856,7 +894,7 @@ where
         in_process: &mut FxHashSet<(VarId, Polarity)>,
         recursive: &mut FxHashMap<(VarId, Polarity), u32>,
         next_present_var: &mut u32,
-    ) -> Ty<'db> {
+    ) -> Ty {
         match ty {
             InferTy::Known(bits) => Ty::from_bits(*bits),
             InferTy::Function(inputs, output) => {
@@ -940,7 +978,7 @@ where
                 };
 
                 in_process.insert(key);
-                let bound_types: Vec<Ty<'db>> = bounds
+                let bound_types: Vec<Ty> = bounds
                     .iter()
                     .map(|b| {
                         self.coalesce_raw(b, polarity, in_process, recursive, next_present_var)
@@ -1068,12 +1106,19 @@ where
         Some(InferTy::Unknown)
     }
 
+    fn resolve_signature_type_name(&self, name: Symbol) -> Option<InferTy> {
+        if let Some(ty) = self.item_scope.get_type(&name) {
+            return Some(self.ty_to_infer_ty(ty));
+        }
+
+        self.builtin_scope.get(&name).map(|&ty| self.ty_to_infer_ty(ty))
+    }
+
     fn resolve_sig_type(
         &mut self,
         ty: TyId,
-        sig_nodes: &NodeStore<'db>,
-        resolver: &Resolver<'db, DB>,
-        type_param_vars: &FxHashMap<Symbol<'db>, InferTy>,
+        sig_nodes: &NodeStore,
+        type_param_vars: &FxHashMap<Symbol, InferTy>,
         lvl: usize,
     ) -> InferTy {
         if ty == TyId::ZERO {
@@ -1084,7 +1129,7 @@ where
             let items: Vec<InferTy> = sig_nodes
                 .type_tuple(tuple_id)
                 .iter()
-                .map(|item| self.resolve_sig_type(item, sig_nodes, resolver, type_param_vars, lvl))
+                .map(|item| self.resolve_sig_type(item, sig_nodes, type_param_vars, lvl))
                 .collect();
             return InferTy::Tuple(items);
         }
@@ -1095,31 +1140,28 @@ where
                 sig_nodes
                     .type_tuple(tuple_id)
                     .iter()
-                    .map(|item| {
-                        self.resolve_sig_type(item, sig_nodes, resolver, type_param_vars, lvl)
-                    })
+                    .map(|item| self.resolve_sig_type(item, sig_nodes, type_param_vars, lvl))
                     .collect()
             } else if inputs_ty == TyId::ZERO {
                 Vec::new()
             } else {
-                vec![self.resolve_sig_type(inputs_ty, sig_nodes, resolver, type_param_vars, lvl)]
+                vec![self.resolve_sig_type(inputs_ty, sig_nodes, type_param_vars, lvl)]
             };
-            let output =
-                self.resolve_sig_type(output_ty, sig_nodes, resolver, type_param_vars, lvl);
+            let output = self.resolve_sig_type(output_ty, sig_nodes, type_param_vars, lvl);
             return InferTy::Function(inputs, Box::new(output));
         }
 
         if let Some(union_id) = sig_nodes.as_type_union(ty) {
             let (lhs_ty, rhs_ty) = sig_nodes.type_union(union_id);
-            let lhs = self.resolve_sig_type(lhs_ty, sig_nodes, resolver, type_param_vars, lvl);
-            let rhs = self.resolve_sig_type(rhs_ty, sig_nodes, resolver, type_param_vars, lvl);
+            let lhs = self.resolve_sig_type(lhs_ty, sig_nodes, type_param_vars, lvl);
+            let rhs = self.resolve_sig_type(rhs_ty, sig_nodes, type_param_vars, lvl);
             return Self::mk_union(lhs, rhs);
         }
 
         if let Some(inter_id) = sig_nodes.as_type_inter(ty) {
             let (lhs_ty, rhs_ty) = sig_nodes.type_inter(inter_id);
-            let lhs = self.resolve_sig_type(lhs_ty, sig_nodes, resolver, type_param_vars, lvl);
-            let rhs = self.resolve_sig_type(rhs_ty, sig_nodes, resolver, type_param_vars, lvl);
+            let lhs = self.resolve_sig_type(lhs_ty, sig_nodes, type_param_vars, lvl);
+            let rhs = self.resolve_sig_type(rhs_ty, sig_nodes, type_param_vars, lvl);
             return Self::mk_inter(lhs, rhs);
         }
 
@@ -1131,8 +1173,7 @@ where
                     let field_id = sig_nodes.as_type_field(field_ty)?;
                     let (name_id, field_ty) = sig_nodes.type_field(field_id);
                     let name = sig_nodes.name(name_id);
-                    let field_ty =
-                        self.resolve_sig_type(field_ty, sig_nodes, resolver, type_param_vars, lvl);
+                    let field_ty = self.resolve_sig_type(field_ty, sig_nodes, type_param_vars, lvl);
                     Some((Self::symbol_to_bits(name), field_ty))
                 })
                 .collect();
@@ -1148,10 +1189,7 @@ where
             return var.clone();
         }
 
-        match resolver.resolve_path(name) {
-            Some(Resolution::Type(ty)) => self.ty_to_infer_ty(ty),
-            _ => self.fresh_var(lvl),
-        }
+        self.resolve_signature_type_name(name).unwrap_or_else(|| self.fresh_var(lvl))
     }
 
     fn infer_expr(&mut self, node: ExprId, lvl: usize) -> InferTy {
@@ -1607,9 +1645,9 @@ where
                         return InferTy::Unknown;
                     };
 
-                    let field_map: FxHashMap<Symbol<'db>, Ty<'db>> =
+                    let field_map: FxHashMap<Symbol, Ty> =
                         fields.iter().map(|(name, ty)| (*name, *ty)).collect();
-                    let mut seen_fields: FxHashSet<Symbol<'db>> = FxHashSet::default();
+                    let mut seen_fields: FxHashSet<Symbol> = FxHashSet::default();
 
                     let mut i = 1;
                     while i + 1 < items.len() {
@@ -1769,7 +1807,7 @@ where
         }
     }
 
-    fn build(mut self) -> Inference<'db> {
+    fn build(mut self) -> Inference {
         if self.function.body() == ExprId::ZERO {
             return self.inference;
         }
@@ -2142,7 +2180,7 @@ where
     }
 }
 
-fn stmt_as_expr(nodes: &NodeStore<'_>, stmt: StmtId) -> Option<ExprId> {
+fn stmt_as_expr(nodes: &NodeStore, stmt: StmtId) -> Option<ExprId> {
     match nodes.node_kind(stmt) {
         NodeKind::Name => nodes.as_name(stmt).map(Into::into),
         NodeKind::True => nodes.as_true(stmt).map(Into::into),
@@ -2166,7 +2204,7 @@ fn stmt_as_expr(nodes: &NodeStore<'_>, stmt: StmtId) -> Option<ExprId> {
     }
 }
 
-fn simplify<'db>(db: &'db impl TypeDatabase, ty: Ty<'db>) -> Ty<'db> {
+fn simplify(db: &impl TypeDatabase, ty: Ty) -> Ty {
     let mut polarities: FxHashMap<u32, (bool, bool)> = FxHashMap::default();
     let mut rec_vars: FxHashSet<u32> = FxHashSet::default();
     collect_polarities(
@@ -2189,7 +2227,7 @@ fn simplify<'db>(db: &'db impl TypeDatabase, ty: Ty<'db>) -> Ty<'db> {
 
 fn collect_polarities(
     db: &impl TypeDatabase,
-    ty: Ty<'_>,
+    ty: Ty,
     polarity: Polarity,
     polarities: &mut FxHashMap<u32, (bool, bool)>,
     rec_vars: &mut FxHashSet<u32>,
@@ -2235,7 +2273,7 @@ fn collect_polarities(
     }
 }
 
-fn remove_vars<'db>(db: &'db impl TypeDatabase, ty: Ty<'db>, remove: &FxHashSet<u32>) -> Ty<'db> {
+fn remove_vars(db: &impl TypeDatabase, ty: Ty, remove: &FxHashSet<u32>) -> Ty {
     match ty.kind(db) {
         TyKind::Var(id) if remove.contains(&id) => Ty::new(db, TyKind::Unknown),
         TyKind::Function { inputs, output } => {
@@ -2253,7 +2291,7 @@ fn remove_vars<'db>(db: &'db impl TypeDatabase, ty: Ty<'db>, remove: &FxHashSet<
             Ty::new(db, TyKind::Record(fields))
         }
         TyKind::Union(items) => {
-            let mut seen: FxHashSet<Ty<'db>> = FxHashSet::default();
+            let mut seen: FxHashSet<Ty> = FxHashSet::default();
             let mut reduced = Vec::new();
             for item in items {
                 let reduced_item = remove_vars(db, item, remove);
@@ -2271,7 +2309,7 @@ fn remove_vars<'db>(db: &'db impl TypeDatabase, ty: Ty<'db>, remove: &FxHashSet<
             }
         }
         TyKind::Inter(items) => {
-            let mut seen: FxHashSet<Ty<'db>> = FxHashSet::default();
+            let mut seen: FxHashSet<Ty> = FxHashSet::default();
             let mut reduced = Vec::new();
             for item in items {
                 let reduced_item = remove_vars(db, item, remove);

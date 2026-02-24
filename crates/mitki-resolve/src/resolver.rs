@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mitki_hir::hir::{ExprId, NameId, TyId};
 use mitki_hir::ty::{Ty, TyKind};
 use mitki_lower::item::scope::{FunctionLocation, HasItemScope as _, ItemScope, ItemScopeDb};
@@ -6,44 +8,61 @@ use rustc_hash::FxHashMap;
 
 use crate::scope::{ExprScopes, HasExprScopes as _, Scope};
 
-fn builtin_scope<'db>(db: &'db impl mitki_parse::ParseDb) -> FxHashMap<Symbol<'db>, Ty<'db>> {
-    FxHashMap::from_iter([
+pub trait ResolverDb: ItemScopeDb + crate::scope::ExprScopesDb + HasBuiltinScopeQuery {}
+
+impl<T> ResolverDb for T where T: ItemScopeDb + crate::scope::ExprScopesDb + HasBuiltinScopeQuery {}
+
+type BuiltinScopeMap = FxHashMap<Symbol, Ty>;
+
+#[picante::tracked]
+pub async fn builtin_scope<DB: mitki_hir::ty::TypeDatabase>(
+    db: &DB,
+) -> picante::PicanteResult<Arc<BuiltinScopeMap>> {
+    let scope = FxHashMap::from_iter([
         ("bool".into_symbol(db), Ty::new(db, TyKind::Bool)),
         ("char".into_symbol(db), Ty::new(db, TyKind::Char)),
         ("float".into_symbol(db), Ty::new(db, TyKind::Float)),
         ("int".into_symbol(db), Ty::new(db, TyKind::Int)),
         ("str".into_symbol(db), Ty::new(db, TyKind::String)),
-    ])
+    ]);
+    Ok(Arc::new(scope))
+}
+
+pub async fn builtin_scope_for<DB>(db: &DB) -> Arc<FxHashMap<Symbol, Ty>>
+where
+    DB: ResolverDb,
+{
+    builtin_scope(db).await.expect("failed to compute builtin scope")
 }
 
 pub struct Resolver<'db, DB>
 where
-    DB: ItemScopeDb,
+    DB: ResolverDb,
 {
     db: &'db DB,
-    item_scope: ItemScope<'db>,
-    expr_scopes: ExprScopes<'db>,
-    scopes: Vec<Scope<'db>>,
-    builtin_scope: FxHashMap<Symbol<'db>, Ty<'db>>,
+    item_scope: Arc<ItemScope>,
+    expr_scopes: Arc<ExprScopes>,
+    scopes: Vec<Scope>,
+    builtin_scope: Arc<BuiltinScopeMap>,
 }
 
 impl<'db, DB> Resolver<'db, DB>
 where
-    DB: ItemScopeDb,
+    DB: ResolverDb,
 {
-    pub fn new(db: &'db DB, function: FunctionLocation<'db>) -> Self {
+    pub async fn new(db: &'db DB, function: FunctionLocation) -> Self {
         let file = function.file(db);
 
         Self {
             db,
-            item_scope: file.item_scope(db),
-            expr_scopes: function.expr_scopes(db),
+            item_scope: file.item_scope(db).await,
+            expr_scopes: function.expr_scopes(db).await,
             scopes: Vec::new(),
-            builtin_scope: builtin_scope(db),
+            builtin_scope: builtin_scope(db).await.expect("failed to compute builtin scope"),
         }
     }
 
-    fn scopes(&self) -> impl ExactSizeIterator<Item = Scope<'db>> + '_ {
+    fn scopes(&self) -> impl ExactSizeIterator<Item = Scope> + '_ {
         self.scopes.iter().rev().copied()
     }
 
@@ -87,7 +106,7 @@ where
         self.scopes.truncate(start);
     }
 
-    pub fn resolve_path(&self, path: Symbol<'db>) -> Option<Resolution<'db>> {
+    pub fn resolve_path(&self, path: Symbol) -> Option<Resolution> {
         for scope in self.scopes() {
             if let Some(entry) =
                 self.expr_scopes.entries(scope).iter().find(|entry| entry.name == path)
@@ -113,17 +132,18 @@ where
 
     pub fn for_scope(
         db: &'db DB,
-        item_scope: ItemScope<'db>,
-        expr_scopes: ExprScopes<'db>,
-        scope: Option<Scope<'db>>,
+        item_scope: Arc<ItemScope>,
+        expr_scopes: Arc<ExprScopes>,
+        builtin_scope: Arc<BuiltinScopeMap>,
+        scope: Option<Scope>,
     ) -> Self {
         let mut scopes: Vec<_> = expr_scopes.chain(scope).collect::<Vec<_>>().into_iter().collect();
         scopes.reverse();
 
-        Resolver { db, item_scope, scopes, expr_scopes, builtin_scope: builtin_scope(db) }
+        Resolver { db, item_scope, scopes, expr_scopes, builtin_scope }
     }
 
-    pub fn resolve_enum_variant(&self, variant: Symbol<'db>) -> Option<Ty<'db>> {
+    pub fn resolve_enum_variant(&self, variant: Symbol) -> Option<Ty> {
         let mut resolved = None;
 
         for (_, &ty) in self.item_scope.types() {
@@ -146,8 +166,8 @@ where
 pub struct Guard(usize);
 
 #[derive(Debug)]
-pub enum Resolution<'db> {
+pub enum Resolution {
     Local(NameId),
-    Function(FunctionLocation<'db>),
-    Type(Ty<'db>),
+    Function(FunctionLocation),
+    Type(Ty),
 }
