@@ -1,5 +1,3 @@
-use std::hint::black_box;
-
 use codspeed_criterion_compat::async_executor::FuturesExecutor;
 use codspeed_criterion_compat::{Criterion, criterion_group, criterion_main};
 use mitki_ide::{Analysis, FilePosition, extract_cursor_offset};
@@ -61,13 +59,7 @@ fn benchmark_goto_definition(c: &mut Criterion) {
     let file_position = FilePosition { file, offset };
 
     c.bench_function("goto_definition_complex", |b| {
-        b.to_async(FuturesExecutor).iter(|| {
-            if let Some((_def, focus)) = analysis.goto_definition(file_position).await {
-                black_box(focus);
-            } else {
-                panic!("goto_definition returned no definition");
-            }
-        })
+        b.to_async(FuturesExecutor).iter(|| analysis.goto_definition(file_position))
     });
 }
 
