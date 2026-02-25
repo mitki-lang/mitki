@@ -20,7 +20,8 @@ name = "tokenizer"
 harness = false
 
 [dev-dependencies]
-codspeed-criterion-compat = { version = "4.3", default-features = false }
+codspeed-criterion-compat = { version = "4.3", default-features = false, features = ["async", "async_futures"] }
+futures-executor = { version = "0.2.0-beta" }
 mitki-ide.workspace = true
 mitki-db.workspace = true
 mitki-inputs.workspace = true
