@@ -1697,11 +1697,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "mitki-abi",
- "mitki-codegen-core",
  "mitki-db",
  "mitki-hir",
  "mitki-lower",
- "mitki-resolve",
  "mitki-span",
  "salsa",
  "serde",
