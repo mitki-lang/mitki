@@ -208,9 +208,8 @@ export fun echo(xs: List): List {
     assert!(
         diagnostics.iter().any(|message| {
             message.contains("recursive types are not supported yet")
-                || message.contains(
-                    "typed Wasm imports/exports do not allow non-copy types like `List`",
-                )
+                || message
+                    .contains("typed Wasm imports/exports do not allow non-copy types like `List`")
         }),
         "expected recursive boundary rejection, got {diagnostics:#?}"
     );
