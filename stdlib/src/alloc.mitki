@@ -1,0 +1,23 @@
+pub mod int;
+
+import "mitki" unsafe fun alloc(size: u32, align: u32): *mut u8;
+import "mitki" unsafe fun dealloc(ptr: *mut u8, size: u32, align: u32);
+import "mitki" unsafe fun _copy_nonoverlapping(dst: *mut u8, src: *const u8, count: u32);
+
+unsafe fun copy_nonoverlapping(dst: *mut u8, src: *const u8, count: u32) {
+    _copy_nonoverlapping(dst, src, count)
+}
+
+unsafe fun realloc(
+    ptr: *mut u8,
+    old_size: u32,
+    old_align: u32,
+    new_size: u32,
+    new_align: u32,
+): *mut u8 {
+    val next: *mut u8 = alloc(new_size, new_align)
+    val copy_size: u32 = if old_size < new_size { old_size } else { new_size }
+    copy_nonoverlapping(next, ptr, copy_size);
+    dealloc(ptr, old_size, old_align);
+    next
+}

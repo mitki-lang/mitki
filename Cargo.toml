@@ -36,8 +36,16 @@ unused_trait_names = "warn"
 
 [workspace.dependencies]
 anyhow = "1.0"
+blake3 = "1.8"
 camino = "1.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+mitki-abi-lower = { path = "crates/mitki-abi-lower" }
+mitki-abi = { path = "crates/mitki-abi" }
 mitki-analysis = { path = "crates/mitki-analysis" }
+mitki-backend-wasm = { path = "crates/mitki-backend-wasm" }
+mitki-codegen-core = { path = "crates/mitki-codegen-core" }
+mitki-comptime-wasm = { path = "crates/mitki-comptime-wasm" }
 mitki-db = { path = "crates/mitki-db" }
 mitki-errors = { path = "crates/mitki-errors" }
 mitki-hir = { path = "crates/mitki-hir" }
@@ -50,6 +58,7 @@ mitki-resolve = { path = "crates/mitki-resolve" }
 mitki-span = { path = "crates/mitki-span" }
 mitki-typeck = { path = "crates/mitki-typeck" }
 mitki-tokenizer = { path = "crates/mitki-tokenizer" }
+mitki-wasm-runtime = { path = "crates/mitki-wasm-runtime" }
 mitki-yellow = { path = "crates/mitki-yellow" }
 salsa = { version = "0.26", default-features = false, features = [
     "macros",
@@ -57,3 +66,7 @@ salsa = { version = "0.26", default-features = false, features = [
 ] }
 rustc-hash = "2.0"
 text-size = "1.1"
+wasm-encoder = "0.245.1"
+wasmparser = "0.245.1"
+wasmtime = "42.0.1"
+wasmtime-wasi = "42.0.1"

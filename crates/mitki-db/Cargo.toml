@@ -17,3 +17,5 @@ salsa.workspace = true
 
 [dev-dependencies]
 mitki-inputs.workspace = true
+mitki-lower.workspace = true
+tempfile = "3.27"

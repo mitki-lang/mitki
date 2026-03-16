@@ -2,15 +2,15 @@ use mitki_yellow::SyntaxKind::*;
 use mitki_yellow::SyntaxSet;
 use text_size::TextRange;
 
-use super::{delimited, name, types};
+use super::{delimited, name, patterns, types};
 use crate::parser::{CompletedMarker, Parser};
 
 pub(crate) fn stmt(p: &mut Parser) -> bool {
     match p.peek_kind() {
-        VAL_KW => {
+        VAL_KW | VAR_KW => {
             let m = p.start();
             p.advance();
-            name(p, &SyntaxSet::new([VAL_KW, SEMICOLON]));
+            patterns::pattern(p, &SyntaxSet::new([COLON, EQ, SEMICOLON]));
             if p.at(COLON) {
                 types::ascription(p);
             }
@@ -25,16 +25,22 @@ pub(crate) fn stmt(p: &mut Parser) -> bool {
             expr(p);
             m.complete(p, RETURN_STMT);
         }
-        BREAK_KW => {
-            let m = p.start();
-            p.advance();
-            m.complete(p, BREAK_KW);
-        }
         _ => {
-            let expr = expr(p);
+            let parsed_expr = expr(p);
+            if p.at(EQ) {
+                let Some(lhs) = parsed_expr else {
+                    p.error("expected assignment target");
+                    return false;
+                };
+                let m = lhs.precede(p);
+                p.advance();
+                expr(p);
+                m.complete(p, ASSIGN_STMT);
+                return false;
+            }
             let has_semi = p.eat(SEMICOLON);
             if has_semi {
-                expr.map(|m| m.precede(p).complete(p, EXPR_STMT));
+                parsed_expr.map(|m| m.precede(p).complete(p, EXPR_STMT));
             }
             return has_semi;
         }
@@ -97,12 +103,29 @@ fn block_contents(parser: &mut Parser) {
 
 fn unary_expr(p: &mut Parser) -> Option<CompletedMarker> {
     match p.peek_kind() {
+        NAME if p.peek_text() == "unsafe" && p.nth_kind(1) == LEFT_BRACE => {
+            let m = p.start();
+            p.advance();
+            block(p);
+            m.complete(p, UNSAFE_EXPR).into()
+        }
         LOOP_KW => {
             let m = p.start();
             p.advance();
             block(p);
             m.complete(p, LOOP_EXPR).into()
         }
+        BREAK_KW => {
+            let m = p.start();
+            p.advance();
+            m.complete(p, BREAK_EXPR).into()
+        }
+        CONTINUE_KW => {
+            let m = p.start();
+            p.advance();
+            m.complete(p, CONTINUE_EXPR).into()
+        }
+        MATCH_KW => match_(p),
         IF_KW => if_(p),
         PREFIX_OPERATOR => {
             let m = p.start();
@@ -139,6 +162,57 @@ fn if_(p: &mut Parser<'_>) -> Option<CompletedMarker> {
     m.complete(p, IF_EXPR).into()
 }
 
+fn match_(p: &mut Parser<'_>) -> Option<CompletedMarker> {
+    debug_assert_eq!(p.peek_kind(), MATCH_KW);
+
+    let m = p.start();
+    p.advance();
+    expr(p);
+
+    if !p.eat(LEFT_BRACE) {
+        p.error("expected `{`");
+        return Some(m.complete(p, MATCH_EXPR));
+    }
+
+    while !matches!(p.peek_kind(), RIGHT_BRACE | EOF) {
+        if p.at(COMMA) {
+            let err = p.start();
+            p.error("expected match arm");
+            p.advance();
+            err.complete(p, ERROR);
+            continue;
+        }
+
+        let arm = p.start();
+        patterns::match_pattern(p, &SyntaxSet::new([FAT_ARROW, COMMA, RIGHT_BRACE]));
+        p.expect(FAT_ARROW);
+        expr(p);
+        arm.complete(p, MATCH_ARM);
+
+        if !p.eat(COMMA) {
+            if matches!(
+                p.peek_kind(),
+                LEFT_PAREN
+                    | DOT
+                    | NAME
+                    | INT_NUMBER
+                    | FLOAT_NUMBER
+                    | STRING
+                    | CHAR
+                    | TRUE_KW
+                    | FALSE_KW
+            ) {
+                p.expect(COMMA);
+            } else {
+                break;
+            }
+        }
+    }
+
+    p.expect(RIGHT_BRACE);
+    Some(m.complete(p, MATCH_EXPR))
+}
+
 fn postfix_expr(p: &mut Parser) -> Option<CompletedMarker> {
     let mut head = primary_expr(p)?;
 
@@ -162,7 +236,11 @@ fn postfix_expr(p: &mut Parser) -> Option<CompletedMarker> {
                         DOT,
                         NAME,
                         IF_KW,
+                        MATCH_KW,
                         LOOP_KW,
+                        BREAK_KW,
+                        CONTINUE_KW,
+                        NAME,
                         LEFT_PAREN,
                         LEFT_BRACE,
                         LEFT_BRACKET,
@@ -213,8 +291,9 @@ fn struct_expr_field_list(p: &mut Parser) {
 
         let field = p.start();
         name(p, &SyntaxSet::new([COLON, COMMA, RIGHT_BRACE]));
-        p.expect(COLON);
-        expr(p);
+        if p.eat(COLON) {
+            expr(p);
+        }
         field.complete(p, STRUCT_EXPR_FIELD);
 
         if !p.eat(COMMA) {
@@ -294,9 +373,7 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
         }
         NAME => {
             let m = p.start();
-            let name = p.start();
-            p.advance();
-            name.complete(p, NAME_REF);
+            path_segments(p);
 
             m.complete(p, PATH_EXPR).into()
         }
@@ -318,13 +395,35 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
 
             p.try_parse(|lookahead| {
                 let m = lookahead.start();
-                while lookahead.at(NAME) {
+                while matches!(
+                    lookahead.peek_kind(),
+                    LEFT_PAREN
+                        | DOT
+                        | NAME
+                        | INT_NUMBER
+                        | FLOAT_NUMBER
+                        | STRING
+                        | CHAR
+                        | TRUE_KW
+                        | FALSE_KW
+                ) {
                     let m = lookahead.start();
-                    name(lookahead, &SyntaxSet::EMPTY);
+                    patterns::pattern(lookahead, &SyntaxSet::new([COMMA, IN_KW, RIGHT_BRACE]));
                     m.complete(lookahead, PARAM);
 
                     if !lookahead.eat(COMMA) {
-                        if lookahead.peek_kind() == NAME {
+                        if matches!(
+                            lookahead.peek_kind(),
+                            LEFT_PAREN
+                                | DOT
+                                | NAME
+                                | INT_NUMBER
+                                | FLOAT_NUMBER
+                                | STRING
+                                | CHAR
+                                | TRUE_KW
+                                | FALSE_KW
+                        ) {
                             lookahead.expect(COMMA);
                         } else {
                             break;
@@ -348,6 +447,27 @@ fn primary_expr(p: &mut Parser) -> Option<CompletedMarker> {
             p.error_and_bump("expected expression");
             None
         }
+    }
+}
+
+pub(crate) fn path_segments(p: &mut Parser) {
+    let name = p.start();
+    if matches!(p.peek_kind(), NAME | VAR_KW) {
+        p.advance();
+    } else {
+        p.error("expected identifier");
+    }
+    name.complete(p, NAME_REF);
+
+    while p.at(DOUBLE_COLON) {
+        p.advance();
+        let name = p.start();
+        if matches!(p.peek_kind(), NAME | VAR_KW) {
+            p.advance();
+        } else {
+            p.error("expected identifier");
+        }
+        name.complete(p, NAME_REF);
     }
 }
 
@@ -378,10 +498,14 @@ fn try_parse_struct_expr_field_list_lookahead(p: &mut Parser, allow_empty: bool)
     }
 
     loop {
-        if !p.eat(NAME) || !p.eat(COLON) {
+        if !p.eat(NAME) {
             return false;
         }
-        if expr(p).is_none() {
+        if p.eat(COLON) {
+            if expr(p).is_none() {
+                return false;
+            }
+        } else if p.at(RIGHT_BRACE) {
             return false;
         }
         if p.eat(COMMA) {

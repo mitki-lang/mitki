@@ -1,0 +1,106 @@
+use std::alloc::int as alloc;
+
+struct Vec {
+    ptr: *mut int,
+    len: u32,
+    cap: u32,
+}
+
+enum GetResult {
+    Some(int),
+    None,
+}
+
+fun new(): Vec {
+    with_capacity(4)
+}
+
+fun with_capacity(cap: u32): Vec {
+    val actual_cap: u32 = if cap == 0 { 1 } else { cap }
+    unsafe {
+        Vec { ptr: alloc::alloc_items(actual_cap), len: 0, cap: actual_cap }
+    }
+}
+
+fun len(vec: Vec): u32 {
+    vec.len
+}
+
+fun capacity(vec: Vec): u32 {
+    vec.cap
+}
+
+fun is_empty(vec: Vec): bool {
+    vec.len == 0
+}
+
+fun clear(var vec: Vec) {
+    vec.len = 0
+}
+
+fun reserve(var vec: Vec, min_cap: u32) {
+    val old_cap: u32 = vec.cap
+    if old_cap < min_cap {
+        val old_ptr: *mut int = vec.ptr
+        val old_len: u32 = vec.len
+        unsafe {
+            val next: *mut int = alloc::alloc_items(min_cap)
+            alloc::copy_nonoverlapping(next, old_ptr, old_len);
+            alloc::dealloc_items(old_ptr, old_cap);
+            vec.ptr = next;
+        }
+        vec.cap = min_cap
+    }
+}
+
+fun push(var vec: Vec, value: int) {
+    val index: u32 = vec.len
+    val old_cap: u32 = vec.cap
+    if index == old_cap {
+        val old_ptr: *mut int = vec.ptr
+        val min_cap: u32 = if old_cap < 4 { 4 } else { old_cap * 2 }
+        unsafe {
+            val next: *mut int = alloc::alloc_items(min_cap)
+            alloc::copy_nonoverlapping(next, old_ptr, index);
+            alloc::dealloc_items(old_ptr, old_cap);
+            ptr_write(ptr_add(next, index), value);
+            vec.ptr = next;
+        }
+        vec.cap = min_cap
+    } else {
+        val ptr: *mut int = vec.ptr
+        unsafe {
+            ptr_write(ptr_add(ptr, index), value);
+        }
+    }
+
+    vec.len = index + 1
+}
+
+fun get(vec: Vec, index: u32): GetResult {
+    if index < vec.len {
+        val ptr: *mut int = vec.ptr
+        unsafe {
+            GetResult.Some(ptr_read(ptr_add(ptr, index)))
+        }
+    } else {
+        GetResult.None
+    }
+}
+
+fun set(var vec: Vec, index: u32, value: int) {
+    if index < vec.len {
+        val ptr: *mut int = vec.ptr
+        unsafe {
+            ptr_write(ptr_add(ptr, index), value);
+        }
+    }
+}
+
+fun free(vec: Vec): () {
+    val ptr: *mut int = vec.ptr
+    val cap: u32 = vec.cap
+    unsafe {
+        alloc::dealloc_items(ptr, cap);
+    }
+}

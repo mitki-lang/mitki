@@ -53,8 +53,15 @@ fn type_atom(p: &mut Parser) -> Option<CompletedMarker> {
         NAME => {
             let m = p.start();
             p.advance();
+            while p.at(DOUBLE_COLON) {
+                p.advance();
+                p.expect(NAME);
+            }
+            generic_arg_list(p);
             Some(m.complete(p, PATH_TYPE))
         }
+        PREFIX_OPERATOR if p.peek_text() == "*" => pointer_type(p),
+        LEFT_BRACKET => array_type(p),
         LEFT_PAREN => tuple_type(p),
         LEFT_BRACE => record_type(p),
         FUN_KW => function_type(p),
@@ -63,6 +70,67 @@ fn type_atom(p: &mut Parser) -> Option<CompletedMarker> {
             None
         }
     }
+}
+
+fn generic_arg_list(p: &mut Parser) {
+    if p.peek_kind() != LEFT_BRACKET {
+        return;
+    }
+
+    let m = p.start();
+    p.advance();
+
+    if p.at(COMMA) {
+        p.error("expected a type");
+    }
+
+    while !matches!(p.peek_kind(), RIGHT_BRACKET | EOF) {
+        type_(p);
+
+        if !p.eat(COMMA) {
+            if p.at(RIGHT_BRACKET) {
+                break;
+            }
+            p.expect(COMMA);
+            break;
+        }
+    }
+
+    p.expect(RIGHT_BRACKET);
+    m.complete(p, GENERIC_ARG_LIST);
+}
+
+fn pointer_type(p: &mut Parser) -> Option<CompletedMarker> {
+    if p.peek_kind() != PREFIX_OPERATOR || p.peek_text() != "*" {
+        p.error("expected `*`");
+        return None;
+    }
+
+    let m = p.start();
+    p.advance();
+
+    if !(p.peek_kind() == NAME && matches!(p.peek_text(), "const" | "mut")) {
+        p.error("expected `const` or `mut`");
+    } else {
+        p.advance();
+    }
+
+    type_(p);
+
+    Some(m.complete(p, POINTER_TYPE))
+}
+
+fn array_type(p: &mut Parser) -> Option<CompletedMarker> {
+    if p.peek_kind() != LEFT_BRACKET {
+        p.error("expected `[`");
+        return None;
+    }
+
+    let m = p.start();
+    p.advance();
+    type_(p);
+    p.expect(RIGHT_BRACKET);
+    Some(m.complete(p, ARRAY_TYPE))
 }
 
 fn tuple_type(p: &mut Parser) -> Option<CompletedMarker> {

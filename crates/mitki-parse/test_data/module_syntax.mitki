@@ -1,0 +1,3 @@
+pub mod io;
+use std::io::print_int;
+use std::io as io;

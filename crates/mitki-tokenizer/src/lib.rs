@@ -245,7 +245,14 @@ impl<'db> Lexer<'db> {
             ']' => RIGHT_BRACKET,
             '{' => LEFT_BRACE,
             '}' => RIGHT_BRACE,
-            ':' => COLON,
+            ':' => {
+                if self.cursor.peek() == ':' {
+                    self.cursor.advance();
+                    DOUBLE_COLON
+                } else {
+                    COLON
+                }
+            }
             ',' => COMMA,
             ';' => SEMICOLON,
             '"' => self.string(),
@@ -277,14 +284,21 @@ impl<'db> Lexer<'db> {
             "else" => ELSE_KW,
             "loop" => LOOP_KW,
             "val" => VAL_KW,
+            "var" => VAR_KW,
             "while" => WHILE_KW,
             "return" => RETURN_KW,
             "break" => BREAK_KW,
+            "continue" => CONTINUE_KW,
+            "pub" => PUB_KW,
+            "use" => USE_KW,
+            "as" => AS_KW,
             "true" => TRUE_KW,
             "false" => FALSE_KW,
             "in" => IN_KW,
+            "match" => MATCH_KW,
             "struct" => STRUCT_KW,
             "enum" => ENUM_KW,
+            "mod" => MOD_KW,
             _ => NAME,
         }
     }
@@ -306,6 +320,7 @@ impl<'db> Lexer<'db> {
         };
 
         match self.text() {
+            "=>" => FAT_ARROW,
             "=" => {
                 if left_bound != right_bound {
                     self.diagnostics

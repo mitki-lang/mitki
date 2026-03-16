@@ -57,6 +57,23 @@ impl<'text> Parser<'text> {
         &self.text[self.peek_range()]
     }
 
+    pub(crate) fn nth_kind(&self, n: usize) -> SyntaxKind {
+        let mut tokenizer = self.tokenizer.clone();
+        for _ in 0..n {
+            let _ = tokenizer.next_token();
+        }
+        tokenizer.peek().kind
+    }
+
+    pub(crate) fn nth_text(&self, n: usize) -> &'text str {
+        let mut tokenizer = self.tokenizer.clone();
+        for _ in 0..n {
+            let _ = tokenizer.next_token();
+        }
+        let range = tokenizer.peek().kind_range;
+        &self.text[range]
+    }
+
     pub(crate) fn at_binary_op(&self, op: &str) -> bool {
         self.peek_kind() == BINARY_OPERATOR && self.peek_text() == op
     }

@@ -22,6 +22,9 @@ fn roundtrip_nodes() {
     let name_sym = sym(&db, "x");
     let name = store.alloc_name(name_sym);
     assert_eq!(store.name(name), name_sym);
+    let pat_binding = store.alloc_pat_binding(name_sym, PatId::ZERO);
+    let (pat_name, _) = store.pat_binding(pat_binding);
+    assert_eq!(store.name(pat_name), name_sym);
 
     let ty_sym = sym(&db, "T");
     let ty = store.alloc_type_ref(ty_sym);
@@ -71,13 +74,14 @@ fn roundtrip_nodes() {
     assert_eq!(if_expr.then_branch, int.into());
     assert_eq!(if_expr.else_branch, float.into());
 
-    let local = store.alloc_local_var(name, ty.into(), int.into());
+    let local = store.alloc_local_var(pat_binding.into(), ty.into(), int.into());
     let local = store.local_var(local);
-    assert_eq!(local.name, name);
+    assert_eq!(local.pattern, pat_binding.into());
     assert_eq!(local.initializer, int.into());
 
     let stmt_expr: StmtId = ExprId::from(name).into();
-    let stmt_local: StmtId = store.alloc_local_var(name, ty.into(), int.into()).into();
+    let stmt_local: StmtId =
+        store.alloc_local_var(pat_binding.into(), ty.into(), int.into()).into();
     let tail = float.into();
     let block = store.alloc_block(vec![stmt_local, stmt_expr], tail);
     let (stmts, block_tail) = store.block_stmts(block);
@@ -85,9 +89,10 @@ fn roundtrip_nodes() {
     assert_eq!(stmts, vec![stmt_local, stmt_expr]);
     assert_eq!(block_tail, tail);
 
-    let param = store.alloc_param(sym(&db, "p"), ty.into());
-    let (param_name, param_ty) = store.param(param);
-    assert_eq!(store.name(param_name), sym(&db, "p"));
+    let param_pat = store.alloc_pat_binding(sym(&db, "p"), PatId::ZERO);
+    let param = store.alloc_param(param_pat.into(), ty.into());
+    let (param_pattern, param_ty) = store.param(param);
+    assert_eq!(param_pattern, param_pat.into());
     assert_eq!(param_ty, ty.into());
 
     let closure = store.alloc_closure(vec![param], tail);

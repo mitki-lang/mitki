@@ -1,8 +1,8 @@
-use mitki_hir::hir::{ExprId, Function, ParamId, StmtId, TyId};
-use mitki_span::IntoSymbol as _;
+use mitki_hir::hir::{ExprId, Function, NameId, ParamId, PatId, StmtId, TyId, WasmLinkage};
+use mitki_span::{IntoSymbol as _, Symbol};
 use mitki_yellow::ast::{self, HasName as _, Node as _};
-use mitki_yellow::{SyntaxElement, SyntaxNode, SyntaxNodePtr};
-use rustc_hash::FxHashMap;
+use mitki_yellow::{SyntaxElement, SyntaxKind, SyntaxNode, SyntaxNodePtr};
+use rustc_hash::{FxHashMap, FxHashSet};
 use salsa::Database;
 
 use super::FunctionWithSourceMap;
@@ -23,8 +23,11 @@ fn operator_precedence(op: &str) -> u8 {
 pub struct FunctionSourceMap {
     node_map: FxHashMap<SyntaxNodePtr, ExprId>,
     node_map_back: FxHashMap<ExprId, SyntaxNodePtr>,
+    pat_map: FxHashMap<SyntaxNodePtr, PatId>,
+    pat_map_back: FxHashMap<PatId, SyntaxNodePtr>,
     type_map: FxHashMap<SyntaxNodePtr, TyId>,
     type_map_back: FxHashMap<TyId, SyntaxNodePtr>,
+    mutable_bindings: FxHashSet<NameId>,
 }
 
 impl FunctionSourceMap {
@@ -41,6 +44,19 @@ impl FunctionSourceMap {
         self.node_map_back[&node]
     }
 
+    pub fn syntax_pat(&self, syntax: &SyntaxNode) -> Option<PatId> {
+        self.pat_map.get(&SyntaxNodePtr::new(syntax)).copied()
+    }
+
+    pub fn try_pat_syntax(&self, pat: PatId) -> Option<SyntaxNodePtr> {
+        self.pat_map_back.get(&pat).copied()
+    }
+
+    #[track_caller]
+    pub fn pat_syntax(&self, pat: PatId) -> SyntaxNodePtr {
+        self.pat_map_back[&pat]
+    }
+
     pub fn syntax_type(&self, syntax: &SyntaxNode) -> Option<TyId> {
         self.type_map.get(&SyntaxNodePtr::new(syntax)).copied()
     }
@@ -52,6 +68,10 @@ impl FunctionSourceMap {
     #[track_caller]
     pub fn type_syntax(&self, ty: TyId) -> SyntaxNodePtr {
         self.type_map_back[&ty]
+    }
+
+    pub fn is_mutable_binding(&self, name: NameId) -> bool {
+        self.mutable_bindings.contains(&name)
     }
 }
 
@@ -72,11 +92,39 @@ impl<'db> FunctionBuilder<'db> {
         let params = self.build_params(node.params());
         let ret_type = self.build_ty(node.ret_type().and_then(|ret_type| ret_type.ty()));
         let body = self.build_block(node.body());
+        let linkage = function_linkage(self.db, node);
+        let comptime = node.is_comptime();
+        let unsafe_ = node.is_unsafe();
 
         self.function.set_type_params(type_params);
         self.function.set_params(params);
         self.function.set_ret_type(ret_type);
         self.function.set_body(body);
+        self.function.set_linkage(linkage);
+        self.function.set_comptime(comptime);
+        self.function.set_unsafe(unsafe_);
+
+        FunctionWithSourceMap::new(self.db, self.function, self.source_map)
+    }
+
+    pub(super) fn build_destructor(
+        mut self,
+        owner_name: Symbol<'db>,
+        type_params: Vec<Symbol<'db>>,
+        node: &ast::DestructorDef<'db>,
+    ) -> FunctionWithSourceMap<'db> {
+        let self_ty = self.synthetic_owner_ty(owner_name, &type_params);
+        let params = self.build_destructor_params(node.params(), self_ty);
+        let ret_type = self.function.node_store_mut().alloc_type_tuple(Vec::new()).into();
+        let body = self.build_block(node.body());
+
+        self.function.set_type_params(type_params);
+        self.function.set_params(params);
+        self.function.set_ret_type(ret_type);
+        self.function.set_body(body);
+        self.function.set_linkage(WasmLinkage::Internal);
+        self.function.set_comptime(false);
+        self.function.set_unsafe(false);
 
         FunctionWithSourceMap::new(self.db, self.function, self.source_map)
     }
@@ -89,14 +137,55 @@ impl<'db> FunctionBuilder<'db> {
         params
             .iter()
             .map(|param| {
-                let name_sym = param.name().as_str().into_symbol(self.db);
+                let pattern = self.build_pattern(param.pattern());
                 let ty = self.build_ty(param.ty());
-                let param_id = self.function.node_store_mut().alloc_param(name_sym, ty);
-                let (name_id, _) = self.function.node_store_mut().param(param_id);
-                self.alloc_ptr(name_id.into(), param.name().syntax());
-                param_id
+                if param.is_mutable() {
+                    for name in self.function.node_store().pattern_binding_names(pattern) {
+                        self.source_map.mutable_bindings.insert(name);
+                    }
+                }
+                self.function.node_store_mut().alloc_param(pattern, ty)
             })
             .collect()
+    }
+
+    fn build_destructor_params(
+        &mut self,
+        params: Option<ast::Params<'db>>,
+        self_ty: TyId,
+    ) -> Vec<ParamId> {
+        let Some(params) = params else {
+            return Vec::new();
+        };
+
+        params
+            .iter()
+            .enumerate()
+            .map(|(index, param)| {
+                let pattern = self.build_pattern(param.pattern());
+                let ty = if index == 0 { self_ty } else { self.build_ty(param.ty()) };
+                if param.is_mutable() {
+                    for name in self.function.node_store().pattern_binding_names(pattern) {
+                        self.source_map.mutable_bindings.insert(name);
+                    }
+                }
+                self.function.node_store_mut().alloc_param(pattern, ty)
+            })
+            .collect()
+    }
+
+    fn synthetic_owner_ty(&mut self, owner_name: Symbol<'db>, type_params: &[Symbol<'db>]) -> TyId {
+        let path: TyId = self.function.node_store_mut().alloc_type_ref(owner_name).into();
+        if type_params.is_empty() {
+            return path;
+        }
+
+        let args = type_params
+            .iter()
+            .map(|&param| self.function.node_store_mut().alloc_type_ref(param).into())
+            .collect::<Vec<_>>();
+        let args = self.function.node_store_mut().alloc_type_tuple(args).into();
+        self.function.node_store_mut().alloc_type_apply(path, args).into()
     }
 
     fn build_block(&mut self, block: Option<ast::Block<'db>>) -> ExprId {
@@ -104,8 +193,25 @@ impl<'db> FunctionBuilder<'db> {
             return ExprId::ZERO;
         };
 
-        let stmts: Vec<StmtId> = block.stmts().map(|stmt| self.build_stmt(&stmt)).collect();
-        let tail = block.tail_expr().map_or(ExprId::ZERO, |tail| self.build_expr(tail.into()));
+        let mut stmts = Vec::new();
+        let mut tail = ExprId::ZERO;
+        let children = block.syntax().children().collect::<Vec<_>>();
+        let last_index = children.len().saturating_sub(1);
+
+        for (index, child) in children.into_iter().enumerate() {
+            if let Some(stmt) = ast::Stmt::cast(child) {
+                stmts.push(self.build_stmt(&stmt));
+                continue;
+            }
+            let Some(expr) = ast::Expr::cast(child) else {
+                continue;
+            };
+            if index == last_index {
+                tail = self.build_expr(Some(expr));
+            } else {
+                stmts.push(self.build_expr(Some(expr)).into());
+            }
+        }
 
         let node = self.function.node_store_mut().alloc_block(stmts, tail);
         let expr = node.into();
@@ -114,23 +220,28 @@ impl<'db> FunctionBuilder<'db> {
     }
 
     fn build_stmt(&mut self, stmt: &ast::Stmt<'db>) -> StmtId {
-        let db = self.db;
         match &stmt {
             ast::Stmt::Val(val) => {
-                let name = val.name().map_or("", |name| name.as_str()).into_symbol(db);
+                let pattern = self.build_pattern(val.pattern());
                 let ty = self.build_ty(val.ty());
                 let initializer =
                     val.expr().map_or(ExprId::ZERO, |expr| self.build_expr(Some(expr)));
-
-                let name = self.function.node_store_mut().alloc_name(name);
-                let node = self.function.node_store_mut().alloc_local_var(name, ty, initializer);
-
-                match val.name() {
-                    Some(a) => self.alloc_ptr(name.into(), a.syntax()),
-                    None => self.alloc_ptr(name.into(), val.syntax()),
+                if val.is_mutable() {
+                    for name in self.function.node_store().pattern_binding_names(pattern) {
+                        self.source_map.mutable_bindings.insert(name);
+                    }
                 }
-
-                node.into()
+                self.function.node_store_mut().alloc_local_var(pattern, ty, initializer).into()
+            }
+            ast::Stmt::Assign(assign_stmt) => {
+                let target = self.build_expr(assign_stmt.target());
+                let value = self.build_expr(assign_stmt.expr());
+                self.function.node_store_mut().alloc_assign_stmt(target, value).into()
+            }
+            ast::Stmt::Return(return_stmt) => {
+                let value =
+                    return_stmt.expr().map_or(ExprId::ZERO, |expr| self.build_expr(Some(expr)));
+                self.function.node_store_mut().alloc_return_stmt(value, ExprId::ZERO).into()
             }
             ast::Stmt::Expr(stmt) => self.build_expr(stmt.expr()).into(),
         }
@@ -140,6 +251,12 @@ impl<'db> FunctionBuilder<'db> {
         let ptr = SyntaxNodePtr::new(syntax);
         self.source_map.node_map.insert(ptr, node);
         self.source_map.node_map_back.insert(node, ptr);
+    }
+
+    fn alloc_pat_ptr(&mut self, pat: PatId, syntax: &SyntaxNode) {
+        let ptr = SyntaxNodePtr::new(syntax);
+        self.source_map.pat_map.insert(ptr, pat);
+        self.source_map.pat_map_back.insert(pat, ptr);
     }
 
     fn alloc_type_ptr(&mut self, ty: TyId, syntax: &SyntaxNode) {
@@ -155,7 +272,7 @@ impl<'db> FunctionBuilder<'db> {
 
         let node: ExprId = match &expr {
             ast::Expr::Path(path) => {
-                let path = path.name().unwrap().as_str().into_symbol(self.db);
+                let path = syntax_non_trivia_text(path.syntax()).into_symbol(self.db);
                 self.function.node_store_mut().alloc_name(path).into()
             }
             ast::Expr::Field(field_expr) => {
@@ -175,6 +292,7 @@ impl<'db> FunctionBuilder<'db> {
                 self.function.node_store_mut().alloc_field(expr, field_name_id).into()
             }
             ast::Expr::Literal(literal) => self.build_literal(literal),
+            ast::Expr::Paren(paren) => self.build_expr(paren.expr()),
             ast::Expr::BinOpSeq(seq) => self.build_bin_op_seq(seq),
             ast::Expr::Postfix(postfix) => {
                 let expr = self.build_expr(postfix.expr());
@@ -192,11 +310,28 @@ impl<'db> FunctionBuilder<'db> {
                 let expr = self.build_expr(prefix.expr());
                 self.function.node_store_mut().alloc_prefix(op, expr).into()
             }
-            ast::Expr::If(if_expr) => {
-                let cond = self.build_expr(if_expr.condition());
-                let then_branch = self.build_block(if_expr.then_branch());
-                let else_branch = self.build_block(if_expr.else_branch());
-                self.function.node_store_mut().alloc_if(cond, then_branch, else_branch).into()
+            ast::Expr::Loop(loop_expr) => {
+                let body = self.build_block(loop_expr.body());
+                self.function.node_store_mut().alloc_loop_expr(body, ExprId::ZERO).into()
+            }
+            ast::Expr::Break(_) => self.function.node_store_mut().alloc_break_expr().into(),
+            ast::Expr::Continue(_) => self.function.node_store_mut().alloc_continue_expr().into(),
+            ast::Expr::If(if_expr) => self.build_if_expr(if_expr),
+            ast::Expr::Match(match_expr) => {
+                let scrutinee = self.build_expr(match_expr.scrutinee());
+                let arms = match_expr
+                    .arms()
+                    .map(|arm| {
+                        let pattern = self.build_pattern(arm.pattern());
+                        let expr = self.build_expr(arm.expr());
+                        self.function.node_store_mut().alloc_match_arm(pattern, expr)
+                    })
+                    .collect::<Vec<_>>();
+                self.function.node_store_mut().alloc_match(scrutinee, arms).into()
+            }
+            ast::Expr::Unsafe(unsafe_expr) => {
+                let body = self.build_block(unsafe_expr.body());
+                self.function.node_store_mut().alloc_unsafe_block(body, ExprId::ZERO).into()
             }
             ast::Expr::Closure(closure) => {
                 let params = self.build_params(closure.params());
@@ -216,6 +351,20 @@ impl<'db> FunctionBuilder<'db> {
                     tuple_expr.exprs().map(|expr| self.build_expr(expr.into())).collect::<Vec<_>>();
                 self.function.node_store_mut().alloc_tuple(exprs).into()
             }
+            ast::Expr::Array(array_expr) => {
+                let exprs =
+                    array_expr.exprs().map(|expr| self.build_expr(Some(expr))).collect::<Vec<_>>();
+                let is_repeat = array_expr
+                    .syntax()
+                    .children_with_tokens()
+                    .filter_map(SyntaxElement::into_token)
+                    .any(|token| !token.is_trivia() && token.kind() == SyntaxKind::SEMICOLON);
+                if is_repeat && exprs.len() == 2 {
+                    self.function.node_store_mut().alloc_array_repeat(exprs[0], exprs[1]).into()
+                } else {
+                    self.function.node_store_mut().alloc_array(exprs).into()
+                }
+            }
             ast::Expr::Struct(struct_expr) => {
                 let mut items: Vec<ExprId> = Vec::new();
 
@@ -232,7 +381,11 @@ impl<'db> FunctionBuilder<'db> {
                             field.name().map_or("", |n| n.as_str()).into_symbol(self.db);
                         let field_name: ExprId =
                             self.function.node_store_mut().alloc_name(field_name_sym).into();
-                        let field_expr = self.build_expr(field.expr());
+                        let field_expr = if let Some(expr) = field.expr() {
+                            self.build_expr(Some(expr))
+                        } else {
+                            self.function.node_store_mut().alloc_name(field_name_sym).into()
+                        };
                         items.push(field_name);
                         items.push(field_expr);
                     }
@@ -245,6 +398,145 @@ impl<'db> FunctionBuilder<'db> {
         self.alloc_ptr(node, expr.syntax());
 
         node
+    }
+
+    fn build_if_expr(&mut self, if_expr: &ast::IfExpr<'db>) -> ExprId {
+        let cond = self.build_expr(if_expr.condition());
+        let then_branch = self.build_block(if_expr.then_block());
+        let else_branch = if let Some(else_if) = if_expr.else_if() {
+            self.build_if_expr(&else_if)
+        } else {
+            self.build_block(if_expr.else_block())
+        };
+        self.function.node_store_mut().alloc_if(cond, then_branch, else_branch).into()
+    }
+
+    fn build_pattern(&mut self, pattern: Option<ast::Pattern<'db>>) -> PatId {
+        let Some(pattern) = pattern else {
+            return PatId::ZERO;
+        };
+
+        let pat = match &pattern {
+            ast::Pattern::Binding(binding) => {
+                let name_sym = binding.name().map_or("", |name| name.as_str()).into_symbol(self.db);
+                let pat = self.function.node_store_mut().alloc_pat_binding(name_sym, PatId::ZERO);
+                let (name, _) = self.function.node_store_mut().pat_binding(pat);
+                if let Some(name_syntax) = binding.name() {
+                    self.alloc_ptr(name.into(), name_syntax.syntax());
+                }
+                pat.into()
+            }
+            ast::Pattern::Wildcard(_) => self.function.node_store_mut().alloc_pat_wildcard().into(),
+            ast::Pattern::Literal(literal) => self.build_literal_pattern(literal),
+            ast::Pattern::Typed(typed) => {
+                let inner = self.build_pattern(typed.pattern());
+                let ty = self.build_ty(typed.ty());
+                self.function.node_store_mut().alloc_pat_typed(inner, ty).into()
+            }
+            ast::Pattern::Paren(paren) => {
+                let inner = self.build_pattern(paren.pattern());
+                self.function.node_store_mut().alloc_pat_paren(inner, PatId::ZERO).into()
+            }
+            ast::Pattern::Tuple(tuple) => {
+                let items: Vec<_> =
+                    tuple.patterns().map(|item| self.build_pattern(Some(item))).collect();
+                self.function.node_store_mut().alloc_pat_tuple(items).into()
+            }
+            ast::Pattern::Variant(variant) => {
+                let path = variant
+                    .path()
+                    .as_ref()
+                    .map_or(ExprId::ZERO, |path| self.build_field_pattern_path(path));
+                let args = variant
+                    .patterns()
+                    .map(|item| self.build_pattern(Some(item)))
+                    .collect::<Vec<_>>();
+                self.function.node_store_mut().alloc_pat_variant(path, args).into()
+            }
+            ast::Pattern::Struct(struct_pattern) => {
+                let path = struct_pattern
+                    .path()
+                    .as_ref()
+                    .map_or(ExprId::ZERO, |path| self.build_path_pattern_path(path));
+                let fields = struct_pattern
+                    .fields()
+                    .map(|field| {
+                        let name_sym =
+                            field.name().map_or("", |name| name.as_str()).into_symbol(self.db);
+                        let pat = self.build_pattern(field.pattern());
+                        let field_id =
+                            self.function.node_store_mut().alloc_pat_struct_field(name_sym, pat);
+                        let (name, _) = self.function.node_store_mut().pat_struct_field(field_id);
+                        if let Some(name_syntax) = field.name() {
+                            self.alloc_ptr(name.into(), name_syntax.syntax());
+                        }
+                        field_id
+                    })
+                    .collect::<Vec<_>>();
+                self.function.node_store_mut().alloc_pat_struct(path, fields).into()
+            }
+        };
+
+        self.alloc_pat_ptr(pat, pattern.syntax());
+        pat
+    }
+
+    fn build_literal_pattern(&mut self, literal: &ast::LiteralPattern<'db>) -> PatId {
+        match literal.kind() {
+            ast::LiteralKind::Bool(true) => self.function.node_store_mut().alloc_pat_true().into(),
+            ast::LiteralKind::Bool(false) => {
+                self.function.node_store_mut().alloc_pat_false().into()
+            }
+            ast::LiteralKind::Int(token) => self
+                .function
+                .node_store_mut()
+                .alloc_pat_int(Some(token.text_trimmed().into_symbol(self.db)))
+                .into(),
+            ast::LiteralKind::Float(token) => self
+                .function
+                .node_store_mut()
+                .alloc_pat_float(Some(token.text_trimmed().into_symbol(self.db)))
+                .into(),
+            ast::LiteralKind::String(token) => self
+                .function
+                .node_store_mut()
+                .alloc_pat_string(Some(token.text_trimmed().into_symbol(self.db)))
+                .into(),
+            ast::LiteralKind::Char(token) => self
+                .function
+                .node_store_mut()
+                .alloc_pat_char(Some(token.text_trimmed().into_symbol(self.db)))
+                .into(),
+        }
+    }
+
+    fn build_path_pattern_path(&mut self, path: &ast::PathPattern<'db>) -> ExprId {
+        let name_sym = path.name().map_or("", |name| name.as_str()).into_symbol(self.db);
+        let expr: ExprId = self.function.node_store_mut().alloc_name(name_sym).into();
+        if let Some(name) = path.name() {
+            self.alloc_ptr(expr, name.syntax());
+        }
+        self.alloc_ptr(expr, path.syntax());
+        expr
+    }
+
+    fn build_field_pattern_path(&mut self, path: &ast::FieldPattern<'db>) -> ExprId {
+        let base =
+            path.base().as_ref().map_or(ExprId::ZERO, |base| self.build_path_pattern_path(base));
+        let field_name = path.name();
+        let field_name_sym =
+            field_name.as_ref().map_or("", |name| name.as_str()).into_symbol(self.db);
+        let field_name_id: ExprId =
+            self.function.node_store_mut().alloc_name(field_name_sym).into();
+
+        match field_name {
+            Some(name) => self.alloc_ptr(field_name_id, name.syntax()),
+            None => self.alloc_ptr(field_name_id, path.syntax()),
+        }
+
+        let expr: ExprId = self.function.node_store_mut().alloc_field(base, field_name_id).into();
+        self.alloc_ptr(expr, path.syntax());
+        expr
     }
 
     fn build_bin_op_seq(&mut self, seq: &ast::BinOpSeq<'db>) -> ExprId {
@@ -330,17 +622,27 @@ impl<'db> FunctionBuilder<'db> {
             let syntax = ty.syntax();
             let ty_id = match &ty {
                 ast::Type::Path(path) => {
-                    let path = path
-                        .syntax()
-                        .children_with_tokens()
-                        .find_map(|child| {
-                            let token = child.into_token()?;
-                            if token.is_trivia() { None } else { Some(token) }
-                        })
-                        .expect("path should have at least one token")
-                        .text_trimmed();
-                    let path = path.into_symbol(self.db);
-                    self.function.node_store_mut().alloc_type_ref(path).into()
+                    let path_ref: TyId = self
+                        .function
+                        .node_store_mut()
+                        .alloc_type_ref(path.path_text().into_symbol(self.db))
+                        .into();
+                    let type_args = path
+                        .type_args()
+                        .into_iter()
+                        .map(|ty| self.build_ty(Some(ty)))
+                        .collect::<Vec<_>>();
+                    if type_args.is_empty() {
+                        path_ref
+                    } else {
+                        let args =
+                            self.function.node_store_mut().alloc_type_tuple(type_args).into();
+                        self.function.node_store_mut().alloc_type_apply(path_ref, args).into()
+                    }
+                }
+                ast::Type::Array(array_type) => {
+                    let item = self.build_ty(array_type.item());
+                    self.function.node_store_mut().alloc_type_array(item, TyId::ZERO).into()
                 }
                 ast::Type::Tuple(tuple_type) => {
                     let items: Vec<TyId> =
@@ -374,9 +676,54 @@ impl<'db> FunctionBuilder<'db> {
                         .collect();
                     self.function.node_store_mut().alloc_type_record(fields).into()
                 }
+                ast::Type::Pointer(pointer_type) => {
+                    let item = self.build_ty(pointer_type.pointee());
+                    if pointer_type.is_mut() {
+                        self.function.node_store_mut().alloc_type_ptr_mut(item, TyId::ZERO).into()
+                    } else {
+                        self.function.node_store_mut().alloc_type_ptr_const(item, TyId::ZERO).into()
+                    }
+                }
             };
             self.alloc_type_ptr(ty_id, syntax);
             ty_id
         })
     }
+}
+
+fn syntax_non_trivia_text(syntax: &SyntaxNode<'_>) -> String {
+    let mut text = String::new();
+    collect_non_trivia_text(syntax, &mut text);
+    text
+}
+
+fn collect_non_trivia_text(syntax: &SyntaxNode<'_>, text: &mut String) {
+    for child in syntax.children_with_tokens() {
+        match child {
+            SyntaxElement::Token(token) if !token.is_trivia() => {
+                text.push_str(token.text_trimmed())
+            }
+            SyntaxElement::Node(node) => collect_non_trivia_text(&node, text),
+            SyntaxElement::Token(_) => {}
+        }
+    }
+}
+
+fn function_linkage<'db>(db: &'db dyn Database, node: &ast::Function<'db>) -> WasmLinkage<'db> {
+    if let Some(module) = node.import_module() {
+        if node.is_unsafe() {
+            return WasmLinkage::RawImport { module: module.into_symbol(db) };
+        }
+        return WasmLinkage::Import { module: module.into_symbol(db) };
+    }
+
+    if node.is_exported() {
+        return WasmLinkage::Export;
+    }
+
+    if node.name().is_some_and(|name| name.as_str() == "main") {
+        return WasmLinkage::ImplicitMainExport;
+    }
+
+    WasmLinkage::Internal
 }

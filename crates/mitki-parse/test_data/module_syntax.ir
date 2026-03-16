@@ -1,0 +1,33 @@
+MODULE
+  MOD_ITEM
+    PUB_KW: "pub"
+    MOD_KW: "mod"
+    IDENT
+      NAME: "io"
+    SEMICOLON: ";"
+  USE_ITEM
+    USE_KW: "use"
+    PATH_EXPR
+      NAME_REF
+        NAME: "std"
+      DOUBLE_COLON: "::"
+      NAME_REF
+        NAME: "io"
+      DOUBLE_COLON: "::"
+      NAME_REF
+        NAME: "print_int"
+    SEMICOLON: ";"
+  USE_ITEM
+    USE_KW: "use"
+    PATH_EXPR
+      NAME_REF
+        NAME: "std"
+      DOUBLE_COLON: "::"
+      NAME_REF
+        NAME: "io"
+    AS_KW: "as"
+    IDENT
+      NAME: "io"
+    SEMICOLON: ";"
+
+Errors:

@@ -1,0 +1,25 @@
+MODULE
+  INSTANCE_ITEM
+    NAME: "export"
+    NAME: "instance"
+    IDENT
+      NAME: "id"
+    GENERIC_ARG_LIST
+      LEFT_BRACKET: "["
+      PATH_TYPE
+        NAME: "int"
+      RIGHT_BRACKET: "]"
+    SEMICOLON: ";"
+  INSTANCE_ITEM
+    NAME: "import"
+    NAME: "instance"
+    IDENT
+      NAME: "round_trip"
+    GENERIC_ARG_LIST
+      LEFT_BRACKET: "["
+      PATH_TYPE
+        NAME: "str"
+      RIGHT_BRACKET: "]"
+    SEMICOLON: ";"
+
+Errors:

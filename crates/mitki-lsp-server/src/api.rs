@@ -3,6 +3,7 @@ use std::fs;
 
 use anyhow::Result;
 use lsp_types::notification::Notification as _;
+use mitki_ide::SemanticTokenKind;
 use mitki_inputs::File;
 use salsa::Setter as _;
 use text_size::{TextRange, TextSize};
@@ -82,25 +83,40 @@ fn handle_document_diagnostic(
     .into())
 }
 
+#[expect(clippy::needless_pass_by_value)]
 fn handle_semantic_tokens_full(
-    _server: &mut Server,
-    _params: lsp_types::SemanticTokensParams,
+    server: &mut Server,
+    params: lsp_types::SemanticTokensParams,
 ) -> Result<Option<lsp_types::SemanticTokensResult>> {
-    Ok(None)
+    let file = ensure_file(server, &params.text_document.uri)?;
+    Ok(Some(lsp_types::SemanticTokensResult::Tokens(semantic_tokens_for_file(server, file, None))))
 }
 
+#[expect(clippy::needless_pass_by_value)]
 fn handle_semantic_tokens_range(
-    _server: &mut Server,
-    _params: lsp_types::SemanticTokensRangeParams,
+    server: &mut Server,
+    params: lsp_types::SemanticTokensRangeParams,
 ) -> Result<Option<lsp_types::SemanticTokensRangeResult>> {
-    Ok(None)
+    let file = ensure_file(server, &params.text_document.uri)?;
+    let line_index = file.line_index(server.analysis.db());
+    let start = position_to_offset(line_index, params.range.start);
+    let end = position_to_offset(line_index, params.range.end);
+    Ok(Some(lsp_types::SemanticTokensRangeResult::Tokens(semantic_tokens_for_file(
+        server,
+        file,
+        Some(TextRange::new(start, end)),
+    ))))
 }
 
+#[expect(clippy::needless_pass_by_value)]
 fn handle_semantic_tokens_full_delta(
-    _server: &mut Server,
-    _params: lsp_types::SemanticTokensDeltaParams,
+    server: &mut Server,
+    params: lsp_types::SemanticTokensDeltaParams,
 ) -> Result<Option<lsp_types::SemanticTokensFullDeltaResult>> {
-    Ok(None)
+    let file = ensure_file(server, &params.text_document.uri)?;
+    Ok(Some(lsp_types::SemanticTokensFullDeltaResult::Tokens(semantic_tokens_for_file(
+        server, file, None,
+    ))))
 }
 
 #[expect(clippy::needless_pass_by_value)]
@@ -231,6 +247,51 @@ fn diagnostics_for_file(server: &Server, file: File) -> Vec<lsp_types::Diagnosti
             )
         })
         .collect()
+}
+
+fn semantic_tokens_for_file(
+    server: &Server,
+    file: File,
+    range: Option<TextRange>,
+) -> lsp_types::SemanticTokens {
+    let line_index = file.line_index(server.analysis.db());
+    let mut data = Vec::new();
+    let mut prev_line = 0;
+    let mut prev_start = 0;
+
+    for token in server.analysis.semantic_tokens(file, range) {
+        let start = line_index.line_col(token.range.start());
+        let end = line_index.line_col(token.range.end());
+        let delta_line = start.line.saturating_sub(prev_line);
+        let delta_start =
+            if delta_line == 0 { start.col.saturating_sub(prev_start) } else { start.col };
+        let length = if start.line == end.line { end.col.saturating_sub(start.col) } else { 0 };
+
+        data.push(lsp_types::SemanticToken {
+            delta_line,
+            delta_start,
+            length,
+            token_type: semantic_token_type_index(token.kind),
+            token_modifiers_bitset: 0,
+        });
+
+        prev_line = start.line;
+        prev_start = start.col;
+    }
+
+    lsp_types::SemanticTokens { result_id: None, data }
+}
+
+fn semantic_token_type_index(kind: SemanticTokenKind) -> u32 {
+    match kind {
+        SemanticTokenKind::Function => 0,
+        SemanticTokenKind::Parameter => 1,
+        SemanticTokenKind::Variable => 2,
+        SemanticTokenKind::Type => 3,
+        SemanticTokenKind::EnumMember => 4,
+        SemanticTokenKind::BuiltinType => 5,
+        SemanticTokenKind::BuiltinFunction => 6,
+    }
 }
 
 fn publish_diagnostics(server: &Server, uri: lsp_types::Uri, file: File) -> Result<()> {

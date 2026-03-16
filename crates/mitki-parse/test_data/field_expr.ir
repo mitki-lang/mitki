@@ -10,8 +10,9 @@ MODULE
       LEFT_BRACE: "{"
       VAL_STMT
         VAL_KW: "val"
-        IDENT
-          NAME: "n"
+        BINDING_PATTERN
+          IDENT
+            NAME: "n"
         EQ: "="
         FIELD_EXPR
           PATH_EXPR

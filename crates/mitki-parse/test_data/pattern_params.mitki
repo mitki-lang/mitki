@@ -1,0 +1,9 @@
+struct Point {
+    x: int,
+    y: int,
+}
+
+fun main((lhs, rhs): (int, int), Point { x, y }: Point) {
+    val (a, _) = (lhs, rhs)
+    val Point { x: px, y: py } = Point { x: x, y: y }
+}

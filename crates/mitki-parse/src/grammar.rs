@@ -5,11 +5,12 @@ use crate::parser::Parser;
 
 mod exprs;
 pub(crate) mod items;
+pub(crate) mod patterns;
 mod types;
 
 pub(crate) fn name(p: &mut Parser, recovery: &SyntaxSet) {
     match p.peek_kind() {
-        NAME => {
+        NAME | VAR_KW => {
             let m = p.start();
             p.advance();
             m.complete(p, IDENT);

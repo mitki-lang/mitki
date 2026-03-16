@@ -1,0 +1,19 @@
+[package]
+name = "mitki-abi"
+version = "0.1.0"
+license.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+blake3.workspace = true
+wasmparser.workspace = true
+
+[dev-dependencies]
+expect-test = "1.5"

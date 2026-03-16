@@ -1,6 +1,6 @@
 mod analysis;
 
-pub use analysis::{Analysis, HoverResult, InlayHint};
+pub use analysis::{Analysis, HoverResult, InlayHint, SemanticToken, SemanticTokenKind};
 
 #[derive(Clone, Copy)]
 pub struct FilePosition {

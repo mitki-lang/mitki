@@ -15,3 +15,14 @@ impl File {
         LineIndex::new(self.text(db))
     }
 }
+
+#[salsa::interned(debug)]
+pub struct PackageId<'db> {
+    pub root_file: File,
+}
+
+#[salsa::interned(debug)]
+pub struct ModuleId<'db> {
+    pub package: PackageId<'db>,
+    pub file: File,
+}

@@ -1,8 +1,8 @@
-use mitki_analysis::Semantics;
-use mitki_hir::hir::{ExprId, TyId};
+use mitki_analysis::{ResolveIntent, Semantics};
+use mitki_hir::hir::{ExprId, NodeKind, TyId};
 use mitki_lower::hir::HasFunction as _;
 use mitki_parse::FileParse as _;
-use mitki_resolve::Resolution;
+use mitki_resolve::BindingId;
 use mitki_span::IntoSymbol as _;
 use mitki_typeck::infer::Inferable as _;
 use mitki_yellow::SyntaxKind;
@@ -26,7 +26,13 @@ impl super::Analysis {
             kind == SyntaxKind::NAME_REF || kind == SyntaxKind::IDENT
         })?;
         let original_token = name_at_offset.token;
-        let name_node = name_at_offset.node;
+        let name_node = name_at_offset
+            .node
+            .ancestors()
+            .find(|ancestor| {
+                matches!(ancestor.kind(), SyntaxKind::PATH_EXPR | SyntaxKind::PATH_TYPE)
+            })
+            .unwrap_or(name_at_offset.node);
 
         let name = original_token.text_trimmed().into_symbol(db);
         let function_hover_contents = |function: ast::Function<'_>| {
@@ -101,8 +107,16 @@ impl super::Analysis {
         let source_map = location.hir_function(db).source_map(db);
         let param_annotation_ty_text = |binding_expr: ExprId| {
             for &param in function.params() {
-                let (param_name, param_ty) = function.node_store().param(param);
-                if ExprId::from(param_name) != binding_expr || param_ty == TyId::ZERO {
+                let (pattern, param_ty) = function.node_store().param(param);
+                if param_ty == TyId::ZERO
+                    || function.node_store().node_kind(pattern) != NodeKind::PatBinding
+                {
+                    continue;
+                }
+                let (param_name, _) = function
+                    .node_store()
+                    .pat_binding(function.node_store().as_pat_binding(pattern)?);
+                if ExprId::from(param_name) != binding_expr {
                     continue;
                 }
                 let ty_syntax = source_map.try_type_syntax(param_ty)?.to_node(&root);
@@ -126,11 +140,10 @@ impl super::Analysis {
             return None;
         }
 
-        let resolver = semantics.resolver(db, location, &name_node);
-        let resolution = resolver.resolve_path(name)?;
+        let resolution = semantics.resolve_at(db, &name_node, ResolveIntent::Any);
 
-        match resolution {
-            Resolution::Local(binding) => {
+        match resolution.binding? {
+            BindingId::Local(binding) | BindingId::Param(binding) => {
                 let ty = inference.type_of_node(binding.into())?;
                 let ty_text = param_annotation_ty_text(binding.into())
                     .unwrap_or_else(|| format!("{}", ty.display(db)));
@@ -139,7 +152,15 @@ impl super::Analysis {
                     contents: format!("```mitki\nval {}: {ty_text}\n```", name.text(db)),
                 })
             }
-            Resolution::Function(func) => {
+            BindingId::CompilerIntrinsic(intrinsic) => Some(HoverResult {
+                range: original_token.trimmed_range(),
+                contents: format!("```mitki\nintrinsic {}\n```", intrinsic.source_name()),
+            }),
+            BindingId::RuntimeFunction(function) => Some(HoverResult {
+                range: original_token.trimmed_range(),
+                contents: function.hover_text(),
+            }),
+            BindingId::Function(func) => {
                 let function_syntax = func.source(db);
 
                 Some(HoverResult {
@@ -147,9 +168,18 @@ impl super::Analysis {
                     contents: function_hover_contents(function_syntax),
                 })
             }
-            Resolution::Type(ty) => Some(HoverResult {
+            BindingId::Struct(_) | BindingId::Enum(_) | BindingId::BuiltinType(_) => {
+                Some(HoverResult {
+                    range: original_token.trimmed_range(),
+                    contents: format!("```mitki\ntype {}\n```", name.text(db)),
+                })
+            }
+            BindingId::EnumVariant(variant) => Some(HoverResult {
                 range: original_token.trimmed_range(),
-                contents: format!("```mitki\ntype {}\n```", ty.display(db)),
+                contents: format!(
+                    "```mitki\nenum-member {}\n```",
+                    variant.source(db).name()?.as_str()
+                ),
             }),
         }
     }
@@ -309,6 +339,18 @@ fun main() {
 }
 "#,
             "```mitki\nfun noop: fun() -> ()\n```",
+        );
+    }
+
+    #[test]
+    fn runtime_builtin_call() {
+        check(
+            r#"
+fun main() {
+    $0std::io::print_int(1)
+}
+"#,
+            "```mitki\nfun print_int: fun(int) -> ()\n```",
         );
     }
 

@@ -50,6 +50,9 @@ impl<'db> Node<'db> for Module<'db> {
 /// Top-level items.
 pub enum Item<'db> {
     Function(Function<'db>),
+    Instance(InstanceItem<'db>),
+    Module(ModuleItem<'db>),
+    Use(UseItem<'db>),
     Struct(StructDef<'db>),
     Enum(EnumDef<'db>),
 }
@@ -58,6 +61,9 @@ impl<'db> Node<'db> for Item<'db> {
     fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             FN => Item::Function(Function(syntax)).into(),
+            INSTANCE_ITEM => Item::Instance(InstanceItem(syntax)).into(),
+            MOD_ITEM => Item::Module(ModuleItem(syntax)).into(),
+            USE_ITEM => Item::Use(UseItem(syntax)).into(),
             STRUCT_DEF => Item::Struct(StructDef(syntax)).into(),
             ENUM_DEF => Item::Enum(EnumDef(syntax)).into(),
             _ => None,
@@ -67,6 +73,9 @@ impl<'db> Node<'db> for Item<'db> {
     fn syntax(&self) -> &SyntaxNode<'db> {
         match self {
             Item::Function(function) => function.syntax(),
+            Item::Instance(instance) => instance.syntax(),
+            Item::Module(module) => module.syntax(),
+            Item::Use(use_item) => use_item.syntax(),
             Item::Struct(s) => s.syntax(),
             Item::Enum(e) => e.syntax(),
         }
@@ -77,6 +86,51 @@ impl<'db> Node<'db> for Item<'db> {
 pub struct Function<'db>(SyntaxNode<'db>);
 
 impl<'db> Function<'db> {
+    pub fn is_comptime(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|token| !token.is_trivia())
+            .take_while(|token| token.kind() != FUN_KW)
+            .any(|token| token.kind() == NAME && token.text_trimmed() == "comptime")
+    }
+
+    pub fn is_exported(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|token| !token.is_trivia())
+            .take_while(|token| token.kind() != FUN_KW)
+            .any(|token| token.kind() == NAME && token.text_trimmed() == "export")
+    }
+
+    pub fn is_unsafe(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|token| !token.is_trivia())
+            .take_while(|token| token.kind() != FUN_KW)
+            .any(|token| token.kind() == NAME && token.text_trimmed() == "unsafe")
+    }
+
+    pub fn import_module(&self) -> Option<&'db str> {
+        let mut tokens = self
+            .0
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|token| !token.is_trivia())
+            .take_while(|token| token.kind() != FUN_KW);
+
+        while let Some(token) = tokens.next() {
+            if token.kind() == NAME && token.text_trimmed() == "import" {
+                let module = tokens.find(|next| next.kind() == STRING)?;
+                return Some(trim_string_quotes(module.text_trimmed()));
+            }
+        }
+
+        None
+    }
+
     /// Iterates type parameters in the generic parameter list.
     pub fn type_params(&self) -> impl Iterator<Item = TypeParam<'db>> + '_ {
         self.0.children().filter_map(TypeParam::cast)
@@ -139,6 +193,129 @@ impl<'db> Node<'db> for RetType<'db> {
 
 impl<'db> HasName<'db> for Function<'db> {}
 
+/// Generic argument list node in a boundary instance item.
+pub struct GenericArgList<'db>(SyntaxNode<'db>);
+
+impl<'db> GenericArgList<'db> {
+    pub fn types(&self) -> impl Iterator<Item = Type<'db>> + '_ {
+        self.0.children().filter_map(Type::cast)
+    }
+}
+
+impl<'db> Node<'db> for GenericArgList<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            GENERIC_ARG_LIST => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Boundary instance item (`export instance foo[str];`).
+pub struct InstanceItem<'db>(SyntaxNode<'db>);
+
+impl<'db> InstanceItem<'db> {
+    pub fn is_exported(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|token| !token.is_trivia())
+            .take_while(|token| !(token.kind() == NAME && token.text_trimmed() == "instance"))
+            .any(|token| token.kind() == NAME && token.text_trimmed() == "export")
+    }
+
+    pub fn is_imported(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|token| !token.is_trivia())
+            .take_while(|token| !(token.kind() == NAME && token.text_trimmed() == "instance"))
+            .any(|token| token.kind() == NAME && token.text_trimmed() == "import")
+    }
+
+    pub fn arg_list(&self) -> Option<GenericArgList<'db>> {
+        child(&self.0)
+    }
+
+    pub fn type_args(&self) -> Vec<Type<'db>> {
+        self.arg_list().map(|list| list.types().collect()).unwrap_or_default()
+    }
+}
+
+impl<'db> Node<'db> for InstanceItem<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            INSTANCE_ITEM => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+impl<'db> HasName<'db> for InstanceItem<'db> {}
+
+/// Module declaration item (`mod foo;`).
+pub struct ModuleItem<'db>(SyntaxNode<'db>);
+
+impl<'db> ModuleItem<'db> {
+    pub fn is_public(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|token| !token.is_trivia())
+            .take_while(|token| token.kind() != MOD_KW)
+            .any(|token| token.kind() == PUB_KW)
+    }
+}
+
+impl<'db> Node<'db> for ModuleItem<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            MOD_ITEM => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+impl<'db> HasName<'db> for ModuleItem<'db> {}
+
+/// Use item (`use std::io::print_int;`).
+pub struct UseItem<'db>(SyntaxNode<'db>);
+
+impl<'db> UseItem<'db> {
+    pub fn path(&self) -> Option<Path<'db>> {
+        child(&self.0)
+    }
+
+    pub fn alias(&self) -> Option<Name<'db>> {
+        self.0.children().filter(|child| child.kind() == IDENT).find_map(Name::cast)
+    }
+}
+
+impl<'db> Node<'db> for UseItem<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            USE_ITEM => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
 /// Type parameter node in a generic parameter list.
 pub struct TypeParam<'db>(SyntaxNode<'db>);
 
@@ -188,9 +365,13 @@ impl<'db> Node<'db> for Params<'db> {
 pub struct Param<'db>(SyntaxNode<'db>);
 
 impl<'db> Param<'db> {
-    /// Returns the parameter name.
-    pub fn name(&self) -> Name<'db> {
-        child(self.syntax()).unwrap()
+    pub fn is_mutable(&self) -> bool {
+        first_non_trivia_token(&self.0).is_some_and(|token| token.kind() == VAR_KW)
+    }
+
+    /// Returns the parameter pattern.
+    pub fn pattern(&self) -> Option<Pattern<'db>> {
+        child(self.syntax())
     }
 
     /// Returns the parameter type, if any.
@@ -243,6 +424,8 @@ impl<'db> Node<'db> for Block<'db> {
 /// Statement node.
 pub enum Stmt<'db> {
     Val(Val<'db>),
+    Assign(AssignStmt<'db>),
+    Return(ReturnStmt<'db>),
     Expr(ExprStmt<'db>),
 }
 
@@ -250,6 +433,8 @@ impl<'db> Node<'db> for Stmt<'db> {
     fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             VAL_STMT => Stmt::Val(Val(syntax)).into(),
+            ASSIGN_STMT => Stmt::Assign(AssignStmt(syntax)).into(),
+            RETURN_STMT => Stmt::Return(ReturnStmt(syntax)).into(),
             EXPR_STMT => Stmt::Expr(ExprStmt(syntax)).into(),
             _ => None,
         }
@@ -258,6 +443,8 @@ impl<'db> Node<'db> for Stmt<'db> {
     fn syntax(&self) -> &SyntaxNode<'db> {
         match self {
             Stmt::Val(val) => val.syntax(),
+            Stmt::Assign(assign) => assign.syntax(),
+            Stmt::Return(return_stmt) => return_stmt.syntax(),
             Stmt::Expr(expr) => expr.syntax(),
         }
     }
@@ -267,6 +454,16 @@ impl<'db> Node<'db> for Stmt<'db> {
 pub struct Val<'db>(SyntaxNode<'db>);
 
 impl<'db> Val<'db> {
+    /// Returns `true` when this statement uses `var`.
+    pub fn is_mutable(&self) -> bool {
+        first_non_trivia_token(&self.0).is_some_and(|token| token.kind() == VAR_KW)
+    }
+
+    /// Returns the binding pattern.
+    pub fn pattern(&self) -> Option<Pattern<'db>> {
+        child(self.syntax())
+    }
+
     /// Returns the optional type annotation.
     pub fn ty(&self) -> Option<Type<'db>> {
         child(self.syntax())
@@ -291,7 +488,54 @@ impl<'db> Node<'db> for Val<'db> {
     }
 }
 
-impl<'db> HasName<'db> for Val<'db> {}
+/// Assignment statement node.
+pub struct AssignStmt<'db>(SyntaxNode<'db>);
+
+impl<'db> AssignStmt<'db> {
+    pub fn target(&self) -> Option<Expr<'db>> {
+        child(self.syntax())
+    }
+
+    pub fn expr(&self) -> Option<Expr<'db>> {
+        self.syntax().children().filter_map(Expr::cast).nth(1)
+    }
+}
+
+impl<'db> Node<'db> for AssignStmt<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            ASSIGN_STMT => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Return statement node.
+pub struct ReturnStmt<'db>(SyntaxNode<'db>);
+
+impl<'db> ReturnStmt<'db> {
+    /// Returns the optional return value.
+    pub fn expr(&self) -> Option<Expr<'db>> {
+        child(self.syntax())
+    }
+}
+
+impl<'db> Node<'db> for ReturnStmt<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            RETURN_STMT => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
 
 /// Expression statement node.
 pub struct ExprStmt<'db>(SyntaxNode<'db>);
@@ -329,11 +573,18 @@ pub enum Expr<'db> {
     Path(Path<'db>),
     Field(FieldExpr<'db>),
     Literal(Literal<'db>),
+    Paren(ParenExpr<'db>),
     Tuple(TupleExpr<'db>),
+    Array(ArrayExpr<'db>),
     BinOpSeq(BinOpSeq<'db>),
     Postfix(Postfix<'db>),
     Prefix(Prefix<'db>),
+    Loop(LoopExpr<'db>),
+    Break(BreakExpr<'db>),
+    Continue(ContinueExpr<'db>),
     If(IfExpr<'db>),
+    Match(MatchExpr<'db>),
+    Unsafe(UnsafeExpr<'db>),
     Closure(Closure<'db>),
     Call(CallExpr<'db>),
     Struct(StructExpr<'db>),
@@ -345,10 +596,17 @@ impl<'db> Node<'db> for Expr<'db> {
             PATH_EXPR => Expr::Path(Path(syntax)).into(),
             FIELD_EXPR => Expr::Field(FieldExpr(syntax)).into(),
             LITERAL => Expr::Literal(Literal(syntax)).into(),
+            PAREN_EXPR => Expr::Paren(ParenExpr(syntax)).into(),
             BIN_OP_SEQ => Expr::BinOpSeq(BinOpSeq(syntax)).into(),
+            ARRAY_EXPR => Expr::Array(ArrayExpr(syntax)).into(),
             POSTFIX_EXPR => Expr::Postfix(Postfix(syntax)).into(),
             PREFIX_EXPR => Expr::Prefix(Prefix(syntax)).into(),
+            LOOP_EXPR => Expr::Loop(LoopExpr(syntax)).into(),
+            BREAK_EXPR => Expr::Break(BreakExpr(syntax)).into(),
+            CONTINUE_EXPR => Expr::Continue(ContinueExpr(syntax)).into(),
             IF_EXPR => Expr::If(IfExpr(syntax)).into(),
+            MATCH_EXPR => Expr::Match(MatchExpr(syntax)).into(),
+            UNSAFE_EXPR => Expr::Unsafe(UnsafeExpr(syntax)).into(),
             CLOSURE_EXPR => Expr::Closure(Closure(syntax)).into(),
             CALL_EXPR => Expr::Call(CallExpr(syntax)).into(),
             TUPLE_EXPR => Expr::Tuple(TupleExpr(syntax)).into(),
@@ -362,10 +620,17 @@ impl<'db> Node<'db> for Expr<'db> {
             Expr::Path(path) => path.syntax(),
             Expr::Field(field) => field.syntax(),
             Expr::Literal(literal) => &literal.0,
+            Expr::Paren(paren_expr) => paren_expr.syntax(),
+            Expr::Array(array_expr) => array_expr.syntax(),
             Expr::BinOpSeq(seq) => &seq.0,
             Expr::Postfix(postfix) => &postfix.0,
             Expr::Prefix(prefix) => &prefix.0,
+            Expr::Loop(loop_expr) => loop_expr.syntax(),
+            Expr::Break(break_expr) => break_expr.syntax(),
+            Expr::Continue(continue_expr) => continue_expr.syntax(),
             Expr::If(if_) => if_.syntax(),
+            Expr::Match(match_expr) => match_expr.syntax(),
+            Expr::Unsafe(unsafe_expr) => unsafe_expr.syntax(),
             Expr::Closure(closure) => closure.syntax(),
             Expr::Call(call) => call.syntax(),
             Expr::Tuple(tuple_expr) => tuple_expr.syntax(),
@@ -376,6 +641,12 @@ impl<'db> Node<'db> for Expr<'db> {
 
 /// Path expression node.
 pub struct Path<'db>(SyntaxNode<'db>);
+
+impl<'db> Path<'db> {
+    pub fn path_text(&self) -> String {
+        path_text_without_generic_args(&self.0)
+    }
+}
 
 impl<'db> Node<'db> for Path<'db> {
     fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
@@ -436,6 +707,29 @@ impl<'db> Literal<'db> {
     }
 }
 
+/// Parenthesized expression node.
+pub struct ParenExpr<'db>(SyntaxNode<'db>);
+
+impl<'db> ParenExpr<'db> {
+    /// Returns the wrapped expression.
+    pub fn expr(&self) -> Option<Expr<'db>> {
+        child(&self.0)
+    }
+}
+
+impl<'db> Node<'db> for ParenExpr<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            PAREN_EXPR => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
 /// Tuple expression node.
 pub struct TupleExpr<'db>(SyntaxNode<'db>);
 
@@ -450,6 +744,29 @@ impl<'db> Node<'db> for TupleExpr<'db> {
     fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             TUPLE_EXPR => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Array expression node.
+pub struct ArrayExpr<'db>(SyntaxNode<'db>);
+
+impl<'db> ArrayExpr<'db> {
+    /// Iterates array items as parsed.
+    pub fn exprs(&self) -> impl Iterator<Item = Expr<'db>> + '_ {
+        self.0.children().filter_map(Expr::cast)
+    }
+}
+
+impl<'db> Node<'db> for ArrayExpr<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            ARRAY_EXPR => Some(Self(syntax)),
             _ => None,
         }
     }
@@ -522,13 +839,40 @@ impl<'db> IfExpr<'db> {
     }
 
     /// Returns the then branch block.
-    pub fn then_branch(&self) -> Option<Block<'db>> {
+    pub fn then_block(&self) -> Option<Block<'db>> {
         self.syntax().children().nth(1).and_then(Block::cast)
     }
 
     /// Returns the else branch block, if any.
-    pub fn else_branch(&self) -> Option<Block<'db>> {
+    pub fn else_block(&self) -> Option<Block<'db>> {
         self.syntax().children().nth(2).and_then(Block::cast)
+    }
+
+    /// Returns the nested `else if` branch, if any.
+    pub fn else_if(&self) -> Option<IfExpr<'db>> {
+        self.syntax().children().nth(2).and_then(IfExpr::cast)
+    }
+}
+
+/// Unsafe block expression node (`unsafe { ... }`).
+pub struct UnsafeExpr<'db>(SyntaxNode<'db>);
+
+impl<'db> UnsafeExpr<'db> {
+    pub fn body(&self) -> Option<Block<'db>> {
+        child(&self.0)
+    }
+}
+
+impl<'db> Node<'db> for UnsafeExpr<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            UNSAFE_EXPR => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
     }
 }
 
@@ -626,6 +970,112 @@ impl<'db> Node<'db> for IfExpr<'db> {
     }
 }
 
+/// Match expression node.
+pub struct MatchExpr<'db>(SyntaxNode<'db>);
+
+impl<'db> MatchExpr<'db> {
+    pub fn scrutinee(&self) -> Option<Expr<'db>> {
+        child(self.syntax())
+    }
+
+    pub fn arms(&self) -> impl Iterator<Item = MatchArm<'db>> + '_ {
+        self.syntax().children().filter_map(MatchArm::cast)
+    }
+}
+
+impl<'db> Node<'db> for MatchExpr<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            MATCH_EXPR => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Match arm node.
+pub struct MatchArm<'db>(SyntaxNode<'db>);
+
+impl<'db> MatchArm<'db> {
+    pub fn pattern(&self) -> Option<Pattern<'db>> {
+        child(self.syntax())
+    }
+
+    pub fn expr(&self) -> Option<Expr<'db>> {
+        child(self.syntax())
+    }
+}
+
+impl<'db> Node<'db> for MatchArm<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            MATCH_ARM => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Loop expression node.
+pub struct LoopExpr<'db>(SyntaxNode<'db>);
+
+impl<'db> LoopExpr<'db> {
+    pub fn body(&self) -> Option<Block<'db>> {
+        child(self.syntax())
+    }
+}
+
+impl<'db> Node<'db> for LoopExpr<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            LOOP_EXPR => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Break expression node.
+pub struct BreakExpr<'db>(SyntaxNode<'db>);
+
+impl<'db> Node<'db> for BreakExpr<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            BREAK_EXPR => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Continue expression node.
+pub struct ContinueExpr<'db>(SyntaxNode<'db>);
+
+impl<'db> Node<'db> for ContinueExpr<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            CONTINUE_EXPR => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
 /// Concrete literal variants.
 pub enum LiteralKind<'db> {
     Bool(bool),
@@ -664,25 +1114,327 @@ impl<'db> Node<'db> for Name<'db> {
     }
 }
 
+/// Pattern node.
+pub enum Pattern<'db> {
+    Binding(BindingPattern<'db>),
+    Wildcard(WildcardPattern<'db>),
+    Literal(LiteralPattern<'db>),
+    Typed(TypedPattern<'db>),
+    Paren(ParenPattern<'db>),
+    Tuple(TuplePattern<'db>),
+    Variant(VariantPattern<'db>),
+    Struct(StructPattern<'db>),
+}
+
+impl<'db> Node<'db> for Pattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            BINDING_PATTERN => Pattern::Binding(BindingPattern(syntax)).into(),
+            WILDCARD_PATTERN => Pattern::Wildcard(WildcardPattern(syntax)).into(),
+            LITERAL_PATTERN => Pattern::Literal(LiteralPattern(syntax)).into(),
+            TYPED_PATTERN => Pattern::Typed(TypedPattern(syntax)).into(),
+            PAREN_PATTERN => Pattern::Paren(ParenPattern(syntax)).into(),
+            TUPLE_PATTERN => Pattern::Tuple(TuplePattern(syntax)).into(),
+            VARIANT_PATTERN => Pattern::Variant(VariantPattern(syntax)).into(),
+            STRUCT_PATTERN => Pattern::Struct(StructPattern(syntax)).into(),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        match self {
+            Pattern::Binding(binding) => binding.syntax(),
+            Pattern::Wildcard(wildcard) => wildcard.syntax(),
+            Pattern::Literal(literal) => literal.syntax(),
+            Pattern::Typed(typed) => typed.syntax(),
+            Pattern::Paren(paren) => paren.syntax(),
+            Pattern::Tuple(tuple) => tuple.syntax(),
+            Pattern::Variant(variant) => variant.syntax(),
+            Pattern::Struct(struct_pattern) => struct_pattern.syntax(),
+        }
+    }
+}
+
+/// Binding pattern node.
+pub struct BindingPattern<'db>(SyntaxNode<'db>);
+
+impl<'db> BindingPattern<'db> {
+    pub fn name(&self) -> Option<Name<'db>> {
+        child(self.syntax())
+    }
+}
+
+impl<'db> Node<'db> for BindingPattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            BINDING_PATTERN => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Wildcard pattern node.
+pub struct WildcardPattern<'db>(SyntaxNode<'db>);
+
+impl<'db> Node<'db> for WildcardPattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            WILDCARD_PATTERN => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Literal pattern node.
+pub struct LiteralPattern<'db>(SyntaxNode<'db>);
+
+impl<'db> LiteralPattern<'db> {
+    pub fn kind(&self) -> LiteralKind<'db> {
+        let token = first_non_trivia_token(&self.0).unwrap();
+
+        match token.kind() {
+            INT_NUMBER => LiteralKind::Int(token),
+            FLOAT_NUMBER => LiteralKind::Float(token),
+            STRING => LiteralKind::String(token),
+            CHAR => LiteralKind::Char(token),
+            kind @ (TRUE_KW | FALSE_KW) => LiteralKind::Bool(kind == TRUE_KW),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl<'db> Node<'db> for LiteralPattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            LITERAL_PATTERN => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Typed pattern node (`name: Type` or `_: Type`) in `match`.
+pub struct TypedPattern<'db>(SyntaxNode<'db>);
+
+impl<'db> TypedPattern<'db> {
+    pub fn pattern(&self) -> Option<Pattern<'db>> {
+        child(self.syntax())
+    }
+
+    pub fn ty(&self) -> Option<Type<'db>> {
+        child(self.syntax())
+    }
+}
+
+impl<'db> Node<'db> for TypedPattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            TYPED_PATTERN => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Parenthesized pattern node.
+pub struct ParenPattern<'db>(SyntaxNode<'db>);
+
+impl<'db> ParenPattern<'db> {
+    pub fn pattern(&self) -> Option<Pattern<'db>> {
+        child(self.syntax())
+    }
+}
+
+impl<'db> Node<'db> for ParenPattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            PAREN_PATTERN => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Tuple pattern node.
+pub struct TuplePattern<'db>(SyntaxNode<'db>);
+
+impl<'db> TuplePattern<'db> {
+    pub fn patterns(&self) -> impl Iterator<Item = Pattern<'db>> + '_ {
+        self.0.children().filter_map(Pattern::cast)
+    }
+}
+
+impl<'db> Node<'db> for TuplePattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            TUPLE_PATTERN => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Variant pattern node.
+pub struct VariantPattern<'db>(SyntaxNode<'db>);
+
+impl<'db> VariantPattern<'db> {
+    pub fn path(&self) -> Option<FieldPattern<'db>> {
+        child(self.syntax())
+    }
+
+    pub fn patterns(&self) -> impl Iterator<Item = Pattern<'db>> + '_ {
+        self.syntax().children().filter_map(Pattern::cast)
+    }
+}
+
+impl<'db> Node<'db> for VariantPattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            VARIANT_PATTERN => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Struct pattern node.
+pub struct StructPattern<'db>(SyntaxNode<'db>);
+
+impl<'db> StructPattern<'db> {
+    pub fn path(&self) -> Option<PathPattern<'db>> {
+        child(self.syntax())
+    }
+
+    pub fn fields(&self) -> impl Iterator<Item = StructPatternField<'db>> + '_ {
+        self.syntax().children().filter_map(StructPatternField::cast)
+    }
+}
+
+impl<'db> Node<'db> for StructPattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            STRUCT_PATTERN => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+/// Struct pattern field node.
+pub struct StructPatternField<'db>(SyntaxNode<'db>);
+
+impl<'db> StructPatternField<'db> {
+    pub fn pattern(&self) -> Option<Pattern<'db>> {
+        child(self.syntax())
+    }
+}
+
+impl<'db> Node<'db> for StructPatternField<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            STRUCT_PATTERN_FIELD => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+impl<'db> HasName<'db> for StructPatternField<'db> {}
+
+/// Pattern path node.
+pub struct PathPattern<'db>(SyntaxNode<'db>);
+
+impl<'db> Node<'db> for PathPattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            PATH_PATTERN => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+impl<'db> HasName<'db> for PathPattern<'db> {}
+
+/// Pattern field path node.
+pub struct FieldPattern<'db>(SyntaxNode<'db>);
+
+impl<'db> FieldPattern<'db> {
+    pub fn base(&self) -> Option<PathPattern<'db>> {
+        child(self.syntax())
+    }
+}
+
+impl<'db> Node<'db> for FieldPattern<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            FIELD_PATTERN => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+impl<'db> HasName<'db> for FieldPattern<'db> {}
+
 /// Type node.
 pub enum Type<'db> {
     Path(PathType<'db>),
+    Array(ArrayType<'db>),
     Tuple(TupleType<'db>),
     Function(FunctionType<'db>),
     Union(UnionType<'db>),
     Inter(InterType<'db>),
     Record(RecordType<'db>),
+    Pointer(PointerType<'db>),
 }
 
 impl<'db> Node<'db> for Type<'db> {
     fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
         match syntax.kind() {
             PATH_TYPE => Type::Path(PathType(syntax)).into(),
+            ARRAY_TYPE => Type::Array(ArrayType(syntax)).into(),
             TUPLE_TYPE => Type::Tuple(TupleType(syntax)).into(),
             FUNCTION_TYPE => Type::Function(FunctionType(syntax)).into(),
             UNION_TYPE => Type::Union(UnionType(syntax)).into(),
             INTER_TYPE => Type::Inter(InterType(syntax)).into(),
             RECORD_TYPE => Type::Record(RecordType(syntax)).into(),
+            POINTER_TYPE => Type::Pointer(PointerType(syntax)).into(),
             _ => None,
         }
     }
@@ -690,17 +1442,63 @@ impl<'db> Node<'db> for Type<'db> {
     fn syntax(&self) -> &SyntaxNode<'db> {
         match self {
             Type::Path(path_type) => &path_type.0,
+            Type::Array(array_type) => &array_type.0,
             Type::Tuple(tuple_type) => &tuple_type.0,
             Type::Function(function_type) => &function_type.0,
             Type::Union(union_type) => &union_type.0,
             Type::Inter(inter_type) => &inter_type.0,
             Type::Record(record_type) => &record_type.0,
+            Type::Pointer(pointer_type) => &pointer_type.0,
         }
+    }
+}
+
+/// Raw pointer type node (`*const T` or `*mut T`).
+pub struct PointerType<'db>(SyntaxNode<'db>);
+
+impl<'db> PointerType<'db> {
+    pub fn is_mut(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|token| !token.is_trivia())
+            .any(|token| token.kind() == NAME && token.text_trimmed() == "mut")
+    }
+
+    pub fn pointee(&self) -> Option<Type<'db>> {
+        child(&self.0)
+    }
+}
+
+impl<'db> Node<'db> for PointerType<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            POINTER_TYPE => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
     }
 }
 
 /// Path type node.
 pub struct PathType<'db>(SyntaxNode<'db>);
+
+impl<'db> PathType<'db> {
+    pub fn path_text(&self) -> String {
+        path_text_without_generic_args(&self.0)
+    }
+
+    pub fn arg_list(&self) -> Option<GenericArgList<'db>> {
+        child(&self.0)
+    }
+
+    pub fn type_args(&self) -> Vec<Type<'db>> {
+        self.arg_list().map(|list| list.types().collect()).unwrap_or_default()
+    }
+}
 
 impl<'db> Node<'db> for PathType<'db> {
     fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
@@ -716,6 +1514,28 @@ impl<'db> Node<'db> for PathType<'db> {
 }
 
 impl<'db> HasName<'db> for PathType<'db> {}
+
+/// Array type node (`[T]`).
+pub struct ArrayType<'db>(SyntaxNode<'db>);
+
+impl<'db> ArrayType<'db> {
+    pub fn item(&self) -> Option<Type<'db>> {
+        child(&self.0)
+    }
+}
+
+impl<'db> Node<'db> for ArrayType<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            ARRAY_TYPE => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
 
 /// Tuple type node.
 pub struct TupleType<'db>(SyntaxNode<'db>);
@@ -853,16 +1673,45 @@ fn first_non_trivia_token<'db>(node: &SyntaxNode<'db>) -> Option<SyntaxToken<'db
     })
 }
 
+fn path_text_without_generic_args(node: &SyntaxNode<'_>) -> String {
+    let mut text = String::new();
+
+    for child in node.children_with_tokens() {
+        match child {
+            SyntaxElement::Node(node) if node.kind() == GENERIC_ARG_LIST => break,
+            SyntaxElement::Token(token) if !token.is_trivia() => {
+                text.push_str(token.text_trimmed())
+            }
+            SyntaxElement::Node(_) | SyntaxElement::Token(_) => {}
+        }
+    }
+
+    text
+}
+
 /// Struct definition node.
 pub struct StructDef<'db>(SyntaxNode<'db>);
 
 impl<'db> StructDef<'db> {
+    pub fn is_extern(&self) -> bool {
+        self.0
+            .children_with_tokens()
+            .filter_map(SyntaxElement::into_token)
+            .filter(|token| !token.is_trivia())
+            .take_while(|token| token.kind() != STRUCT_KW)
+            .any(|token| token.kind() == NAME && token.text_trimmed() == "extern")
+    }
+
     pub fn type_params(&self) -> impl Iterator<Item = TypeParam<'db>> + '_ {
         self.0.children().filter_map(TypeParam::cast)
     }
 
     pub fn field_list(&self) -> Option<StructFieldList<'db>> {
         child(&self.0)
+    }
+
+    pub fn destructor(&self) -> Option<DestructorDef<'db>> {
+        self.field_list()?.destructors().next()
     }
 }
 
@@ -887,6 +1736,10 @@ pub struct StructFieldList<'db>(SyntaxNode<'db>);
 impl<'db> StructFieldList<'db> {
     pub fn fields(&self) -> impl Iterator<Item = StructField<'db>> + '_ {
         self.0.children().filter_map(StructField::cast)
+    }
+
+    pub fn destructors(&self) -> impl Iterator<Item = DestructorDef<'db>> + '_ {
+        self.0.children().filter_map(DestructorDef::cast)
     }
 }
 
@@ -938,6 +1791,10 @@ impl<'db> EnumDef<'db> {
     pub fn variant_list(&self) -> Option<EnumVariantList<'db>> {
         child(&self.0)
     }
+
+    pub fn destructor(&self) -> Option<DestructorDef<'db>> {
+        self.variant_list()?.destructors().next()
+    }
 }
 
 impl<'db> Node<'db> for EnumDef<'db> {
@@ -961,6 +1818,10 @@ pub struct EnumVariantList<'db>(SyntaxNode<'db>);
 impl<'db> EnumVariantList<'db> {
     pub fn variants(&self) -> impl Iterator<Item = EnumVariant<'db>> + '_ {
         self.0.children().filter_map(EnumVariant::cast)
+    }
+
+    pub fn destructors(&self) -> impl Iterator<Item = DestructorDef<'db>> + '_ {
+        self.0.children().filter_map(DestructorDef::cast)
     }
 }
 
@@ -1000,6 +1861,36 @@ impl<'db> Node<'db> for EnumVariant<'db> {
 }
 
 impl<'db> HasName<'db> for EnumVariant<'db> {}
+
+/// Destructor member node inside a nominal type.
+pub struct DestructorDef<'db>(SyntaxNode<'db>);
+
+impl<'db> DestructorDef<'db> {
+    pub fn params(&self) -> Option<Params<'db>> {
+        child(&self.0)
+    }
+
+    pub fn body(&self) -> Option<Block<'db>> {
+        child(&self.0)
+    }
+}
+
+impl<'db> Node<'db> for DestructorDef<'db> {
+    fn cast(syntax: SyntaxNode<'db>) -> Option<Self> {
+        match syntax.kind() {
+            DESTRUCTOR_DEF => Some(Self(syntax)),
+            _ => None,
+        }
+    }
+
+    fn syntax(&self) -> &SyntaxNode<'db> {
+        &self.0
+    }
+}
+
+fn trim_string_quotes(text: &str) -> &str {
+    text.strip_prefix('"').and_then(|text| text.strip_suffix('"')).unwrap_or(text)
+}
 
 /// Struct expression node (e.g. `Point { x: 1, y: 2 }`).
 pub struct StructExpr<'db>(SyntaxNode<'db>);

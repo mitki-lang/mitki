@@ -1,0 +1,15 @@
+struct Vec {
+    ptr: *mut int,
+    cap: int,
+    drop(var self) {
+        self.cap
+    },
+}
+
+enum Choice {
+    Some(int),
+    None,
+    drop(var self) {
+        self
+    },
+}

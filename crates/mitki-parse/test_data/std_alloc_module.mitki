@@ -1,0 +1,12 @@
+use std::alloc as alloc;
+use std::alloc::int as int_alloc;
+
+fun main() {
+    unsafe {
+        val bytes: *mut u8 = alloc::alloc(4, 1)
+        alloc::dealloc(bytes, 4, 1)
+
+        val ints: *mut int = int_alloc::alloc(4, 4)
+        int_alloc::dealloc(ints, 4, 4)
+    }
+}

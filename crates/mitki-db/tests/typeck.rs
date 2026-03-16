@@ -48,7 +48,7 @@ fn collect_actual(db: &RootDatabase, file: File, diagnostics: &[Diagnostic]) -> 
 #[track_caller]
 fn check(fixture: &str) {
     let db = RootDatabase::default();
-    let file = File::new(&db, "typeck.mtk".into(), fixture.to_owned());
+    let file = File::new(&db, "typeck.mitki".into(), fixture.to_owned());
 
     let diagnostics = check_file(&db, file);
     let mut actual = collect_actual(&db, file, diagnostics);
@@ -182,6 +182,72 @@ fun main() {
 }
 
 #[test]
+fn reserved_compiler_intrinsic_name_is_error() {
+    check(
+        r#"
+fun comptime() { //~ ERROR reserved compiler intrinsic name
+}
+"#,
+    );
+}
+
+#[test]
+fn reflection_intrinsics_require_comptime_fun() {
+    check(
+        r#"
+fun main(): str {
+    type_name(int) //~ ERROR only allowed inside `comptime fun`
+}
+"#,
+    );
+}
+
+#[test]
+fn comptime_requires_comptime_function_target() {
+    check(
+        r#"
+fun helper(): int {
+    42
+}
+
+fun main(): int {
+    comptime(helper()) //~ ERROR direct call to a top-level `comptime fun`
+}
+"#,
+    );
+}
+
+#[test]
+fn comptime_requires_zero_arg_target() {
+    check(
+        r#"
+comptime fun helper(value: int): int {
+    value
+}
+
+fun main(): int {
+    comptime(helper(42)) //~ ERROR target function to have no parameters
+}
+"#,
+    );
+}
+
+#[test]
+fn comptime_rejects_generic_targets() {
+    check(
+        r#"
+comptime fun helper[T](): int {
+    42
+}
+
+fun main(): int {
+    comptime(helper()) //~ ERROR comptime does not support generic functions
+}
+"#,
+    );
+}
+
+#[test]
 fn binary_operator_type_mismatch() {
     check(
         r#"
@@ -215,6 +281,139 @@ fun main() {
     val x: int = if true { //~ ERROR missing `else` branch
         1
     }
+}
+"#,
+    );
+}
+
+#[test]
+fn break_outside_loop_is_error() {
+    check(
+        r#"
+fun main() {
+    break //~ ERROR `break` is only allowed inside `loop`
+}
+"#,
+    );
+}
+
+#[test]
+fn continue_outside_loop_is_error() {
+    check(
+        r#"
+fun main() {
+    continue //~ ERROR `continue` is only allowed inside `loop`
+}
+"#,
+    );
+}
+
+#[test]
+fn extern_struct_cannot_declare_destructor() {
+    check(
+        r#"
+extern struct Handle {
+    drop(var self) { //~ ERROR `extern struct` cannot declare a destructor
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn destructor_must_be_var_self() {
+    check(
+        r#"
+struct Vec {
+    drop(self: Vec) { //~ ERROR destructor parameter type is implicit
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn duplicate_destructor_is_error() {
+    check(
+        r#"
+struct Vec {
+    drop(var self) {},
+    drop(var self) {} //~ ERROR duplicate destructor declaration
+}
+"#,
+    );
+}
+
+#[test]
+fn typed_wasm_boundary_rejects_non_copy_types() {
+    check(
+        r#"
+struct Vec {
+    value: int,
+
+    drop(var self) {}
+}
+
+export fun main(value: Vec) { //~ ERROR typed Wasm imports/exports do not allow non-copy types
+}
+"#,
+    );
+}
+
+#[test]
+fn comptime_rejects_non_copy_return_types() {
+    check(
+        r#"
+struct Vec {
+    value: int,
+
+    drop(var self) {}
+}
+
+comptime fun build(): Vec {
+    Vec { value: 1 }
+}
+
+fun main() {
+    comptime(build()) //~ ERROR return a runtime-lowerable value
+}
+"#,
+    );
+}
+
+#[test]
+fn loop_body_is_checked_as_unit() {
+    check(
+        r#"
+fun main() {
+    loop {
+        1 //~ ERROR expected `()`, found `int`
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn loop_body_resolves_params_and_locals() {
+    check(
+        r#"
+struct Counter {
+    value: int,
+}
+
+fun get(counter: Counter): int {
+    counter.value
+}
+
+fun read(counter: Counter): int {
+    var result: int = 0
+    loop {
+        val current: int = counter.get()
+        result = current
+        break
+    }
+    result
 }
 "#,
     );
@@ -444,6 +643,17 @@ fun main() {
 }
 
 #[test]
+fn no_error_empty_array_with_annotation() {
+    check(
+        r#"
+fun main(): [int] {
+    []
+}
+"#,
+    );
+}
+
+#[test]
 fn no_error_nested_if() {
     check(
         r#"
@@ -561,6 +771,39 @@ fun main() {
 }
 
 #[test]
+fn array_literal_item_type_mismatch() {
+    check(
+        r#"
+fun main(): [int] {
+    [1, true] //~ ERROR expected `int`, found `bool`
+}
+"#,
+    );
+}
+
+#[test]
+fn array_repeat_length_must_be_int() {
+    check(
+        r#"
+fun main(): [int] {
+    [1; true] //~ ERROR expected `int`, found `bool`
+}
+"#,
+    );
+}
+
+#[test]
+fn array_ordering_is_rejected() {
+    check(
+        r#"
+fun main() {
+    [1, 2] < [1, 3] //~ ERROR cannot apply `<` to `[int]` and `[int]`
+}
+"#,
+    );
+}
+
+#[test]
 fn if_condition_string() {
     check(
         r#"
@@ -660,6 +903,22 @@ fun id[T](x: T): T { x }
 
 fun main() {
     val x: int = id(true) //~ ERROR expected `int`, found `bool`
+}
+"#,
+    );
+}
+
+#[test]
+fn generic_struct_type_application_substitutes_fields() {
+    check(
+        r#"
+struct Vec[T] {
+    items: [T],
+}
+
+fun main() {
+    val xs: Vec[int] = Vec { items: [1, 2, 3] }
+    val items: [int] = xs.items
 }
 "#,
     );
@@ -1149,7 +1408,7 @@ fn malformed_function_body_does_not_panic_diagnostic_mapping() {
     let db = RootDatabase::default();
     let file = File::new(
         &db,
-        "typeck.mtk".into(),
+        "typeck.mitki".into(),
         r#"
 fun main() {
     fun nested() {}
@@ -1170,7 +1429,7 @@ fn malformed_field_expr_does_not_panic() {
     let db = RootDatabase::default();
     let file = File::new(
         &db,
-        "typeck.mtk".into(),
+        "typeck.mitki".into(),
         r#"
 fun main() {
     val x = .
@@ -1220,6 +1479,543 @@ fun main() {
     val b = { x: 2, y: false };
     val c = if true { a } else { b };
     val x: int = c.x;
+}
+"#,
+    );
+}
+
+#[test]
+fn self_recursive_enum_typechecks() {
+    check(
+        r#"
+enum List {
+    Nil,
+    Cons(int, List),
+}
+
+fun main() {
+    val list = List.Cons(1, List.Nil);
+}
+"#,
+    );
+}
+
+#[test]
+fn mutually_recursive_enums_typecheck() {
+    check(
+        r#"
+enum Even {
+    Zero,
+    Succ(Odd),
+}
+
+enum Odd {
+    Succ(Even),
+}
+
+fun main() {
+    val even = Even.Succ(Odd.Succ(Even.Zero));
+}
+"#,
+    );
+}
+
+#[test]
+fn wasm_import_without_body_is_allowed() {
+    check(
+        r#"
+import "env" fun host(x: int): int;
+
+fun main(): int {
+    0
+}
+"#,
+    );
+}
+
+#[test]
+fn wasm_import_body_is_error() {
+    check(
+        r#"
+import "env" fun host(): int { //~ ERROR Imported Wasm functions cannot have a body
+    0
+}
+"#,
+    );
+}
+
+#[test]
+fn missing_function_body_is_error() {
+    check(
+        r#"
+export fun answer(): int; //~ ERROR Function body is required
+"#,
+    );
+}
+
+#[test]
+fn generic_wasm_export_is_error() {
+    check(
+        r#"
+export fun answer[T](): int { //~ ERROR Wasm imports and exports do not support generic functions
+    0
+}
+"#,
+    );
+}
+
+#[test]
+fn generic_wasm_import_origin_is_allowed_with_instance() {
+    check(
+        r#"
+import "env" fun id[T](value: T): T;
+import instance id[int];
+
+fun main(): int {
+    id(0)
+}
+"#,
+    );
+}
+
+#[test]
+fn boundary_instance_target_must_exist() {
+    check(
+        r#"
+export instance id[int]; //~ ERROR unknown boundary instance target `id`
+"#,
+    );
+}
+
+#[test]
+fn boundary_instance_target_must_be_generic() {
+    check(
+        r#"
+fun id(value: int): int {
+    value
+}
+
+export instance id[int]; //~ ERROR boundary instance target `id` must be a generic function
+"#,
+    );
+}
+
+#[test]
+fn import_instance_requires_imported_generic_function() {
+    check(
+        r#"
+fun id[T](value: T): T {
+    value
+}
+
+import instance id[int]; //~ ERROR import instance target `id` must be an imported generic function
+"#,
+    );
+}
+
+#[test]
+fn export_instance_requires_non_import_generic_function() {
+    check(
+        r#"
+import "env" fun id[T](value: T): T;
+
+export instance id[int]; //~ ERROR export instance target `id` must be a non-import generic function
+"#,
+    );
+}
+
+#[test]
+fn boundary_instance_type_arg_arity_is_checked() {
+    check(
+        r#"
+fun id[T](value: T): T {
+    value
+}
+
+export instance id[int, bool]; //~ ERROR boundary instance target `id` expects 1 type argument(s), found 2
+"#,
+    );
+}
+
+#[test]
+fn duplicate_boundary_instances_are_rejected() {
+    check(
+        r#"
+fun id[T](value: T): T {
+    value
+}
+
+export instance id[int];
+export instance id[int]; //~ ERROR duplicate boundary instance declaration for `id`
+"#,
+    );
+}
+
+#[test]
+fn runtime_name_conflict_is_allowed() {
+    check(
+        r#"
+fun print_str(value: str) {
+}
+
+fun main() {
+    print_str("ok")
+}
+"#,
+    );
+}
+
+#[test]
+fn non_exhaustive_match_is_error() {
+    check(
+        r#"
+enum Option {
+    Some(int),
+    None,
+}
+
+fun main(value: Option): int {
+    match value { //~ ERROR non-exhaustive match
+        .Some(x) => x
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn unreachable_match_arm_is_error() {
+    check(
+        r#"
+fun main(value: bool): int {
+    match value {
+        _ => 1,
+        false => 0 //~ ERROR unreachable match arm
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn union_match_literal_patterns_typecheck() {
+    check(
+        r#"
+fun main(value: int | bool): int {
+    match value {
+        true => 1,
+        false => 0,
+        _ => 2,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn union_match_typed_binding_patterns_typecheck() {
+    check(
+        r#"
+fun takes_int(value: int): str {
+    "int"
+}
+
+fun main(value: int | str): str {
+    match value {
+        s: str => s,
+        n: int => takes_int(n),
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn union_match_typed_wildcard_pattern_typechecks() {
+    check(
+        r#"
+fun main(value: int | str): str {
+    match value {
+        _: int => "int",
+        s: str => s,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn union_match_tuple_member_typechecks() {
+    check(
+        r#"
+fun main(value: int | (bool, int)): int {
+    match value {
+        (flag, n) => if flag { n } else { 0 },
+        _ => 1,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn union_match_tuple_member_with_typed_subpatterns_typechecks() {
+    check(
+        r#"
+fun main(value: int | (int, str)): int {
+    match value {
+        (n: int, _: str) => n,
+        _ => 0,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn union_match_struct_member_typechecks() {
+    check(
+        r#"
+struct Box {
+    value: int,
+}
+
+fun main(value: int | Box): int {
+    match value {
+        Box { value } => value,
+        _ => 0,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn union_match_struct_member_with_typed_subpatterns_typechecks() {
+    check(
+        r#"
+struct Box {
+    value: int,
+}
+
+fun main(value: int | Box): int {
+    match value {
+        Box { value: n: int } => n,
+        _ => 0,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn union_match_enum_member_typechecks() {
+    check(
+        r#"
+enum Choice {
+    Some(int),
+    None,
+}
+
+fun main(value: int | Choice): int {
+    match value {
+        .Some(n) => n,
+        .None => 0,
+        _ => 1,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn union_match_enum_member_with_typed_subpatterns_typechecks() {
+    check(
+        r#"
+enum Choice {
+    Some(int),
+    None,
+}
+
+fun main(value: int | Choice): int {
+    match value {
+        .Some(n: int) => n,
+        .None => 0,
+        _ => 1,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn ambiguous_union_pattern_is_error() {
+    check(
+        r#"
+fun main(value: (int, int) | (bool, bool)): int {
+    match value {
+        (x, y) => 0 //~ ERROR pattern matches multiple members of union
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn ambiguous_typed_union_pattern_is_error() {
+    check(
+        r#"
+struct Box {
+    value: int,
+}
+
+fun main(value: Box | { value: int }): int {
+    match value {
+        v: { value: int } => 0 //~ ERROR pattern matches multiple members of union
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn literal_pattern_mismatch_points_at_pattern() {
+    check(
+        r#"
+fun main(value: int): int {
+    match value {
+        true => //~ ERROR expected `bool`, found `int`
+            1,
+        _ => 0,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn typed_pattern_mismatch_points_at_pattern() {
+    check(
+        r#"
+fun main(value: int): int {
+    match value {
+        _: str => 0, //~ ERROR expected `str`, found `int`
+        _ => 1,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn unknown_type_in_typed_pattern_is_error() {
+    check(
+        r#"
+fun main(value: int | str): int {
+    match value {
+        x: Missing => 0, //~ ERROR Unknown type `Missing`
+        _ => 1,
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn refutable_val_pattern_is_error() {
+    check(
+        r#"
+fun main() { //~ ERROR refutable patterns are only allowed in `match` arms
+    val 0 = 1
+}
+"#,
+    );
+}
+
+#[test]
+fn refutable_param_pattern_is_error() {
+    check(
+        r#"
+fun main(0: int) { //~ ERROR refutable patterns are only allowed in `match` arms
+}
+"#,
+    );
+}
+
+#[test]
+fn duplicate_pattern_binding_is_error() {
+    check(
+        r#"
+fun main() {
+    val (x, x) = (1, 2) //~ ERROR duplicate binding in pattern
+}
+"#,
+    );
+}
+
+#[test]
+fn struct_pattern_missing_field_is_error() {
+    check(
+        r#"
+struct Point {
+    x: int,
+    y: int,
+}
+
+fun main(point: Point): int {
+    match point {
+        Point { x } => x //~ ERROR missing field `y`
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn struct_pattern_unknown_field_is_error() {
+    check(
+        r#"
+struct Point {
+    x: int,
+    y: int,
+}
+
+fun main(point: Point): int {
+    match point {
+        Point { x, y, z } => x //~ ERROR unknown field `z`
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn variant_pattern_unknown_variant_is_error() {
+    check(
+        r#"
+enum Option {
+    Some(int),
+    None,
+}
+
+fun main(value: Option): int {
+    match value {
+        .Other => 0 //~ ERROR Unresolved identifier
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn float_pattern_is_not_supported() {
+    check(
+        r#"
+fun main(value: float): int {
+    match value {
+        1.0 => 1, //~ ERROR float patterns are not supported
+        _ => 0,
+    }
 }
 "#,
     );

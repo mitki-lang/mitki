@@ -21,9 +21,11 @@ harness = false
 
 [dev-dependencies]
 codspeed-criterion-compat = { version = "4.3", default-features = false }
+mitki-analysis.workspace = true
 mitki-ide.workspace = true
 mitki-inputs.workspace = true
 mitki-parse.workspace = true
 mitki-tokenizer.workspace = true
+mitki-yellow.workspace = true
 salsa.workspace = true
 text-size.workspace = true
