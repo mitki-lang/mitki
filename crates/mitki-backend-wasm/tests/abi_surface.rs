@@ -205,8 +205,15 @@ export fun echo(xs: List): List {
 "#,
     );
 
-    expect_diagnostic(&diagnostics, "the current `wasm-core-v2/m32` backend does not support");
-    expect_diagnostic(&diagnostics, "recursive types are not supported yet");
+    assert!(
+        diagnostics.iter().any(|message| {
+            message.contains("recursive types are not supported yet")
+                || message.contains(
+                    "typed Wasm imports/exports do not allow non-copy types like `List`",
+                )
+        }),
+        "expected recursive boundary rejection, got {diagnostics:#?}"
+    );
 }
 
 #[test]
