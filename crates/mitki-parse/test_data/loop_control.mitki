@@ -1,9 +1,0 @@
-fun main() {
-    loop {
-        if true {
-            continue
-        } else {
-            break
-        }
-    }
-}

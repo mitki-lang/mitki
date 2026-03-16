@@ -1,4 +1,0 @@
-enum Option {
-    Some(int),
-    None,
-}

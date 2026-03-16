@@ -1,3 +1,0 @@
-comptime fun reflect(): str {
-    type_name(int)
-}
