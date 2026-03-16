@@ -1,0 +1,185 @@
+MODULE
+  ENUM_DEF
+    ENUM_KW: "enum"
+    IDENT
+      NAME: "Option"
+    ENUM_VARIANT_LIST
+      LEFT_BRACE: "{"
+      ENUM_VARIANT
+        IDENT
+          NAME: "Some"
+        TUPLE_TYPE
+          LEFT_PAREN: "("
+          PATH_TYPE
+            NAME: "int"
+          RIGHT_PAREN: ")"
+      COMMA: ","
+      ENUM_VARIANT
+        IDENT
+          NAME: "None"
+      COMMA: ","
+      RIGHT_BRACE: "}"
+  STRUCT_DEF
+    STRUCT_KW: "struct"
+    IDENT
+      NAME: "Point"
+    STRUCT_FIELD_LIST
+      LEFT_BRACE: "{"
+      STRUCT_FIELD
+        IDENT
+          NAME: "x"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "int"
+      COMMA: ","
+      STRUCT_FIELD
+        IDENT
+          NAME: "y"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "int"
+      COMMA: ","
+      RIGHT_BRACE: "}"
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      PARAM
+        BINDING_PATTERN
+          IDENT
+            NAME: "value"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "Option"
+      COMMA: ","
+      PARAM
+        BINDING_PATTERN
+          IDENT
+            NAME: "point"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "Point"
+      RIGHT_PAREN: ")"
+    RETURN_TYPE
+      COLON: ":"
+      PATH_TYPE
+        NAME: "int"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      MATCH_EXPR
+        MATCH_KW: "match"
+        PATH_EXPR
+          NAME_REF
+            NAME: "value"
+        LEFT_BRACE: "{"
+        MATCH_ARM
+          VARIANT_PATTERN
+            FIELD_PATTERN
+              DOT: "."
+              IDENT
+                NAME: "Some"
+            LEFT_PAREN: "("
+            PAREN_PATTERN
+              LEFT_PAREN: "("
+              LITERAL_PATTERN
+                INT_NUMBER: "1"
+              RIGHT_PAREN: ")"
+            RIGHT_PAREN: ")"
+          FAT_ARROW: "=>"
+          LITERAL
+            INT_NUMBER: "1"
+        COMMA: ","
+        MATCH_ARM
+          VARIANT_PATTERN
+            FIELD_PATTERN
+              PATH_PATTERN
+                IDENT
+                  NAME: "Option"
+              DOT: "."
+              IDENT
+                NAME: "Some"
+            LEFT_PAREN: "("
+            BINDING_PATTERN
+              IDENT
+                NAME: "n"
+            RIGHT_PAREN: ")"
+          FAT_ARROW: "=>"
+          MATCH_EXPR
+            MATCH_KW: "match"
+            PATH_EXPR
+              NAME_REF
+                NAME: "point"
+            LEFT_BRACE: "{"
+            MATCH_ARM
+              STRUCT_PATTERN
+                PATH_PATTERN
+                  IDENT
+                    NAME: "Point"
+                LEFT_BRACE: "{"
+                STRUCT_PATTERN_FIELD
+                  IDENT
+                    NAME: "x"
+                COMMA: ","
+                STRUCT_PATTERN_FIELD
+                  IDENT
+                    NAME: "y"
+                  COLON: ":"
+                  LITERAL_PATTERN
+                    INT_NUMBER: "22"
+                RIGHT_BRACE: "}"
+              FAT_ARROW: "=>"
+              BIN_OP_SEQ
+                PATH_EXPR
+                  NAME_REF
+                    NAME: "x"
+                BINARY_OPERATOR: "+"
+                PATH_EXPR
+                  NAME_REF
+                    NAME: "n"
+            COMMA: ","
+            MATCH_ARM
+              STRUCT_PATTERN
+                PATH_PATTERN
+                  IDENT
+                    NAME: "Point"
+                LEFT_BRACE: "{"
+                STRUCT_PATTERN_FIELD
+                  IDENT
+                    NAME: "x"
+                  COLON: ":"
+                  BINDING_PATTERN
+                    IDENT
+                      NAME: "a"
+                COMMA: ","
+                STRUCT_PATTERN_FIELD
+                  IDENT
+                    NAME: "y"
+                RIGHT_BRACE: "}"
+              FAT_ARROW: "=>"
+              BIN_OP_SEQ
+                PATH_EXPR
+                  NAME_REF
+                    NAME: "a"
+                BINARY_OPERATOR: "+"
+                PATH_EXPR
+                  NAME_REF
+                    NAME: "y"
+            COMMA: ","
+            RIGHT_BRACE: "}"
+        COMMA: ","
+        MATCH_ARM
+          VARIANT_PATTERN
+            FIELD_PATTERN
+              DOT: "."
+              IDENT
+                NAME: "None"
+          FAT_ARROW: "=>"
+          LITERAL
+            INT_NUMBER: "0"
+        COMMA: ","
+        RIGHT_BRACE: "}"
+      RIGHT_BRACE: "}"
+
+Errors:

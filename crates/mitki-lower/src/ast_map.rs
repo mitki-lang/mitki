@@ -37,8 +37,15 @@ impl AstMap {
         let mut map = HashTable::default();
 
         root.children().for_each(|node| {
-            if matches!(node.kind(), SyntaxKind::FN | SyntaxKind::STRUCT_DEF | SyntaxKind::ENUM_DEF)
-            {
+            if matches!(
+                node.kind(),
+                SyntaxKind::FN
+                    | SyntaxKind::INSTANCE_ITEM
+                    | SyntaxKind::MOD_ITEM
+                    | SyntaxKind::USE_ITEM
+                    | SyntaxKind::STRUCT_DEF
+                    | SyntaxKind::ENUM_DEF
+            ) {
                 arena.alloc(SyntaxNodePtr::new(&node));
             }
         });

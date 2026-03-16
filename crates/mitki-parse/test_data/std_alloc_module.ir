@@ -1,0 +1,137 @@
+MODULE
+  USE_ITEM
+    USE_KW: "use"
+    PATH_EXPR
+      NAME_REF
+        NAME: "std"
+      DOUBLE_COLON: "::"
+      NAME_REF
+        NAME: "alloc"
+    AS_KW: "as"
+    IDENT
+      NAME: "alloc"
+    SEMICOLON: ";"
+  USE_ITEM
+    USE_KW: "use"
+    PATH_EXPR
+      NAME_REF
+        NAME: "std"
+      DOUBLE_COLON: "::"
+      NAME_REF
+        NAME: "alloc"
+      DOUBLE_COLON: "::"
+      NAME_REF
+        NAME: "int"
+    AS_KW: "as"
+    IDENT
+      NAME: "int_alloc"
+    SEMICOLON: ";"
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      UNSAFE_EXPR
+        NAME: "unsafe"
+        STMT_LIST
+          LEFT_BRACE: "{"
+          VAL_STMT
+            VAL_KW: "val"
+            BINDING_PATTERN
+              IDENT
+                NAME: "bytes"
+            COLON: ":"
+            POINTER_TYPE
+              PREFIX_OPERATOR: "*"
+              NAME: "mut"
+              PATH_TYPE
+                NAME: "u8"
+            EQ: "="
+            CALL_EXPR
+              PATH_EXPR
+                NAME_REF
+                  NAME: "alloc"
+                DOUBLE_COLON: "::"
+                NAME_REF
+                  NAME: "alloc"
+              ARG_LIST
+                LEFT_PAREN: "("
+                LITERAL
+                  INT_NUMBER: "4"
+                COMMA: ","
+                LITERAL
+                  INT_NUMBER: "1"
+                RIGHT_PAREN: ")"
+          CALL_EXPR
+            PATH_EXPR
+              NAME_REF
+                NAME: "alloc"
+              DOUBLE_COLON: "::"
+              NAME_REF
+                NAME: "dealloc"
+            ARG_LIST
+              LEFT_PAREN: "("
+              PATH_EXPR
+                NAME_REF
+                  NAME: "bytes"
+              COMMA: ","
+              LITERAL
+                INT_NUMBER: "4"
+              COMMA: ","
+              LITERAL
+                INT_NUMBER: "1"
+              RIGHT_PAREN: ")"
+          VAL_STMT
+            VAL_KW: "val"
+            BINDING_PATTERN
+              IDENT
+                NAME: "ints"
+            COLON: ":"
+            POINTER_TYPE
+              PREFIX_OPERATOR: "*"
+              NAME: "mut"
+              PATH_TYPE
+                NAME: "int"
+            EQ: "="
+            CALL_EXPR
+              PATH_EXPR
+                NAME_REF
+                  NAME: "int_alloc"
+                DOUBLE_COLON: "::"
+                NAME_REF
+                  NAME: "alloc"
+              ARG_LIST
+                LEFT_PAREN: "("
+                LITERAL
+                  INT_NUMBER: "4"
+                COMMA: ","
+                LITERAL
+                  INT_NUMBER: "4"
+                RIGHT_PAREN: ")"
+          CALL_EXPR
+            PATH_EXPR
+              NAME_REF
+                NAME: "int_alloc"
+              DOUBLE_COLON: "::"
+              NAME_REF
+                NAME: "dealloc"
+            ARG_LIST
+              LEFT_PAREN: "("
+              PATH_EXPR
+                NAME_REF
+                  NAME: "ints"
+              COMMA: ","
+              LITERAL
+                INT_NUMBER: "4"
+              COMMA: ","
+              LITERAL
+                INT_NUMBER: "4"
+              RIGHT_PAREN: ")"
+          RIGHT_BRACE: "}"
+      RIGHT_BRACE: "}"
+
+Errors:

@@ -12,8 +12,23 @@ anyhow.workspace = true
 camino.workspace = true
 clap = { version = "4.5", features = ["derive"] }
 mimalloc = "0.1"
+mitki-abi.workspace = true
+mitki-comptime-wasm.workspace = true
 mitki-db.workspace = true
 mitki-errors.workspace = true
+mitki-hir.workspace = true
 mitki-inputs.workspace = true
+mitki-lower.workspace = true
 mitki-lsp-server.workspace = true
+mitki-resolve.workspace = true
+mitki-typeck.workspace = true
+mitki-wasm-runtime.workspace = true
+mitki-yellow.workspace = true
 salsa.workspace = true
+wasmparser.workspace = true
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+tempfile = "3.27"
+wasmparser.workspace = true

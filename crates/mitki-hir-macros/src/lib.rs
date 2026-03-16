@@ -247,10 +247,8 @@ impl Schema {
                         list_types.push(field.ty.clone());
                     }
                 }
-                LayoutKind::CallRange => {
-                    if node.fields.len() > 1 {
-                        list_types.push(node.fields[1].ty.clone());
-                    }
+                LayoutKind::CallRange if node.fields.len() > 1 => {
+                    list_types.push(node.fields[1].ty.clone());
                 }
                 LayoutKind::BlockWithTail => {
                     if let Some(field) = node.fields.first() {
@@ -745,6 +743,7 @@ fn constructor_suffix(name: &Ident) -> String {
 fn accessor_name(name: &Ident) -> String {
     match name.to_string().as_str() {
         "If" => "if_expr".to_string(),
+        "Match" => "match_expr".to_string(),
         "Closure" => "closure_parts".to_string(),
         "Block" => "block_stmts".to_string(),
         "TypePath" => "type_ref".to_string(),

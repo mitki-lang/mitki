@@ -6,23 +6,27 @@ MODULE
     PARAM_LIST
       LEFT_PAREN: "("
       PARAM
-        IDENT
-          NAME: "x"
+        BINDING_PATTERN
+          IDENT
+            NAME: "x"
       COMMA: ","
       PARAM
-        IDENT
-          NAME: "y"
+        BINDING_PATTERN
+          IDENT
+            NAME: "y"
         COLON: ":"
         PATH_TYPE
           NAME: "i32"
       COMMA: ","
       PARAM
-        IDENT
-          NAME: "z"
+        BINDING_PATTERN
+          IDENT
+            NAME: "z"
       COMMA: ","
       PARAM
-        IDENT
-          NAME: "t"
+        BINDING_PATTERN
+          IDENT
+            NAME: "t"
         COLON: ":"
         PATH_TYPE
           NAME: "i32"

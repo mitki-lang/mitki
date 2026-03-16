@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+mitki-inputs.workspace = true
 mitki-span.workspace = true
 mitki-hir-macros = { path = "../mitki-hir-macros" }
 salsa.workspace = true

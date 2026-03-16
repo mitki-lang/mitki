@@ -2,6 +2,20 @@ use mitki_span::Symbol;
 
 use super::{ExprId, NodeStore, ParamId, TyId};
 
+#[derive(Debug, Clone, PartialEq, Eq, Default, salsa::Update)]
+pub enum WasmLinkage<'db> {
+    #[default]
+    Internal,
+    ImplicitMainExport,
+    Export,
+    Import {
+        module: Symbol<'db>,
+    },
+    RawImport {
+        module: Symbol<'db>,
+    },
+}
+
 #[derive(Default, Debug, PartialEq, Eq, salsa::Update)]
 pub struct Function<'db> {
     node_store: NodeStore<'db>,
@@ -10,6 +24,9 @@ pub struct Function<'db> {
     params: Vec<ParamId>,
     body: ExprId,
     ret_type: TyId,
+    linkage: WasmLinkage<'db>,
+    comptime: bool,
+    unsafe_: bool,
 }
 
 impl<'db> Function<'db> {
@@ -37,6 +54,18 @@ impl<'db> Function<'db> {
         self.body = body;
     }
 
+    pub fn set_linkage(&mut self, linkage: WasmLinkage<'db>) {
+        self.linkage = linkage;
+    }
+
+    pub fn set_comptime(&mut self, comptime: bool) {
+        self.comptime = comptime;
+    }
+
+    pub fn set_unsafe(&mut self, unsafe_: bool) {
+        self.unsafe_ = unsafe_;
+    }
+
     pub fn type_params(&self) -> &[Symbol<'db>] {
         &self.type_params
     }
@@ -51,5 +80,17 @@ impl<'db> Function<'db> {
 
     pub fn body(&self) -> ExprId {
         self.body
+    }
+
+    pub fn linkage(&self) -> &WasmLinkage<'db> {
+        &self.linkage
+    }
+
+    pub fn is_comptime(&self) -> bool {
+        self.comptime
+    }
+
+    pub fn is_unsafe(&self) -> bool {
+        self.unsafe_
     }
 }

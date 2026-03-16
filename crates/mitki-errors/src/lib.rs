@@ -4,16 +4,17 @@ use annotate_snippets::Snippet;
 pub use annotate_snippets::{Level, Renderer};
 pub use text_size::TextRange;
 
-#[derive(salsa::Update, PartialEq, Clone)]
+#[derive(salsa::Update, PartialEq, Clone, Debug)]
 pub struct Diagnostic {
     level: Level,
     message: String,
     range: TextRange,
+    file: Option<String>,
 }
 
 impl Diagnostic {
     pub fn new(level: Level, message: impl Into<String>, range: TextRange) -> Self {
-        Self { level, message: message.into(), range }
+        Self { level, message: message.into(), range, file: None }
     }
 
     pub fn error(message: impl Into<String>, range: TextRange) -> Self {
@@ -30,6 +31,15 @@ impl Diagnostic {
 
     pub fn range(&self) -> TextRange {
         self.range
+    }
+
+    pub fn file(&self) -> Option<&str> {
+        self.file.as_deref()
+    }
+
+    pub fn with_file(mut self, file: impl Into<String>) -> Self {
+        self.file = Some(file.into());
+        self
     }
 
     pub fn render<'a>(

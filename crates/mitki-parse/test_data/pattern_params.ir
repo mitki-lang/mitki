@@ -1,0 +1,140 @@
+MODULE
+  STRUCT_DEF
+    STRUCT_KW: "struct"
+    IDENT
+      NAME: "Point"
+    STRUCT_FIELD_LIST
+      LEFT_BRACE: "{"
+      STRUCT_FIELD
+        IDENT
+          NAME: "x"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "int"
+      COMMA: ","
+      STRUCT_FIELD
+        IDENT
+          NAME: "y"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "int"
+      COMMA: ","
+      RIGHT_BRACE: "}"
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      PARAM
+        TUPLE_PATTERN
+          LEFT_PAREN: "("
+          BINDING_PATTERN
+            IDENT
+              NAME: "lhs"
+          COMMA: ","
+          BINDING_PATTERN
+            IDENT
+              NAME: "rhs"
+          RIGHT_PAREN: ")"
+        COLON: ":"
+        TUPLE_TYPE
+          LEFT_PAREN: "("
+          PATH_TYPE
+            NAME: "int"
+          COMMA: ","
+          PATH_TYPE
+            NAME: "int"
+          RIGHT_PAREN: ")"
+      COMMA: ","
+      PARAM
+        STRUCT_PATTERN
+          PATH_PATTERN
+            IDENT
+              NAME: "Point"
+          LEFT_BRACE: "{"
+          STRUCT_PATTERN_FIELD
+            IDENT
+              NAME: "x"
+          COMMA: ","
+          STRUCT_PATTERN_FIELD
+            IDENT
+              NAME: "y"
+          RIGHT_BRACE: "}"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "Point"
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      VAL_STMT
+        VAL_KW: "val"
+        TUPLE_PATTERN
+          LEFT_PAREN: "("
+          BINDING_PATTERN
+            IDENT
+              NAME: "a"
+          COMMA: ","
+          WILDCARD_PATTERN
+            NAME: "_"
+          RIGHT_PAREN: ")"
+        EQ: "="
+        TUPLE_EXPR
+          LEFT_PAREN: "("
+          PATH_EXPR
+            NAME_REF
+              NAME: "lhs"
+          COMMA: ","
+          PATH_EXPR
+            NAME_REF
+              NAME: "rhs"
+          RIGHT_PAREN: ")"
+      VAL_STMT
+        VAL_KW: "val"
+        STRUCT_PATTERN
+          PATH_PATTERN
+            IDENT
+              NAME: "Point"
+          LEFT_BRACE: "{"
+          STRUCT_PATTERN_FIELD
+            IDENT
+              NAME: "x"
+            COLON: ":"
+            BINDING_PATTERN
+              IDENT
+                NAME: "px"
+          COMMA: ","
+          STRUCT_PATTERN_FIELD
+            IDENT
+              NAME: "y"
+            COLON: ":"
+            BINDING_PATTERN
+              IDENT
+                NAME: "py"
+          RIGHT_BRACE: "}"
+        EQ: "="
+        STRUCT_EXPR
+          PATH_EXPR
+            NAME_REF
+              NAME: "Point"
+          STRUCT_EXPR_FIELD_LIST
+            LEFT_BRACE: "{"
+            STRUCT_EXPR_FIELD
+              IDENT
+                NAME: "x"
+              COLON: ":"
+              PATH_EXPR
+                NAME_REF
+                  NAME: "x"
+            COMMA: ","
+            STRUCT_EXPR_FIELD
+              IDENT
+                NAME: "y"
+              COLON: ":"
+              PATH_EXPR
+                NAME_REF
+                  NAME: "y"
+            RIGHT_BRACE: "}"
+      RIGHT_BRACE: "}"
+
+Errors:

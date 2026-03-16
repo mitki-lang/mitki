@@ -44,8 +44,13 @@ impl Server {
                     work_done_progress_options: Default::default(),
                     legend: lsp_types::SemanticTokensLegend {
                         token_types: vec![
-                            lsp_types::SemanticTokenType::KEYWORD,
-                            lsp_types::SemanticTokenType::OPERATOR,
+                            lsp_types::SemanticTokenType::FUNCTION,
+                            lsp_types::SemanticTokenType::PARAMETER,
+                            lsp_types::SemanticTokenType::VARIABLE,
+                            lsp_types::SemanticTokenType::TYPE,
+                            lsp_types::SemanticTokenType::ENUM_MEMBER,
+                            lsp_types::SemanticTokenType::new("builtinType"),
+                            lsp_types::SemanticTokenType::new("builtinFunction"),
                         ],
                         token_modifiers: vec![],
                     },

@@ -1,0 +1,43 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      PARAM
+        BINDING_PATTERN
+          IDENT
+            NAME: "arg"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "crate"
+          DOUBLE_COLON: "::"
+          NAME: "Point"
+      RIGHT_PAREN: ")"
+    RETURN_TYPE
+      COLON: ":"
+      PATH_TYPE
+        NAME: "crate"
+        DOUBLE_COLON: "::"
+        NAME: "Result"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      CALL_EXPR
+        PATH_EXPR
+          NAME_REF
+            NAME: "std"
+          DOUBLE_COLON: "::"
+          NAME_REF
+            NAME: "io"
+          DOUBLE_COLON: "::"
+          NAME_REF
+            NAME: "print_str"
+        ARG_LIST
+          LEFT_PAREN: "("
+          LITERAL
+            STRING: "\"hello\""
+          RIGHT_PAREN: ")"
+      RIGHT_BRACE: "}"
+
+Errors:

@@ -1,0 +1,24 @@
+MODULE
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "main"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      RIGHT_PAREN: ")"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      VAL_STMT
+        VAR_KW: "var"
+        BINDING_PATTERN
+          IDENT
+            NAME: "xs"
+        EQ: "="
+        LITERAL
+          INT_NUMBER: "1"
+      PATH_EXPR
+        NAME_REF
+          NAME: "xs"
+      RIGHT_BRACE: "}"
+
+Errors:

@@ -1,0 +1,44 @@
+[package]
+name = "mitki-backend-wasm"
+version = "0.1.0"
+license.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+mitki-abi.workspace = true
+mitki-abi-lower.workspace = true
+mitki-analysis.workspace = true
+mitki-codegen-core.workspace = true
+mitki-errors.workspace = true
+mitki-hir.workspace = true
+mitki-inputs.workspace = true
+mitki-lower.workspace = true
+mitki-parse.workspace = true
+mitki-resolve.workspace = true
+mitki-span.workspace = true
+mitki-typeck.workspace = true
+mitki-yellow.workspace = true
+rustc-hash.workspace = true
+serde.workspace = true
+salsa.workspace = true
+wasm-encoder.workspace = true
+wasmparser.workspace = true
+
+[dev-dependencies]
+expect-test = "1.5"
+mitki-abi.workspace = true
+mitki-comptime-wasm.workspace = true
+mitki-db.workspace = true
+mitki-inputs.workspace = true
+mitki-wasm-runtime.workspace = true
+wasm-encoder.workspace = true
+wasmparser.workspace = true
+wasmtime.workspace = true
+wasmprinter = "0.245.1"

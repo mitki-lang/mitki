@@ -1,0 +1,6 @@
+fun main(value: int): int {
+    match value {
+        => 0,
+        (x,) 1,
+    }
+}

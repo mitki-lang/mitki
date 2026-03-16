@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+camino.workspace = true
 hashbrown = "0.15"
 indexmap = "2.6"
 mitki-hir.workspace = true

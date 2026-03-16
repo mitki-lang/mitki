@@ -1,0 +1,4 @@
+fun main() {
+    var xs = 1
+    xs
+}

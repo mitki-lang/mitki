@@ -12,4 +12,4 @@ MODULE
     RIGHT_BRACE: "}"
 
 Errors:
-  expected parameter name
+  expected parameter pattern

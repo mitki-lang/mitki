@@ -1,0 +1,58 @@
+MODULE
+  STRUCT_DEF
+    STRUCT_KW: "struct"
+    IDENT
+      NAME: "Vec"
+    LEFT_BRACKET: "["
+    TYPE_PARAM
+      NAME: "T"
+    RIGHT_BRACKET: "]"
+    STRUCT_FIELD_LIST
+      LEFT_BRACE: "{"
+      STRUCT_FIELD
+        IDENT
+          NAME: "items"
+        COLON: ":"
+        ARRAY_TYPE
+          LEFT_BRACKET: "["
+          PATH_TYPE
+            NAME: "T"
+          RIGHT_BRACKET: "]"
+      COMMA: ","
+      RIGHT_BRACE: "}"
+  FN
+    FUN_KW: "fun"
+    IDENT
+      NAME: "take"
+    PARAM_LIST
+      LEFT_PAREN: "("
+      PARAM
+        BINDING_PATTERN
+          IDENT
+            NAME: "xs"
+        COLON: ":"
+        PATH_TYPE
+          NAME: "Vec"
+          GENERIC_ARG_LIST
+            LEFT_BRACKET: "["
+            PATH_TYPE
+              NAME: "int"
+            RIGHT_BRACKET: "]"
+      RIGHT_PAREN: ")"
+    RETURN_TYPE
+      COLON: ":"
+      PATH_TYPE
+        NAME: "Vec"
+        GENERIC_ARG_LIST
+          LEFT_BRACKET: "["
+          PATH_TYPE
+            NAME: "int"
+          RIGHT_BRACKET: "]"
+    STMT_LIST
+      LEFT_BRACE: "{"
+      PATH_EXPR
+        NAME_REF
+          NAME: "xs"
+      RIGHT_BRACE: "}"
+
+Errors:

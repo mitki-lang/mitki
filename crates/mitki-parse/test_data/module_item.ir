@@ -1,0 +1,8 @@
+MODULE
+  MOD_ITEM
+    MOD_KW: "mod"
+    IDENT
+      NAME: "foo"
+    SEMICOLON: ";"
+
+Errors:

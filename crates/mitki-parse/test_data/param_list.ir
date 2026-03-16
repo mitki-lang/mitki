@@ -16,8 +16,9 @@ MODULE
     PARAM_LIST
       LEFT_PAREN: "("
       PARAM
-        IDENT
-          NAME: "x"
+        BINDING_PATTERN
+          IDENT
+            NAME: "x"
         COLON: ":"
         PATH_TYPE
           NAME: "i32"
@@ -32,8 +33,9 @@ MODULE
     PARAM_LIST
       LEFT_PAREN: "("
       PARAM
-        IDENT
-          NAME: "x"
+        BINDING_PATTERN
+          IDENT
+            NAME: "x"
         COLON: ":"
         PATH_TYPE
           NAME: "i32"

@@ -1,12 +1,6 @@
-use mitki_analysis::Semantics;
-use mitki_hir::ty::{Ty, TyKind};
-use mitki_lower::hir::HasFunction as _;
-use mitki_lower::item::scope::{Declaration, HasItemScope as _};
+use mitki_analysis::{ResolveIntent, Semantics};
 use mitki_parse::FileParse as _;
-use mitki_resolve::Resolution;
-use mitki_span::IntoSymbol as _;
 use mitki_yellow::SyntaxKind;
-use mitki_yellow::ast::{self, HasName as _, Node as _};
 use text_size::TextRange;
 
 use crate::{FilePosition, find_name_at_offset};
@@ -21,164 +15,28 @@ impl super::Analysis {
         let root = file.parse(db).syntax_node();
 
         let name_at_offset = find_name_at_offset(root, offset, |kind| {
-            kind == SyntaxKind::NAME_REF || kind == SyntaxKind::PATH_TYPE
+            kind == SyntaxKind::NAME_REF
+                || kind == SyntaxKind::PATH_EXPR
+                || kind == SyntaxKind::PATH_TYPE
         })?;
         let original_token = name_at_offset.token;
-        let name_node = name_at_offset.node;
-
-        let symbol = original_token.text_trimmed().into_symbol(db);
-        let location = name_node
-            .ancestors()
-            .find_map(ast::Function::cast)
-            .map(|function| semantics.function(function.syntax()));
-
-        if let Some(location) = location {
-            let mut resolver = semantics.resolver(db, location, &name_node);
-
-            let mut type_guard = None;
-            if name_node.kind() == SyntaxKind::PATH_TYPE {
-                let source_map = location.hir_function(db).source_map(db);
-                if let Some(ty_id) = source_map.syntax_type(&name_node) {
-                    type_guard = Some(resolver.scopes_for_type(ty_id));
-                }
-            }
-
-            if let Some(target) = enum_variant_target(db, file, &resolver, &name_node, symbol) {
-                return Some((original_token.trimmed_range(), target));
-            }
-
-            let resolution = resolver.resolve_path(symbol);
-            if let Some(guard) = type_guard {
-                resolver.reset(guard);
-            }
-
-            match resolution? {
-                Resolution::Local(path) => {
-                    let source_map = location.hir_function(db).source_map(db);
-                    let range = source_map.node_syntax(path.into()).range;
-
-                    Some((original_token.trimmed_range(), range))
-                }
-                Resolution::Function(function_location) => {
-                    let function = function_location.source(db);
-                    let function_name_range = function.name().unwrap().text_range();
-
-                    Some((original_token.trimmed_range(), function_name_range))
-                }
-                Resolution::Type(ty) => type_definition_range(db, file, ty)
-                    .map(|range| (original_token.trimmed_range(), range)),
-            }
+        let name_node = if name_at_offset.node.kind() == SyntaxKind::NAME_REF {
+            name_at_offset
+                .node
+                .ancestors()
+                .find(|ancestor| {
+                    matches!(ancestor.kind(), SyntaxKind::PATH_EXPR | SyntaxKind::PATH_TYPE)
+                })
+                .unwrap_or(name_at_offset.node)
         } else {
-            file.item_scope(db)
-                .get_type(&symbol)
-                .and_then(|ty| type_definition_range(db, file, ty))
-                .map(|range| (original_token.trimmed_range(), range))
-        }
-    }
-}
-
-fn enum_variant_target(
-    db: &dyn salsa::Database,
-    file: mitki_inputs::File,
-    resolver: &mitki_resolve::Resolver<'_>,
-    name_ref: &mitki_yellow::SyntaxNode,
-    variant_name: mitki_span::Symbol<'_>,
-) -> Option<TextRange> {
-    let field_expr = name_ref.ancestors().find_map(ast::FieldExpr::cast)?;
-    let field_name = field_expr.name()?;
-    if field_name.syntax().text_range() != name_ref.text_range() {
-        return None;
-    }
-
-    let enum_ty = if let Some(base_expr) = field_expr.expr() {
-        let ast::Expr::Path(path) = base_expr else {
-            return None;
+            name_at_offset.node
         };
-        let base_name = path.name()?.as_str().into_symbol(db);
-        match resolver.resolve_path(base_name) {
-            Some(Resolution::Type(ty)) => ty,
-            _ => return None,
-        }
-    } else {
-        resolver.resolve_enum_variant(variant_name)?
-    };
 
-    enum_variant_definition_range(db, file, enum_ty, variant_name)
-}
+        let resolution = semantics.resolve_at(db, &name_node, ResolveIntent::Any);
+        let target = semantics.definition_target_at(db, &name_node, resolution.target?)?;
 
-fn enum_variant_definition_range(
-    db: &dyn salsa::Database,
-    file: mitki_inputs::File,
-    enum_ty: Ty<'_>,
-    variant_name: mitki_span::Symbol<'_>,
-) -> Option<TextRange> {
-    let TyKind::Enum { name, .. } = enum_ty.kind(db) else {
-        return None;
-    };
-
-    let enum_decl = file
-        .item_scope(db)
-        .declarations()
-        .iter()
-        .filter_map(|decl| match decl {
-            Declaration::Enum(enum_decl) => Some(*enum_decl),
-            _ => None,
-        })
-        .find(|enum_decl| {
-            enum_decl
-                .source(db)
-                .name()
-                .is_some_and(|enum_name| enum_name.as_str().into_symbol(db) == *name)
-        })?;
-
-    let variants = enum_decl.source(db).variant_list()?;
-    for variant in variants.variants() {
-        let Some(name_node) = variant.name() else {
-            continue;
-        };
-        if name_node.as_str().into_symbol(db) == variant_name {
-            return Some(name_node.text_range());
-        }
+        Some((original_token.trimmed_range(), target))
     }
-
-    None
-}
-
-fn type_definition_range(
-    db: &dyn salsa::Database,
-    file: mitki_inputs::File,
-    ty: Ty<'_>,
-) -> Option<TextRange> {
-    let ty_name = match ty.kind(db) {
-        TyKind::Struct { name, .. } | TyKind::Enum { name, .. } => *name,
-        _ => return None,
-    };
-
-    for declaration in file.item_scope(db).declarations() {
-        match declaration {
-            Declaration::Struct(struct_decl) => {
-                let source = struct_decl.source(db);
-                let Some(name_node) = source.name() else {
-                    continue;
-                };
-                if name_node.as_str().into_symbol(db) == ty_name {
-                    return Some(name_node.text_range());
-                }
-            }
-            Declaration::Enum(enum_decl) => {
-                let source = enum_decl.source(db);
-                let Some(name_node) = source.name() else {
-                    continue;
-                };
-                if name_node.as_str().into_symbol(db) == ty_name {
-                    return Some(name_node.text_range());
-                }
-            }
-            Declaration::Function(_) => {}
-        }
-    }
-
-    None
 }
 
 #[cfg(test)]
@@ -418,6 +276,27 @@ fun foo(x: i32) {
     }
 
     #[test]
+    fn else_if_param_does_not_jump_to_other_function_param() {
+        check_def_marker(
+            r#"
+fun other(src: str) {
+    src
+}
+
+fun digit_name($def$value: u32): str {
+    if value == 0 {
+        "0"
+    } else if val$0ue == 1 {
+        "1"
+    } else {
+        "2"
+    }
+}
+"#,
+        );
+    }
+
+    #[test]
     fn nested_closure_capture() {
         check(
             r#"
@@ -549,6 +428,31 @@ fun main() {
             r#"
 fun main() {
     val x: i$0nt = 1
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn runtime_builtin_has_no_definition() {
+        check_none(
+            r#"
+fun main() {
+    pr$0int_i32(1)
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn crate_qualified_function() {
+        check(
+            r#"
+fun add() {}
+  //^^^
+
+fun main() {
+    crate::ad$0d();
 }
 "#,
         );

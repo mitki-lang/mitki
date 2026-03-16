@@ -1,0 +1,20 @@
+enum Option {
+    Some(int),
+    None,
+}
+
+struct Point {
+    x: int,
+    y: int,
+}
+
+fun main(value: Option, point: Point): int {
+    match value {
+        .Some((1)) => 1,
+        Option.Some(n) => match point {
+            Point { x, y: 22 } => x + n,
+            Point { x: a, y } => a + y,
+        },
+        .None => 0,
+    }
+}

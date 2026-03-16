@@ -4,5 +4,5 @@ pub mod item;
 
 pub use ast_map::HasAstMap;
 pub use hir::HasFunction;
-pub use item::scope::HasItemScope;
+pub use item::scope::{HasItemDecls, HasPackageDecls, HasVisibleItems};
 pub use item::tree::HasItemTree;
