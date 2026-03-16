@@ -1,3 +1,0 @@
-fun a() {}
-fun b(x: i32) {}
-fun c(x: i32, ) {}

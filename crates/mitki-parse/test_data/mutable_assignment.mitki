@@ -1,3 +1,0 @@
-fun bump(var counter: Counter, delta: int) {
-    counter.value = counter.value + delta
-}

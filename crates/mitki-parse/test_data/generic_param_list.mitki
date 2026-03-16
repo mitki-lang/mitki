@@ -1,3 +1,0 @@
-fun main[]() {}
-fun main[T]() {}
-fun main[,]() {}

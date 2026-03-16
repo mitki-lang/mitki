@@ -1,5 +1,0 @@
-export fun answer(): int {
-    42
-}
-
-import "env" fun host(x: int): bool;

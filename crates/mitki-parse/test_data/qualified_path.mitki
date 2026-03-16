@@ -1,3 +1,0 @@
-fun main(arg: crate::Point): crate::Result {
-    std::io::print_str("hello")
-}
